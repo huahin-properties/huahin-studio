@@ -983,16 +983,26 @@ function bindStyleCard(root) {
 
 // ---- เพลงสำเร็จรูป (CC0 จาก OpenGameArt.org · รายละเอียดใบอนุญาต: assets/music/LICENSES.md) ----
 const MUSIC_CATALOG = [
-  { id: 'bossa-shop', name: 'Bossa Shop Theme', style: 'บอสซาโนวา เบาสบาย เสียงแผ่นเสียงวินเทจ', dur: 96, src: 'https://opengameart.org/content/bossa-shop-theme-in-low-fi-and-hd' },
-  { id: 'bossa-town', name: 'Bossa Town', style: 'บอสซาโนวา บรรยากาศชายหาด อบอุ่น', dur: 100, src: 'https://opengameart.org/content/bossa-town' },
-  { id: 'buy-something', name: 'Buy Something!', style: 'บอสซาโนวา/แจสเบาๆ แบบเพลงในห้างหรู', dur: 88, src: 'https://opengameart.org/content/shop-theme' },
-  { id: 'ladada-guitar', name: 'LaDaDa Guitar', style: 'แจสกีตาร์ สงบ', dur: 154, src: 'https://opengameart.org/content/ladada-guitar' },
-  { id: 'just-you-and-me', name: 'Just You and Me', style: 'กีตาร์แจสป๊อป อบอุ่น', dur: 99, src: 'https://opengameart.org/content/just-you-and-me-guitar' },
-  { id: 'jazz-slower', name: 'Jazz Slower', style: 'แจสบรรเลง จังหวะช้า', dur: 177, src: 'https://opengameart.org/content/jazz-slower' },
-  { id: 'taken-lightly', name: 'Taken Lightly', style: 'แจสเบาๆ ผ่อนคลาย', dur: 145, src: 'https://opengameart.org/content/taken-lightly' },
-  { id: 'jazz-relaxing', name: 'Relaxing Jazz', style: 'แจสรีแลกซ์ สบายๆ', dur: 133, src: 'https://opengameart.org/content/jazz-aug-4-2021' },
-  { id: 'slow-stride', name: 'Slow Stride', style: 'เปียโนช้า นุ่ม ชิลล์', dur: 131, src: 'https://opengameart.org/content/slow-stride' },
-  { id: 'calm-piano', name: 'Calm Piano', style: 'เปียโนสงบ ผสมแพดนุ่มๆ', dur: 165, src: 'https://opengameart.org/content/calm-piano-1-vaporware' },
+  { id: 'bossa-shop', name: 'Bossa Shop Theme', style: 'บอสซาโนวา เบาสบาย เสียงแผ่นเสียงวินเทจ', dur: 96, src: 'https://opengameart.org/content/bossa-shop-theme-in-low-fi-and-hd', by: 'SpringySpringo', lic: 'CC-BY 3.0 หรือ CC0 (เลือกใช้แบบ CC0)', chk: '21 พ.ย. 2569' },
+  { id: 'bossa-town', name: 'Bossa Town', style: 'บอสซาโนวา บรรยากาศชายหาด อบอุ่น', dur: 100, src: 'https://opengameart.org/content/bossa-town', by: 'KarateStudios', lic: 'CC0', chk: '21 พ.ย. 2569' },
+  { id: 'buy-something', name: 'Buy Something!', style: 'บอสซาโนวา/แจสเบาๆ แบบเพลงในห้างหรู', dur: 88, src: 'https://opengameart.org/content/shop-theme', by: 'CleytonKauffman', lic: 'CC0', chk: '21 พ.ย. 2569' },
+  { id: 'ladada-guitar', name: 'LaDaDa Guitar', style: 'แจสกีตาร์ สงบ', dur: 154, src: 'https://opengameart.org/content/ladada-guitar', by: 'Pro Sensory', lic: 'CC0', chk: '21 พ.ย. 2569' },
+  { id: 'just-you-and-me', name: 'Just You and Me', style: 'กีตาร์แจสป๊อป อบอุ่น', dur: 99, src: 'https://opengameart.org/content/just-you-and-me-guitar', by: 'Pro Sensory', lic: 'CC0', chk: '21 พ.ย. 2569' },
+  { id: 'jazz-slower', name: 'Jazz Slower', style: 'แจสบรรเลง จังหวะช้า', dur: 177, src: 'https://opengameart.org/content/jazz-slower', by: 'Pro Sensory', lic: 'CC0', chk: '21 พ.ย. 2569' },
+  { id: 'taken-lightly', name: 'Taken Lightly', style: 'แจสเบาๆ ผ่อนคลาย', dur: 145, src: 'https://opengameart.org/content/taken-lightly', by: 'Pro Sensory', lic: 'CC0', chk: '21 พ.ย. 2569' },
+  { id: 'jazz-relaxing', name: 'Relaxing Jazz', style: 'แจสรีแลกซ์ สบายๆ', dur: 133, src: 'https://opengameart.org/content/jazz-aug-4-2021', by: 'Pro Sensory', lic: 'CC0', chk: '21 พ.ย. 2569' },
+  { id: 'slow-stride', name: 'Slow Stride', style: 'เปียโนช้า นุ่ม ชิลล์', dur: 131, src: 'https://opengameart.org/content/slow-stride', by: 'isaiah658', lic: 'CC0', chk: '21 พ.ย. 2569' },
+  { id: 'calm-piano', name: 'Calm Piano', style: 'เปียโนสงบ ผสมแพดนุ่มๆ', dur: 165, src: 'https://opengameart.org/content/calm-piano-1-vaporware', by: 'cynicmusic', lic: 'CC0', chk: '21 พ.ย. 2569' },
+  { id: 'all-into-harmony', name: 'All into Harmony', style: 'แจสชิลล์ ผ่อนคลาย', dur: 102, src: 'https://opengameart.org/content/all-into-harmony', by: 'Pro Sensory', lic: 'CC0', chk: '21 พ.ย. 2569' },
+  { id: 'dream-2', name: 'Dream 2 (Guitar)', style: 'กีตาร์แจสฝัน ๆ ผ่อนคลาย', dur: 401, src: 'https://opengameart.org/content/dream-2', by: 'Pro Sensory', lic: 'CC0', chk: '21 พ.ย. 2569' },
+  { id: 'two-left-socks', name: 'Two Left Socks', style: 'บอสซาโนวาแบบเพลงในลิฟต์/ห้าง', dur: 200, src: 'https://opengameart.org/content/two-left-socks', by: 'congusbongus', lic: 'CC0', chk: '21 พ.ย. 2569' },
+  { id: 'which-brand-of-mustard-shall-i-buy', name: 'Which Brand Of Mustard', style: 'บอสซาโนวาเบา ๆ', dur: 130, src: 'https://opengameart.org/content/which-brand-of-mustard-shall-i-buy', by: 'congusbongus', lic: 'CC0', chk: '21 พ.ย. 2569' },
+  { id: 'honey-bear', name: 'Honey Bear', style: 'นุ่ม นิ่ม สงบ', dur: 80, src: 'https://opengameart.org/content/honey-bear', by: 'TinyWorlds', lic: 'CC0', chk: '21 พ.ย. 2569' },
+  { id: 'jazz-1', name: 'Jazz (Piano Swing)', style: 'เปียโนสวิงสั้น ๆ เรียบง่าย', dur: 72, src: 'https://opengameart.org/content/jazz-1', by: 'Spring Spring', lic: 'CC0', chk: '21 พ.ย. 2569' },
+  { id: 'cozy-puzzle-in-game-1', name: 'Cozy Puzzle 1', style: 'อบอุ่น ซาก ฟลูต มาลเลต', dur: 130, src: 'https://opengameart.org/content/cozy-puzzle-in-game-1', by: 'MintoDog', lic: 'CC0', chk: '21 พ.ย. 2569' },
+  { id: 'piano-emotional-solo-139', name: 'Piano Solo 139', style: 'เปียโนเดี่ยว นุ่ม สงบ', dur: 205, src: 'https://opengameart.org/content/piano-emotional-solo-139', by: 'Tozan', lic: 'CC0', chk: '21 พ.ย. 2569' },
+  { id: 'revelation', name: 'Revelation', style: 'กีตาร์อะคูสติก สงบ สดใส', dur: 85, src: 'https://opengameart.org/content/revelation', by: 'Indieteur', lic: 'CC0', chk: '21 พ.ย. 2569' },
+  { id: 'growing-village', name: 'Growing Village', style: 'เปียโนแนวลาติน', dur: 92, src: 'https://opengameart.org/content/growing-village', by: 'earlbeat', lic: 'CC0', chk: '21 พ.ย. 2569' },
 ];
 
 // ---- ขั้น 5: เสียง ----
@@ -1043,7 +1053,7 @@ function viewAudio() {
     <div class="seg"><b>🎵 เพลงประกอบ</b>
       <p class="hint">เลือกเพลงสำเร็จรูป (ฟรี ใบอนุญาต CC0 ไม่ต้องใส่เครดิต) แล้วกดฟังก่อนเลือก หรือใช้ไฟล์ของคุณเอง · เพลงสั้นกว่าคลิป แอปต่อวนให้จนจบคลิปอัตโนมัติ (ต่อเนียนด้วยครอสเฟด) · เพลงยาวกว่าคลิป แอปตัดที่จบคลิป · ท้ายคลิปเพลงค่อยๆ เฟดเอาต์เสมอ · ความยาวคลิปตอนนี้ <b>${fmtSec(clipLen)}</b></p>
       <div id="catalog">${MUSIC_CATALOG.map(t => { const on = A.music && A.music.cat === t.id, fit = t.dur >= clipLen ? `ตัดที่จบคลิป + เฟดเอาต์` : `ต่อวน ${Math.ceil((clipLen - 2.5) / (t.dur - 2.5))} รอบ + เฟดเอาต์`;
-        return `<div class="trk${on ? ' on' : ''}"><div class="alt"><b>${t.name}</b> <span class="badge">${fmtSec(t.dur)}</span><small>${t.style} · CC0 · ในคลิปนี้: ${fit}</small></div>
+        return `<div class="trk${on ? ' on' : ''}"><div class="alt"><b>${t.name}</b> <span class="badge">${fmtSec(t.dur)}</span><small>${t.style}<br>ผู้สร้าง: ${t.by} · ใบอนุญาต: ${t.lic} · ตรวจจากหน้าต้นทาง ${t.chk}<br>ในคลิปนี้: ${fit}</small></div>
           <audio controls preload="none" src="assets/music/${t.id}.mp3" style="width:100%"></audio>
           <div class="tools"><a class="lnk" href="${t.src}" target="_blank" rel="noopener">หน้าต้นทาง/ใบอนุญาต</a><button class="ib wide" data-use="${t.id}">${on ? '✅ ใช้อยู่' : '✓ ใช้เพลงนี้'}</button></div></div>`; }).join('')}</div>
       <p class="hint" id="catMsg"></p>
