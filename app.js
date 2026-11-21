@@ -1238,7 +1238,7 @@ async function viewMascot() {
     <label class="sw"><input type="checkbox" id="mmove" ${M.move !== false ? 'checked' : ''}> ให้มาสคอตเคลื่อนไหว (เดินข้ามจอบ้าง นั่งยอง นอน เดินกลับ สลับไปแต่ละท่อน)</label>
     <div class="seg"><div class="tgt"><label class="fl" style="flex:1"><span>ขนาด</span><select class="ct" id="msize"><option value="0.2" ${M.size === 0.2 ? 'selected' : ''}>เล็ก</option><option value="0.28" ${M.size === 0.28 ? 'selected' : ''}>กลาง</option><option value="0.36" ${M.size === 0.36 ? 'selected' : ''}>ใหญ่</option></select></label>
       <label class="fl" style="flex:1"><span>ตำแหน่ง</span><select class="ct" id="mside"><option value="left" ${M.side === 'left' ? 'selected' : ''}>มุมซ้ายล่าง</option><option value="right" ${M.side === 'right' ? 'selected' : ''}>มุมขวาล่าง</option></select></label></div></div>
-    <p class="hint"><b>ท่าพิเศษของฉัน</b> (นั่งพิงขอบ / นอน) · ใส่รูปมาสคอตท่าใหม่ที่สร้างจาก AI ไว้ให้มาสคอตใช้ตอนนั่งและนอน ถ้ายังไม่ใส่ แอปจะใช้ท่านั่งยอง/นอนจากรูปเดิมแทน</p>
+    <p class="hint"><b>ท่าพิเศษของฉัน (ใส่เพิ่มเองได้)</b> · แอปมีท่านั่งพิงขอบซ้าย/ขวาและยืนพิงขอบจอ 16 ท่าให้ใช้อัตโนมัติแล้ว ช่องด้านล่างไว้ใส่ท่าของคุณเองเพิ่ม (ถ้าใส่ แอปจะใช้ท่าของคุณก่อน) ส่วนท่า <b>นอน</b> ถ้ายังไม่ใส่ แอปจะใช้ตัวเอียงนอนจากรูปเดิมแทน</p>
     ${MY_POSES.map(d => { const has = !!(lib.myPoses || {})[d.id]; return `<div class="seg"><div class="seg-h"><b>${d.label}</b></div><div class="mrow"><canvas class="mth myth" data-my="${d.id}" width="90" height="130"></canvas><div style="flex:1"><div class="hint" style="margin:0 0 6px">${has ? '✅ ใส่รูปแล้ว' : 'ยังไม่มีรูป'} · ${d.hint}</div><div class="tools"><label class="ib wide" style="cursor:pointer">📷 ${has ? 'เปลี่ยนรูป' : 'เลือกรูป'}<input type="file" accept="image/*" data-up="${d.id}" hidden></label><button class="ib wide" data-cp="${d.id}">📋 คัดลอกคำสั่งสร้างรูป</button>${has ? `<button class="ib wide" data-rm="${d.id}">🗑 ลบ</button>` : ''}</div></div></div></div>`; }).join('')}
     <p class="hint">วิธีสร้างรูป: กด "คัดลอกคำสั่งสร้างรูป" → เปิดแอป AI สร้างรูปที่ใช้อยู่ (เช่น Gemini หรือ ChatGPT) → แนบรูปมาสคอตเดิม 1 รูปเป็นต้นแบบ → วางคำสั่ง → โหลดรูปที่ได้ แล้วกด "เลือกรูป" ที่นี่ แอปจะลบพื้นหลังเรียบๆ (สีขาว) ให้เอง</p>
     <p class="hint"><b>ท่าของแต่ละท่อน</b> (แอปเลือกให้ตามเนื้อหา แตะเพื่อเลือกจากรูป)</p>
@@ -1255,10 +1255,11 @@ async function viewMascot() {
     d.querySelector('#pcl').onclick = () => d.remove();
     await loadPoses(Object.keys(POSES));
     const cells = ks => ks.map(k => `<button class="pcell ${k === poseForSeg(key) ? 'on' : ''}" data-k="${k}"><canvas width="90" height="130"></canvas><span>${POSES[k].label}</span></button>`).join('');
-    const std = Object.keys(POSES).filter(k => !POSES[k].custom), mine = Object.keys(POSES).filter(k => POSES[k].custom && !POSES[k].sticker), stk = Object.keys(POSES).filter(k => POSES[k].sticker);
+    const std = Object.keys(POSES).filter(k => !POSES[k].custom), mine = Object.keys(POSES).filter(k => POSES[k].custom && !POSES[k].sticker && !POSES[k].art), art = Object.keys(POSES).filter(k => POSES[k].art), stk = Object.keys(POSES).filter(k => POSES[k].sticker);
     d.innerHTML = `<div class="sh-head"><b>เลือกท่ามาสคอต</b><button class="ib" id="pcl">✕</button></div>
       <p class="hint"><b>ท่าปากขยับตามเสียง</b></p><div class="pgrid">${cells(std)}</div>
       ${mine.length ? `<p class="hint"><b>ท่าพิเศษของฉัน</b> (ปากไม่ขยับ)</p><div class="pgrid">${cells(mine)}</div>` : ''}
+      <p class="hint"><b>ท่านั่ง / ยืนพิงขอบจอ</b> (ปากไม่ขยับ · มาสคอตใช้ท่าเหล่านี้เองตอนนั่ง/พิงที่มุมจอ)</p><div class="pgrid">${cells(art)}</div>
       <p class="hint"><b>สติกเกอร์พร้อมข้อความ</b> (ปากไม่ขยับ ใช้ภาพต้นฉบับ)</p><div class="pgrid">${cells(stk)}</div>`;
     d.querySelectorAll('.pcell').forEach(c => { thumb(c.querySelector('canvas'), c.dataset.k); c.onclick = () => { state.script.poses[key] = c.dataset.k; save(); d.remove(); viewMascot(); }; });
     d.querySelector('#pcl').onclick = () => d.remove();
