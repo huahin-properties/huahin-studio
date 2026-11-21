@@ -36,11 +36,11 @@ async function addFiles(files) {
   await save();
 }
 let selMode = false; const picked = new Set();
-let selExtra = '';
+let selExtra = '', selPre = '';
 function selBarHtml() {
   return selMode
     ? `<button class="ib wide" data-sa="all">ทั้งหมด</button><button class="ib wide" data-sa="off">ยกเลิก</button><button class="ib wide danger" data-sa="del" ${picked.size ? '' : 'disabled'}>🗑️ ลบ (${picked.size})</button>`
-    : `<button class="ib" data-sa="on" title="เลือกหลายรูปเพื่อลบ" aria-label="เลือกหลายรูปเพื่อลบ">☑</button>${selExtra}`;
+    : `${selPre}<button class="ib" data-sa="on" title="เลือกหลายรูปเพื่อลบ" aria-label="เลือกหลายรูปเพื่อลบ">☑</button>${selExtra}`;
 }
 function bindSelBar(bar, allIds, refresh, opt = {}) {
   bar.innerHTML = selBarHtml();
@@ -48,6 +48,8 @@ function bindSelBar(bar, allIds, refresh, opt = {}) {
     const b = e.target.closest('button'); if (!b || b.disabled) return; const a = b.dataset.sa;
     if (a === 'one') { await opt.delOne(); return; }
     if (a === 'add') { opt.add(); return; }
+    if (a === 'tune') { opt.tune(); return; }
+    if (a === 'reset') { opt.reset(); return; }
     if (a === 'on') { selMode = true; picked.clear(); }
     else if (a === 'off') { selMode = false; picked.clear(); }
     else if (a === 'all') allIds().forEach(id => picked.add(id));
@@ -87,7 +89,7 @@ function viewSize() {
 }
 
 function viewMedia() {
-  selExtra = '';
+  selExtra = ''; selPre = '';
   const list = state.items.map((it, i) => `
     <div class="item${selMode && picked.has(it.id) ? ' picked' : ''}" data-id="${it.id}">
       ${selMode ? `<input type="checkbox" class="ck" ${picked.has(it.id) ? 'checked' : ''}>` : ''}
@@ -176,21 +178,24 @@ async function viewColor() {
   $('#view').innerHTML = `
     <h2>3 สี: ปรับสีให้เข้ากัน</h2>
     <div id="selbar" class="tools"></div>
-    <p class="hint">ปรับแค่ความสว่าง คอนทราสต์ และ white balance แบบนุ่มนวลให้ทุกภาพดูเป็นโทนเดียวกัน ภาพที่เห็นตรงกับตอนเรนเดอร์</p>
-    <label class="sw"><input type="checkbox" id="auto" ${c.auto ? 'checked' : ''}> ปรับสีให้เข้ากันอัตโนมัติ</label>
-    ${slider('bright', 'ความสว่าง', -30, 30)}${slider('contrast', 'คอนทราสต์', -30, 30)}${slider('warm', 'โทนสี (เย็น ← → อุ่น)', -30, 30)}
-    <button class="btn alt" id="reset">รีเซ็ตเป็นค่าเริ่มต้น</button>
     <div class="ba"><div><canvas id="cb"></canvas><small>ก่อน</small></div><div><canvas id="ca"></canvas><small>หลัง</small></div></div>
     <p class="hint" id="cap"></p>
     <input type="file" id="file3" accept="image/*,video/*" multiple hidden>
     <p class="hint">แตะรูปเล็กเพื่อเลือกดูเทียบ ก่อน/หลัง · กดค้างแล้วลากเพื่อสลับตำแหน่ง</p>
     <div class="thumbs" id="th">${imgs.map((_, i) => `<canvas data-i="${i}" data-id="${imgs[i].id}"></canvas>`).join('')}</div>
     <button class="btn" id="nx">ถัดไป: 4 สคริปต์ →</button>
-    <button class="btn alt" id="bk">← ย้อนกลับ</button>`;
+    <button class="btn alt" id="bk">← ย้อนกลับ</button>
+    <div class="sheet" id="sheet" hidden>
+      <div class="sh-head"><b>🎚️ ปรับสี</b><button class="ib" id="shX" aria-label="ปิด">✕</button></div>
+      <p class="hint">ปรับแค่ความสว่าง คอนทราสต์ และ white balance ภาพด้านบนเปลี่ยนให้ดูทันที</p>
+      <label class="sw"><input type="checkbox" id="auto" ${c.auto ? 'checked' : ''}> ปรับสีให้เข้ากันอัตโนมัติ</label>
+      ${slider('bright', 'ความสว่าง', -30, 30)}${slider('contrast', 'คอนทราสต์', -30, 30)}${slider('warm', 'โทนสี (เย็น ← → อุ่น)', -30, 30)}
+      <button class="btn" id="shOk">เสร็จ</button>
+    </div>`;
   const draw = () => {
     const luts = isNeutral(c) ? null : makeLuts(stats, c);
     const put = (cv, bmp, lut, w) => { const h = Math.round(w * bmp.height / bmp.width); cv.width = w; cv.height = h; cv.getContext('2d').drawImage(gradeToCanvas(bmp, lut, w, h), 0, 0); };
-    $('#cap').textContent = `รูปที่ ${sel + 1} จาก ${imgs.length} · ห้อง: ${imgs[sel].room}`;
+    $('#cap').textContent = `รูปที่ ${sel + 1} จาก ${imgs.length} · ห้อง: ${imgs[sel].room} · ปรับสี: ${c.auto ? 'อัตโนมัติ' : 'ปิด'}${(c.bright || c.contrast || c.warm) ? ' + ตั้งเอง' : ''}`;
     put($('#cb'), smalls[sel], null, 240); put($('#ca'), smalls[sel], luts && luts[sel], 240);
     document.querySelectorAll('#th canvas').forEach(cv => {
       const i = +cv.dataset.i; put(cv, smalls[i], luts && luts[i], 110); cv.classList.toggle('on', !selMode && i === sel);
@@ -206,7 +211,6 @@ async function viewColor() {
   let raf = 0; const redraw = () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(draw); };
   $('#auto').onchange = e => { c.auto = e.target.checked; save(); redraw(); };
   document.querySelectorAll('input[type=range]').forEach(r => r.oninput = () => { c[r.dataset.k] = +r.value; $('#v_' + r.dataset.k).textContent = r.value; save(); redraw(); });
-  $('#reset').onclick = () => { Object.assign(c, COLOR_DEFAULT); save(); viewColor(); };
   enableDrag($('#th'), { itemSel: 'canvas', grid: true, onEnd: async (els, moved) => {
     const ids = els.map(c => +c.dataset.id), slots = [];
     state.items.forEach((x, k) => { if (x.type === 'image') slots.push(k); });
@@ -221,11 +225,20 @@ async function viewColor() {
     if (selMode) { const id = imgs[sel].id; picked.has(id) ? picked.delete(id) : picked.add(id); $('#selbar').innerHTML = selBarHtml(); }
     redraw();
   };
+  selPre = '<button class="ib" data-sa="tune" title="ปรับสี" aria-label="ปรับสี">🎚️</button><button class="ib" data-sa="reset" title="รีเซ็ตสี" aria-label="รีเซ็ตสี">↺</button>';
   selExtra = '<button class="ib" data-sa="one" title="ลบรูปที่เลือกอยู่" aria-label="ลบรูปที่เลือกอยู่">🗑️</button><button class="ib" data-sa="add" title="เพิ่มรูป" aria-label="เพิ่มรูป">＋</button>';
   bindSelBar($('#selbar'), () => imgs.map(x => x.id), full => full ? viewColor() : redraw(), {
     delOne: async () => { if (!confirm('ลบรูปที่ ' + (sel + 1) + ' ใช่ไหม?')) return; removeItem(imgs[sel].id); await save(); viewColor(); },
     add: () => $('#file3').click(),
+    tune: () => { $('#sheet').hidden = !$('#sheet').hidden; },
+    reset: () => {
+      Object.assign(c, COLOR_DEFAULT); save();
+      $('#auto').checked = c.auto;
+      document.querySelectorAll('input[type=range]').forEach(r => { r.value = c[r.dataset.k]; $('#v_' + r.dataset.k).textContent = c[r.dataset.k]; });
+      redraw();
+    },
   });
+  $('#shX').onclick = $('#shOk').onclick = () => { $('#sheet').hidden = true; };
   $('#file3').onchange = async e => { await addFiles(e.target.files); viewColor(); };
   $('#nx').onclick = () => go(3); $('#bk').onclick = () => go(1);
 }
