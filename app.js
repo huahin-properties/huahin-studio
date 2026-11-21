@@ -162,14 +162,27 @@ function viewSlots() {
   };
   const renderGallery = () => {
     const g = $('#gallery'); if (!g) return;
-    const html = SLOTS.map(sl => {
-      if (sl.kind === 'contact') { const ct = activeContact(); const ok = slotCount(sl);
-        return ok ? `<div class="gsec" data-sec="${sl.id}"><div class="gh"><b>${sl.ico} ${sl.short}</b><button class="ib sm" data-open="${sl.id}">แก้ไข</button></div><p class="hint">${slotInfo(sl, ok)}</p></div>` : ''; }
-      const items = slotItems(sl); if (!items.length) return '';
-      return `<div class="gsec" data-sec="${sl.id}"><div class="gh"><b>${sl.ico} ${sl.label.replace(/ \(.*\)/, '')} · ${items.length}</b><button class="ib sm" data-open="${sl.id}">+ เพิ่ม</button></div>
+    // แยกเป็น "ยังไม่เรียบร้อย" (ขึ้นบน) กับ "เรียบร้อยแล้ว" (ลงล่าง) ภายในแต่ละส่วนเรียงตามลำดับในคลิป
+    const todo = [], done = [];
+    SLOTS.forEach(sl => {
+      const st = slotStatus(sl), icon = { miss: '❌', warn: '⚠️' };
+      if (sl.kind === 'contact') {
+        const ok = slotCount(sl);
+        (ok ? done : todo).push(`<div class="gsec ${ok ? '' : 'gmiss'}" data-sec="${sl.id}"><div class="gh"><b>${sl.ico} ${sl.short}</b><button class="ib sm" data-open="${sl.id}">${ok ? 'แก้ไข' : '+ เพิ่ม'}</button></div><p class="hint">${ok ? slotInfo(sl, ok) : '❌ ' + slotInfo(sl, 0)}</p></div>`);
+        return;
+      }
+      const items = slotItems(sl);
+      if (!items.length) {
+        if (icon[st]) todo.push(`<div class="gsec gmiss" data-sec="${sl.id}"><div class="gh"><b>${sl.ico} ${sl.label.replace(/ \(.*\)/, '')}</b><button class="ib sm" data-open="${sl.id}">+ เพิ่ม</button></div><p class="hint">${icon[st]} ${slotInfo(sl, 0)} · แตะ + เพิ่ม</p></div>`);
+        return;
+      }
+      const sc = getSlotScript(sl), noScript = sc !== null && secOf(sc) === 0;
+      (noScript ? todo : done).push(`<div class="gsec${noScript ? ' gmiss' : ''}" data-sec="${sl.id}"><div class="gh"><b>${sl.ico} ${sl.label.replace(/ \(.*\)/, '')} · ${items.length}</b><button class="ib sm" data-open="${sl.id}">+ เพิ่ม</button></div>
         ${scriptBarHtml(sl)}
-        <div class="sgrid" data-grid="${sl.id}">${items.map(it => thumbHtml(it, true)).join('')}</div></div>`;
-    }).join('');
+        <div class="sgrid" data-grid="${sl.id}">${items.map(it => thumbHtml(it, true)).join('')}</div></div>`);
+    });
+    const html = (todo.length ? `<h3 class="gtitle todo">⏳ ยังไม่เรียบร้อย (${todo.length})</h3>${todo.join('')}` : '')
+      + (done.length ? `<h3 class="gtitle done">✅ เรียบร้อยแล้ว (${done.length})</h3>${done.join('')}` : '');
     g.innerHTML = html || '<div class="soon">ยังไม่มีไฟล์ แตะแท็บด้านบนเพื่อเริ่มเพิ่มรูป/คลิป</div>';
     SLOTS.filter(sl => sl.kind === 'room').forEach(sl => { const grid = g.querySelector(`[data-grid="${sl.id}"]`); if (!grid) return;
       enableDrag(grid, { itemSel: '.th', grid: true, onEnd: async els => {

@@ -79,3 +79,5 @@ canvas#pv{width:100%;max-height:60vh;object-fit:contain;background:#000;border-r
 .sbar{height:7px;border-radius:4px;background:#e3eee6;overflow:hidden;margin:2px 0 2px}.sbar i{display:block;height:100%;border-radius:4px;background:#2e7d4f}
 .sbar.no{background:#e08a00}.sbar.no i{background:#e08a00}
 .sbl{display:block;font-size:12px;margin-bottom:6px}.sbl.ok{color:#1e6b3a}.sbl.no{color:#8a5a00}
+.gtitle{margin:16px 0 4px;font-size:16px}.gtitle.todo{color:#8a5a00}.gtitle.done{color:#1e6b3a}
+.gsec.gmiss{border-left:5px solid #e08a00;padding-left:8px}
