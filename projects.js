@@ -62,9 +62,9 @@ async function viewHome() {
     const r = m.rendered, title = m.name || m.fname || 'คลิปยังไม่มีชื่อ';
     const st = !r ? '📝 ร่าง · ยังไม่ได้เรนเดอร์' : `🎬 ${r.saved ? '💾 ' + mb(r.size) : '⚠️ ไม่ได้เก็บไฟล์'} · ${r.downloaded ? '✅ โหลดแล้ว' : '⬇ ยังไม่โหลด'}`;
     return `<div class="pcard" data-id="${m.id}">
-      <div class="pthumb" style="aspect-ratio:${s.w}/${s.h}">${url ? `<img src="${url}" alt="">` : '<span>🎬</span>'}<em class="pbadge ${r ? 'ok' : ''}">${r ? '🎬' : 'ร่าง'}</em></div>
+      <div class="pthumb">${url ? `<img src="${url}" alt="">` : '<span>🎬</span>'}<em class="pbadge ${r ? 'ok' : ''}">${r ? '🎬' : 'ร่าง'}</em></div>
       <div class="pinfo"><b>${title.replace(/</g, '&lt;')}</b><small>${s.id} · ${m.n || 0} รูป · ${fmtDate(m.updated)}</small><small class="pst">${st}</small></div>
-      <div class="pact ${r && r.saved ? 'n6' : 'n4'}"><button class="ib wide" data-a="edit">✏️ แก้ไข</button>${r && r.saved ? '<button class="ib wide" data-a="view">▶ ดู</button><button class="ib wide" data-a="dl">⬇ โหลด</button>' : ''}<button class="ib wide" data-a="ren">✎ ชื่อ</button><button class="ib wide" data-a="dup">⧉ สำเนา</button><button class="ib wide danger" data-a="del">🗑 ลบ</button></div></div>`;
+      <div class="pact"><button class="ib ic" data-a="edit" title="แก้ไข" aria-label="แก้ไข">✏️</button>${r && r.saved ? '<button class="ib ic" data-a="view" title="ดู" aria-label="ดู">▶</button><button class="ib ic" data-a="dl" title="ดาวน์โหลด" aria-label="ดาวน์โหลด">⬇</button>' : ''}<button class="ib ic" data-a="ren" title="เปลี่ยนชื่อ" aria-label="เปลี่ยนชื่อ">✎</button><button class="ib ic" data-a="dup" title="สำเนา" aria-label="สำเนา">⧉</button><button class="ib ic danger" data-a="del" title="ลบ" aria-label="ลบ">🗑</button></div></div>`;
   };
   $('#view').innerHTML = `<h2>คลิปของฉัน</h2>
     <p class="hint">${list.length ? 'แตะ "แก้ไข" เพื่อกลับไปทำต่อ · คลิปที่เรนเดอร์แล้วดูและดาวน์โหลดซ้ำได้จากการ์ด' : 'ยังไม่มีคลิป กด "เพิ่มคลิปใหม่" เพื่อเริ่มทำคลิปแรก'}</p>

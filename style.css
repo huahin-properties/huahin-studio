@@ -163,3 +163,16 @@ header{display:flex;align-items:center;gap:8px;flex-wrap:wrap}header small{font-
 .pcard .pact,.pcard .pact.n4,.pcard .pact.n6{flex-wrap:nowrap!important;padding:5px 8px 7px!important;gap:4px!important}
 .pcard .pact .ib.wide,.pcard .pact.n4 .ib.wide{flex:1 1 0!important;min-width:0;padding:6px 2px!important;font-size:12px!important;border-radius:10px}
 .pcards{gap:8px!important}
+
+/* การ์ดแคบพิเศษ: ปุ่มเป็นไอคอนอยู่ในการ์ด (คอลัมน์ขวา) ไม่มีแถวปุ่มด้านล่าง */
+.pcard{grid-template-columns:60px 1fr auto!important;grid-template-areas:"th info act"!important;min-height:60px}
+.pcard .pthumb{width:60px!important;min-height:60px!important;height:100%!important}
+.pcard .pinfo{padding:5px 6px!important}
+.pcard .pinfo b{font-size:14px!important}.pcard .pinfo small{font-size:11px!important}
+.pcard .pact{display:flex!important;flex-wrap:wrap!important;border-top:0!important;padding:4px 6px 4px 0!important;gap:3px!important;align-content:center;justify-content:flex-end;max-width:112px}
+.pcard .ib.ic{flex:0 0 32px!important;width:32px;height:30px;padding:0!important;font-size:15px!important;display:flex;align-items:center;justify-content:center;border-radius:8px}
+.pcard .pbadge{font-size:9px!important;padding:1px 5px!important;top:3px!important;left:3px!important}
+.pcard .pact{max-width:none!important;flex-wrap:nowrap!important;gap:2px!important;padding:3px 4px 3px 0!important}
+.pcard .ib.ic{flex:0 0 28px!important;width:28px!important;height:28px!important;font-size:13px!important;border-radius:7px}
+.pcard .pinfo{min-width:0}
+@media(max-width:420px){.pcard .pact{flex-wrap:wrap!important;max-width:92px!important;justify-content:flex-end}.pcard .ib.ic{flex:0 0 28px!important}}
