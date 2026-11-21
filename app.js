@@ -500,7 +500,7 @@ function viewScript() {
     <div class="tools"><button class="ib wide" id="trAll">🌐 แปลทั้งหมด</button><button class="ib wide" data-all="th">📋 ไทยทั้งหมด</button><button class="ib wide" data-all="en">📋 EN ทั้งหมด</button></div>
     <p class="hint" id="saved">💾 บันทึกอัตโนมัติทุกครั้งที่พิมพ์</p>
     <p class="hint">เวลารวมโดยประมาณ <b id="tot">${mmss(total())}</b> (เป้าหมายประมาณ 3:00) · ไตเติลและหน้าปิดเป็นคลิปประจำ ไม่ต้องเขียนสคริปต์</p>
-    <div class="soon" style="text-align:left">📋 <b>ปุ่มคัดลอกใช้ทำอะไร:</b> กด 📋 ไทย หรือ 📋 EN ที่ท่อนไหน แล้วนำไปวางใน <b>Google AI Studio</b> เพื่อสร้างเสียงพากย์ จากนั้นตั้งชื่อไฟล์เสียงตามเลขท่อน (01, 02, ...) แล้วนำมาอัปโหลดในขั้น 5 · ปุ่มทั้งหมดจะมี [01] [02] คั่นไว้ให้อ่านง่าย (ถ้าจะสร้างเสียงให้ใช้ปุ่มของแต่ละท่อน)<br>🌐 การแปลใช้บริการแปลฟรีออนไลน์ ต้องต่อเน็ต คุณภาพพื้นฐาน อ่านและแก้ก่อนใช้ทุกครั้ง</div>
+    <div class="soon" style="text-align:left">📋 <b>ปุ่มคัดลอกใช้ทำอะไร:</b> กด 📋 ไทย หรือ 📋 EN ที่ท่อนไหน แล้วนำไปวางใน <b>Google AI Studio</b> เพื่อสร้างเสียงพากย์ จากนั้นตั้งชื่อไฟล์เสียงตามเลขท่อน (01, 02, ...) แล้วนำมาอัปโหลดในขั้น 5 · ปุ่ม 📋 ไทยทั้งหมด / EN ทั้งหมด คัดลอกข้อความล้วนทุกท่อนต่อกัน (ไม่มี [01] [02]) เว้นบรรทัดระหว่างท่อน พร้อมวางสร้างเสียงทีเดียวได้<br>🌐 การแปลใช้บริการแปลฟรีออนไลน์ ต้องต่อเน็ต คุณภาพพื้นฐาน อ่านและแก้ก่อนใช้ทุกครั้ง</div>
     ${state.items.length ? '' : '<div class="soon">ยังไม่มีรูป กลับไปขั้น 2 เพื่อใส่รูปและติดแท็กห้องก่อน</div>'}
     <div id="segs">${segs.map(card).join('')}</div>
     <p class="hint" id="warn"></p>
@@ -547,7 +547,7 @@ function viewScript() {
   };
   document.querySelectorAll('[data-all]').forEach(btn => btn.onclick = async e => {
     const lang = btn.dataset.all;
-    const txt = scriptSegments().map(g => [`[${no2(g.no)}]`, (lang === 'en' ? (sc.en[g.key] || '') : g.text).trim()]).filter(x => x[1]).map(x => x.join('\n')).join('\n\n');
+    const txt = scriptSegments().map(g => (lang === 'en' ? (sc.en[g.key] || '') : g.text).trim()).filter(Boolean).join('\n\n'); // ข้อความล้วน ไม่มีเลขท่อน (สำหรับสร้างเสียง)
     if (!txt) { alert(lang === 'en' ? 'ยังไม่มีข้อความอังกฤษ กด 🌐 แปลทั้งหมด ก่อน' : 'ยังไม่มีข้อความ'); return; }
     flash(btn, await copyText(txt));
   });
