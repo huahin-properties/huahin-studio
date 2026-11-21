@@ -26,6 +26,16 @@ async function loadScaled(blob, W, H) {
   return bmp;
 }
 
+// คลิปวิดีโอในไทม์ไลน์: เลื่อนเวลาของ <video> ทีละเฟรมแล้ววาดลงแคนวาส (ตัดเสียงคลิปทิ้ง)
+async function makeVideoItem(blob, dur) {
+  const v = document.createElement('video'), url = URL.createObjectURL(blob); v.muted = true; v.playsInline = true; v.preload = 'auto'; v.src = url;
+  await new Promise((res, rej) => { v.onloadeddata = res; v.onerror = () => rej(new Error('เปิดคลิปวิดีโอไม่ได้ (ลองใช้ไฟล์ mp4 ขนาดไม่เกิน 1080p)')); setTimeout(() => rej(new Error('อ่านคลิปวิดีโอนานเกินไป')), 20000); });
+  let at = -1;
+  return { isVideo: true, dur, vid: v,
+    async prepare(t) { const tg = Math.min(Math.max(0, t), Math.max(0, (v.duration || dur) - 0.04)); if (Math.abs(tg - at) < 0.0005) return; at = tg; v.currentTime = tg; await new Promise(r => { let d = false; const f = () => { if (!d) { d = true; v.removeEventListener('seeked', f); r(); } }; v.addEventListener('seeked', f); setTimeout(f, 2500); }); },
+    draw(ctx, W, H) { drawCover(ctx, v, W, H, 1); },
+    close() { URL.revokeObjectURL(url); v.removeAttribute('src'); v.load(); } };
+}
 async function pickCodec(W, H) {
   for (const codec of ['avc1.64002A', 'avc1.4D002A', 'avc1.42002A']) {
     const cfg = { codec, width: W, height: H, bitrate: Math.round(Math.min(24e6, Math.max(8e6, W * H * FPS * 0.16))), framerate: FPS, latencyMode: 'quality' };
@@ -40,7 +50,7 @@ async function renderMp4(blobs, W, H, onProgress, luts, sceneOpt, durs, audio) {
   if (!cfg) throw new Error('มือถือเครื่องนี้ไม่รองรับการเข้ารหัสวิดีโอขนาดนี้ ลองเลือกขนาดเล็กลง');
 
   const images = [];
-  for (let i = 0; i < blobs.length; i++) { { const bmp = await loadScaled(blobs[i], W, H); images.push(luts ? gradeToCanvas(bmp, luts[i]) : bmp); if (luts) bmp.close(); } onProgress(0.1 * (i + 1) / blobs.length, 'กำลังเตรียมรูป'); }
+  for (let i = 0; i < blobs.length; i++) { if (blobs[i] && blobs[i].video) { images.push(await makeVideoItem(blobs[i].video, blobs[i].dur)); } else { const bmp = await loadScaled(blobs[i], W, H); images.push(luts && luts[i] ? gradeToCanvas(bmp, luts[i]) : bmp); if (luts && luts[i]) bmp.close(); } onProgress(0.1 * (i + 1) / blobs.length, 'กำลังเตรียมรูป'); }
 
   let starts = null;
   if (durs) { // durs[i] = { dur, shots } · รูปที่ต้องแสดงนานจะถูกแตกเป็นหลายช็อตคนละมุมกล้อง
@@ -68,6 +78,7 @@ async function renderMp4(blobs, W, H, onProgress, luts, sceneOpt, durs, audio) {
   const frames = Math.round(totalDuration(images) * FPS);
   for (let f = 0; f < frames; f++) {
     if (encErr) throw encErr;
+    await prepareFrame(images, f / FPS);
     drawFrame(ctx, W, H, images, f / FPS);
     const vf = new VideoFrame(canvas, { timestamp: Math.round(f * 1e6 / FPS), duration: Math.round(1e6 / FPS) });
     enc.encode(vf, { keyFrame: f % 60 === 0 });

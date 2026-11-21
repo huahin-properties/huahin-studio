@@ -64,24 +64,33 @@ function autoPickStock(reroll) {
   lib.usage = lib.usage || {}; const prev = (state.stock && state.stock.ids) || [];
   ((state.stock && state.stock.counted) || []).forEach(id => { if (lib.usage[id] > 0) lib.usage[id]--; });
   const PER = 3.2; // วินาทีต่อรูปโดยประมาณ
+  const wOf = it => (it.type === 'video' ? vidDur(it) / PER : 1); // คลิปนับเป็นหลายรูปตามความยาว
   const pickCats = (cats, sec) => {
-    const pools = cats.map(c => libArea(c).filter(i => i.type === 'image')).filter(p => p.length); if (!pools.length) return [];
-    const avail = pools.reduce((a, p) => a + p.length, 0), total = Math.min(avail, Math.max(pools.length, Math.round((sec || 24) / PER))), quota = pools.map(() => 0);
-    for (let left = total, i = 0; left > 0 && i < 100000; i++) { const k = i % pools.length; if (quota[k] < pools[k].length) { quota[k]++; left--; } }
-    const out = [];
-    pools.forEach((p, k) => { const top = new Set(p.map(it => ({ id: it.id, s: (lib.usage[it.id] || 0) * 10 + (reroll && prev.includes(it.id) ? 100 : 0) + Math.random() })).sort((a, b) => a.s - b.s).slice(0, quota[k]).map(x => x.id)); p.forEach(it => { if (top.has(it.id)) out.push(it.id); }); });
-    return out;
+    const pools = cats.map(c => libArea(c).filter(isMedia).map(it => ({ it, s: (lib.usage[it.id] || 0) * 10 + (reroll && prev.includes(it.id) ? 100 : 0) + Math.random() })).sort((a, b) => a.s - b.s)).filter(p => p.length); if (!pools.length) return [];
+    const budget = Math.max(pools.length, (sec || 24) / PER), out = [], idx = pools.map(() => 0); let used = 0, guard = 0;
+    while (used < budget && guard++ < 10000) { let any = false;
+      for (let k = 0; k < pools.length && used < budget; k++) { if (idx[k] >= pools[k].length) continue; any = true; const it = pools[k][idx[k]].it; idx[k]++; const w = wOf(it); if (used + w <= budget + 0.6 || !out.some(id => pools[k].some(x => x.it.id === id))) { out.push(it.id); used += w; } }
+      if (!any) break; }
+    const order = new Set(out); return cats.flatMap(c => libArea(c).filter(it => order.has(it.id)).map(it => it.id));
   };
   const ids = [...pickCats(AREA_CATS.map(c => c.id), T.area), ...pickCats(['lifestyle'], T.life)];
   ids.forEach(id => { lib.usage[id] = (lib.usage[id] || 0) + 1; });
   state.stock = { mode: 'auto', ids, counted: ids.slice() };
   saveLib(); save();
 }
-const stockCounts = () => { const raw = AREA_CATS.map(c => [c, libArea(c.id).filter(i => i.type === 'image')]), life = libArea('lifestyle').filter(i => i.type === 'image'); return { raw, life, total: raw.reduce((a, r) => a + r[1].length, 0) + life.length }; };
+const stockCounts = () => { const raw = AREA_CATS.map(c => [c, libArea(c.id).filter(isMedia)]), life = libArea('lifestyle').filter(isMedia); return { raw, life, total: raw.reduce((a, r) => a + r[1].length, 0) + life.length }; };
 const areaLibOrdered = () => [...AREA_CATS.flatMap(c => libArea(c.id)).filter(stockSel), ...lib.area.filter(x => !AREA_CATS.some(c => c.id === x.cat) && x.cat !== 'lifestyle')];
 const lifeItems = () => libArea('lifestyle').filter(stockSel);
 const areaItems = () => [...areaLibOrdered(), ...state.items.filter(i => i.room === AREA_ROOM)];
 function activeContact() { const m = state.contact.mode; return m === 'none' ? null : m === 'custom' ? state.contact.custom : lib.contact; }
+// คลิปวิดีโอ: อ่านความยาวตอนเพิ่มไฟล์ (it.dur วินาที) · ในคลิปใช้ได้ท่อนละไม่เกิน 8 วินาที ตัดเสียงของคลิปทิ้ง ใช้เสียงพากย์แทน
+const isMedia = i => i && (i.type === 'image' || i.type === 'video');
+const VIDEO_MAX = 8, vidDur = it => Math.min(VIDEO_MAX, Math.max(2, +it.dur || 5));
+function probeVideo(blob) {
+  return new Promise(res => { const v = document.createElement('video'), u = URL.createObjectURL(blob); let done = false; const fin = d => { if (done) return; done = true; URL.revokeObjectURL(u); res(d); };
+    v.preload = 'metadata'; v.muted = true; v.onloadedmetadata = () => fin(isFinite(v.duration) ? v.duration : 0); v.onerror = () => fin(0); setTimeout(() => fin(0), 8000); v.src = u; });
+}
+async function probeItems(items) { for (const it of items) if (it.type === 'video' && !it.dur) { const d = await probeVideo(it.blob); if (d) it.dur = Math.round(d * 10) / 10; } }
 const mediaOf = f => ({ blob: f, type: f.type.startsWith('video') ? 'video' : 'image', name: f.name });
 
 // ไฟล์ของแท็บนั้น
@@ -95,11 +104,11 @@ function slotItems(s) {
 }
 async function addToSlot(s, files) {
   if (s.kind === 'lib') {
-    if (s.cat) files.forEach(f => lib.area.push({ id: libSeq++, cat: s.cat, ...mediaOf(f) }));
-    else if (files[0]) lib[s.id] = { id: libSeq++, ...mediaOf(files[0]) };
+    if (s.cat) { const add = files.map(f => ({ id: libSeq++, cat: s.cat, ...mediaOf(f) })); lib.area.push(...add); await probeItems(add); }
+    else if (files[0]) { lib[s.id] = { id: libSeq++, ...mediaOf(files[0]) }; await probeItems([lib[s.id]]); }
     await saveLib(); return;
   }
-  files.forEach(f => state.items.push({ id: nextId++, ...mediaOf(f), room: s.room }));
+  const add = files.map(f => ({ id: nextId++, ...mediaOf(f), room: s.room })); state.items.push(...add); await probeItems(add);
   await save();
 }
 async function removeFromSlot(s, id) {
@@ -229,7 +238,7 @@ function openPlaces(after) {
       <label class="fl"><span>หมวด (รูปจะไปอยู่ในแท็บหมวดนี้)</span><select class="ct" data-pc="${p.id}">${AREA_CATS.map(c => `<option value="${c.id}" ${c.id === cat ? 'selected' : ''}>${c.label}</option>`).join('')}</select></label>
       <label class="fl"><span>พิกัด (วางเลขจาก Google Maps)</span><input class="ct" data-c="${p.id}" inputmode="decimal" placeholder="เช่น 12.5698,99.9577" value="${esc(p.coord || '')}"></label>
       <small class="hint" data-st="${p.id}">${coordSt(p)}</small>
-      <div class="pph">${ph.map(x => `<div class="pphi"><img src="${urlOf(x)}" alt=""><button class="x" data-pdel="${x.id}" aria-label="ลบรูป">✕</button></div>`).join('')}<button class="ib wide" data-ph="${p.id}">📷 ${ph.length ? 'เพิ่มรูป' : 'ใส่รูปสถานที่นี้'}</button></div></div>`; };
+      <div class="pph">${ph.map(x => `<div class="pphi">${x.type === 'video' ? `<video src="${urlOf(x)}#t=0.1" muted playsinline></video><span class="vb">🎬 ${Math.round(x.dur || 0) || ''}</span>` : `<img src="${urlOf(x)}" alt="">`}<button class="x" data-pdel="${x.id}" aria-label="ลบ">✕</button></div>`).join('')}<button class="ib wide" data-ph="${p.id}">📷 ${ph.length ? 'เพิ่มรูป/คลิป' : 'ใส่รูป/คลิปสถานที่นี้'}</button></div>${ph.length ? `<small class="hint">สต็อกสถานที่นี้: ${ph.filter(x => x.type !== 'video').length} รูป · ${ph.filter(x => x.type === 'video').length} คลิป (ใส่ได้ไม่จำกัด แอปเลือกใช้ให้ต่อคลิป)</small>` : ''}</div>`; };
   const draw = () => { const sc = d.scrollTop; d.querySelector('#prows').innerHTML = lib.places.length ? lib.places.map(card).join('') : '<div class="soon">ยังไม่มีสถานที่ กด "+ เพิ่มสถานที่ใหม่"</div>'; d.scrollTop = sc; };
   d.innerHTML = `<div class="sh-head"><b>📍 สถานที่สำคัญ</b><button class="ib" data-a="x" aria-label="ปิด">✕</button></div>
     <p class="hint">ใส่ <b>ชื่อ + พิกัด + รูป</b> ของแต่ละสถานที่ไว้ที่นี่ที่เดียว ใช้ซ้ำทุกคลิป · พิกัด: เปิด Google Maps กดค้างที่จุดนั้นแล้วแตะตัวเลขพิกัดด้านบนเพื่อคัดลอก · ที่ไม่ใส่พิกัดจะไม่ถูกใช้คำนวณระยะทาง · รูปที่ใส่ที่นี่จะเข้าสต็อกภาพทำเลตามหมวด และขึ้นป้ายชื่อ+ระยะทางบนภาพในคลิป</p>
@@ -246,7 +255,7 @@ function openPlaces(after) {
     const rm = e.target.closest('[data-rm]');
     if (rm) { const p = lib.places.find(x => x.id === +rm.dataset.rm), n = placePhotos(p).length; if (!confirm(`ลบสถานที่ "${p.name}"${n ? ` และรูป ${n} รูปของสถานที่นี้` : ''} ?`)) return; lib.area = lib.area.filter(x => x.placeId !== p.id); lib.places = lib.places.filter(x => x.id !== p.id); await saveLib(); draw(); return; }
     const pd = e.target.closest('[data-pdel]'); if (pd) { if (confirm('ลบรูปนี้?')) { lib.area = lib.area.filter(x => x.id !== +pd.dataset.pdel); await saveLib(); draw(); } return; }
-    const ph = e.target.closest('[data-ph]'); if (ph) { const p = lib.places.find(x => x.id === +ph.dataset.ph), fs = (await pickFiles('image/*', true)).filter(f => f.type.startsWith('image')); if (fs.length) { p.cat = placeCat(p); fs.forEach(f => lib.area.push({ id: libSeq++, cat: p.cat, placeId: p.id, title: p.name, ...mediaOf(f) })); await saveLib(); draw(); } return; }
+    const ph = e.target.closest('[data-ph]'); if (ph) { const p = lib.places.find(x => x.id === +ph.dataset.ph), fs = await pickFiles('image/*,video/*', true); if (fs.length) { p.cat = placeCat(p); const add = fs.map(f => ({ id: libSeq++, cat: p.cat, placeId: p.id, title: p.name, ...mediaOf(f) })); lib.area.push(...add); const b0 = ph; b0.textContent = 'กำลังอ่านไฟล์...'; await probeItems(add); await saveLib(); draw(); } return; }
     const a = e.target.closest('[data-a]')?.dataset.a; if (!a) return;
     if (a === 'add') { const name = prompt('ชื่อสถานที่ เช่น โรงพยาบาลหัวหินบำรุงราษฎร์'); if (name && name.trim()) { const p = { id: Date.now(), name: name.trim(), coord: '' }; p.cat = placeCat(p); lib.places.unshift(p); await saveLib(); draw(); d.scrollTop = 0; } return; }
     d.remove(); if (after) after();

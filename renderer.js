@@ -10,7 +10,7 @@ function totalDuration(arg) {
 }
 
 function drawCover(ctx, img, W, H, scale) {
-  const iw = img.naturalWidth || img.width, ih = img.naturalHeight || img.height;
+  const iw = img.naturalWidth || img.videoWidth || img.width, ih = img.naturalHeight || img.videoHeight || img.height;
   const base = Math.max(W / iw, H / ih) * scale;
   const w = iw * base, h = ih * base;
   ctx.drawImage(img, (W - w) / 2, (H - h) / 2, w, h);
@@ -19,7 +19,8 @@ function drawCover(ctx, img, W, H, scale) {
 const easeIO = x => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
 // ลูกเล่นเปลี่ยนภาพ: เลือกอัตโนมัติสลับกันไป (ไม่ซ้ำติดกัน) · ฉากไตเติล/เครดิตใช้เฟดนุ่มๆ
 const TRANS = ['fade', 'slideL', 'zoom', 'wipe', 'slideU', 'flash', 'circle', 'slideR'];
-const transFor = (i, a, b) => (STYLE.trans === 'fade' || (a && a.draw) || (b && b.draw) ? 'fade' : TRANS[(i * 3) % TRANS.length]);
+const isScene = x => x && x.draw && !x.isVideo; // คลิปวิดีโอใช้ลูกเล่นเปลี่ยนภาพได้เหมือนรูป ส่วนฉากไตเติล/เครดิตใช้เฟด
+const transFor = (i, a, b) => (STYLE.trans === 'fade' || isScene(a) || isScene(b) ? 'fade' : TRANS[(i * 3) % TRANS.length]);
 function drawItem(ctx, img, W, H, t, start, end) {
   if (img.draw) { ctx.save(); img.draw(ctx, W, H, t - start, start); ctx.restore(); }
   else drawCover(ctx, img, W, H, 1 + STYLE.zoom * Math.min(1, (t - start) / (end - start)));
@@ -71,4 +72,11 @@ function kbShot(bmp, dur, j) {
       ctx.drawImage(bmp, (W - w) / 2 + px * m * ox, (H - h) / 2 + py * m * oy, w, h);
     },
   };
+}
+
+// ก่อนวาดแต่ละเฟรม: รอให้คลิปวิดีโอที่กำลังแสดงเลื่อนไปถึงเวลานั้น (ใช้ตอนเรนเดอร์ไฟล์)
+async function prepareFrame(items, t) {
+  const F = STYLE.fade; let start = 0; const jobs = [];
+  items.forEach(it => { const d = itemDur(it), end = start + d + F; if (it.prepare && t >= start && t <= end) jobs.push(it.prepare(t - start)); start += d; });
+  if (jobs.length) await Promise.all(jobs);
 }

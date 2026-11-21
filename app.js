@@ -214,7 +214,7 @@ const ROOM_KW = { 'ห้องนอน': ['ห้องนอน', 'เตี�
 const AREA_KW = { hospital: ['โรงพยาบาล'], mall: ['ห้างสรรพสินค้า', 'ศูนย์การค้า'], water: ['สวนน้ำ', 'แบล็คเมาน์เทน', 'Black Mountain'], golf: ['กอล์ฟ'], beach: ['ทะเล', 'ชายหาด', 'หาดทราย', 'พระอาทิตย์ตก'], market: ['ตลาด', 'ร้านอาหาร', 'อาหารทะเล'], mountain: ['ภูเขา', 'น้ำตก', 'ธรรมชาติ'], city: ['ห้างสรรพสินค้า', 'ตัวเมือง', 'โรงพยาบาล'] };
 const countKw = (t, kws) => kws.reduce((n, k) => n + (t.split(k).length - 1), 0);
 function checkNarrationVsPhotos() {
-  const issues = [], hints = [], have = new Set(state.items.filter(i => i.type === 'image' && i.room).map(i => i.room));
+  const issues = [], hints = [], have = new Set(state.items.filter(i => isMedia(i) && i.room).map(i => i.room));
   scriptSegments().forEach(g => {
     const t = g.text || '', tag = `ท่อน ${String(g.no).padStart(2, '0')} ${g.label}`; if (!t.trim()) return;
     if (g.key === 'area') {
@@ -351,7 +351,7 @@ const findItemById = id => [...lib.area, ...state.items].find(x => x.id === id);
 const placeSubOf = it => { if (!it.placeId) return ''; const dd = placeDistances().find(x => x.id === it.placeId); return dd ? `ห่างจากบ้าน ${fmtKm(dd.km)} · ขับ ~${dd.min} นาที` : ''; };
 const catLabelOf = it => it.cat ? (AREA_CATS.find(c => c.id === it.cat) || {}).label || '' : (it.room || '');
 const stockThumbOf = it => !!it.cat && typeof stockOn === 'function' && stockOn();
-const thumbHtml = (it, del) => `<div class="th${stockThumbOf(it) && !stockSel(it) ? ' off' : ''}" data-id="${it.id}"${it.cat ? ' data-lib="1"' : ''}>${stockThumbOf(it) ? (stockSel(it) ? '<span class="tick">✓</span>' : '') : ''}${(it.title || '').trim() ? `<span class="ttl">${String(it.title).replace(/</g, '&lt;')}</span>` : ''}${it.type === 'video' ? `<video src="${urlOf(it)}#t=0.1" muted playsinline></video>` : `<img src="${urlOf(it)}" alt="">`}${itemCap(it) ? `<span class="cap">${itemCap(it)}</span>` : ''}${del ? `<button class="x" data-del="${it.id}" aria-label="ลบ">✕</button>` : ''}</div>`;
+const thumbHtml = (it, del) => `<div class="th${stockThumbOf(it) && !stockSel(it) ? ' off' : ''}" data-id="${it.id}"${it.cat ? ' data-lib="1"' : ''}>${stockThumbOf(it) ? (stockSel(it) ? '<span class="tick">✓</span>' : '') : ''}${(it.title || '').trim() ? `<span class="ttl">${String(it.title).replace(/</g, '&lt;')}</span>` : ''}${it.type === 'video' ? `<video src="${urlOf(it)}#t=0.1" muted playsinline></video><span class="vb">🎬 ${Math.round(+it.dur || 0) || ''}${it.dur ? ' วิ' : ''}</span>` : `<img src="${urlOf(it)}" alt="">`}${itemCap(it) ? `<span class="cap">${itemCap(it)}</span>` : ''}${del ? `<button class="x" data-del="${it.id}" aria-label="ลบ">✕</button>` : ''}</div>`;
 
 // เส้นสถานะสคริปต์ใต้หัวข้อกลุ่ม: เขียว+ยาวตามความยาวสคริปต์ = เขียนแล้ว · ส้มเต็มเส้น = ยังไม่เขียน
 function scriptBarHtml(sl) {
@@ -561,7 +561,7 @@ function cutText(t, m) {
   }
   parts.push(rest.trim()); return parts.filter(Boolean);
 }
-const segItems = g => (g.key === 'life' ? lifeItems() : g.key === 'area' ? areaItems() : state.items.filter(i => i.room === g.room)).filter(i => i.type === 'image');
+const segItems = g => (g.key === 'life' ? lifeItems() : g.key === 'area' ? areaItems() : state.items.filter(i => i.room === g.room)).filter(isMedia);
 function beatsList() {
   const out = [], sc = state.script;
   scriptSegmentsAll().forEach(g => {
@@ -963,26 +963,29 @@ function segPlan() {
   const segs = scriptSegments(), T = segTargets(), plan = {}, AUD = segAudioSec();
   segs.forEach(g => {
     const list = g.key === 'life' ? lifeItems() : g.key === 'area' ? areaItems() : state.items.filter(i => i.room === g.room);
-    plan[g.key] = { sec: AUD[g.key] != null ? AUD[g.key] + 0.25 : Math.max(secOf(g.text), T[g.key] || 0), imgs: list.filter(i => i.type === 'image') };
+    plan[g.key] = { sec: AUD[g.key] != null ? AUD[g.key] + 0.25 : Math.max(secOf(g.text), T[g.key] || 0), imgs: list.filter(isMedia) };
   });
   return plan;
 }
+// เวลาแสดงรูปนิ่งที่เหลือหลังหักเวลาคลิปวิดีโอ (คลิปใช้ความยาวของตัวเองไม่เกิน 8 วินาที)
+const stillShare = (items, totalSec) => { const vids = items.filter(i => i.type === 'video'), stills = items.length - vids.length; if (!stills) return STYLE.secPerImage; return Math.max(STYLE.secPerImage, (totalSec - vids.reduce((s, v) => s + vidDur(v), 0)) / stills); };
 function imageDurations(imgs) {
   const plan = segPlan(), idToKey = new Map();
   Object.entries(plan).forEach(([k, P]) => P.imgs.forEach(i => idToKey.set(i.id, k)));
   const BM = state.audio && state.audio.mode === 'beats' ? beatMap() : null;
   return imgs.map(i => {
     if (isHeroId(i.id)) { const d = hookDur(); return { dur: d, shots: d > MAXSHOT ? Math.ceil(d / MAXSHOT) : 1 }; }
+    if (i.type === 'video') return { dur: vidDur(i), shots: 1 };
     const k = idToKey.get(i.id); if (!k || !state.stretch) return { dur: STYLE.secPerImage, shots: 1 };
-    const bt = BM && BM.get(i.id); if (bt) { const au = beatAudioSec(bt.id), P0 = plan[k], sec = au != null ? au + 0.25 : P0.sec * bt.share, d0 = Math.max(STYLE.secPerImage, sec / Math.max(1, bt.imgs.length)); return { dur: d0, shots: d0 > MAXSHOT ? Math.ceil(d0 / MAXSHOT) : 1 }; }
-    const P = plan[k], d = Math.max(STYLE.secPerImage, P.sec / P.imgs.length);
+    const bt = BM && BM.get(i.id); if (bt) { const au = beatAudioSec(bt.id), P0 = plan[k], sec = au != null ? au + 0.25 : P0.sec * bt.share, d0 = stillShare(bt.imgs, sec); return { dur: d0, shots: d0 > MAXSHOT ? Math.ceil(d0 / MAXSHOT) : 1 }; }
+    const P = plan[k], d = stillShare(P.imgs, P.sec);
     return { dur: d, shots: d > MAXSHOT ? Math.ceil(d / MAXSHOT) : 1 };
   });
 }
 function timelineImages() {
   const titleImg = (!lib.titleBuiltin && lib.title && lib.title.type === 'image') ? lib.title : null, closeImg = (!lib.closeBuiltin && lib.close && lib.close.type === 'image') ? lib.close : null;
   const pre = titleImg ? [titleImg] : [], post = closeImg ? [closeImg] : [], hero = heroItem();
-  return { pre, hero, imgs: [...(hero ? [hero] : []), ...pre, ...areaLibOrdered().filter(i => i.type === 'image'), ...state.items.filter(i => i.type === 'image'), ...lifeItems().filter(i => i.type === 'image'), ...post] };
+  return { pre, hero, imgs: [...(hero ? [hero] : []), ...pre, ...areaLibOrdered().filter(isMedia), ...state.items.filter(isMedia), ...lifeItems().filter(isMedia), ...post] };
 }
 const predictedTotal = () => imageDurations(timelineImages().imgs).reduce((a, p) => a + p.dur, 0) + fixedSec();
 // ขีดวัด: จำนวนรูปเทียบกับเวลาของช่วงนั้น (ส้ม=น้อยไป เขียว=พอดี แดง=เยอะไป)
@@ -1001,10 +1004,10 @@ function viewRender() {
   const blockers = sbBlockers();
   const skipped = state.items.length - imgs.filter(i => !isHeroId(i.id)).length;
   const routeOk = !!(state.routeData && state.routeData.size === state.size);
-  const routeAt = pre.length + areaLibOrdered().filter(i => i.type === 'image').length + state.items.filter(i => i.type === 'image' && (i.room === AREA_ROOM || i.room === MAP_ROOM)).length;
+  const routeAt = pre.length + areaLibOrdered().filter(isMedia).length + state.items.filter(i => isMedia(i) && (i.room === AREA_ROOM || i.room === MAP_ROOM)).length;
   $('#view').innerHTML = `
     <h2>เรนเดอร์เป็น MP4</h2>
-    <p class="hint">ขนาด ${s.name} (${s.w}×${s.h}) · ${imgs.length} รูป · ยาวประมาณ ${predictedTotal().toFixed(1)} วินาที (รวมฉากมาสคอต/คลิปรถวิ่งที่เปิดใช้)${skipped ? ` · คลิปสั้น ${skipped} ไฟล์ยังไม่ถูกใช้ (รอบหน้า)` : ''}</p>
+    <p class="hint">ขนาด ${s.name} (${s.w}×${s.h}) · ${imgs.length} รูป/คลิป · ยาวประมาณ ${predictedTotal().toFixed(1)} วินาที (รวมฉากมาสคอต/คลิปรถวิ่งที่เปิดใช้)${skipped ? ` · คลิปสั้น ${skipped} ไฟล์ยังไม่ถูกใช้ (รอบหน้า)` : ''}</p>
     ${blockers.length ? `<div class="soon" style="border-color:#b00020;color:#b00020;text-align:left">❌ ยังเรนเดอร์ไม่ได้ เพราะผังเรื่องยังขาด:<br>${blockers.map(b => '• ' + b.label.replace(/^\d+\. /, '') + ' — ' + b.info).join('<br>')}<br><br><button class="btn alt" id="openSb">📋 เปิดผังเรื่อง</button></div>` : ''}
  <label class="sw"><input type="checkbox" id="capOn" ${state.capOn !== false ? 'checked' : ''}> ป้ายชื่อสถานที่/ชื่อรูป บนภาพ (ชื่อที่คุณตั้งให้รูป เช่น "โรงพยาบาลหัวหิน")</label>
     <label class="sw"><input type="checkbox" id="ovl" ${state.overlay ? 'checked' : ''}> ป้ายข้อความระหว่างคลิป เช่น "3 ห้องนอน" "พื้นที่ใช้สอย ..." โผล่เป็นระยะ (ใช้ข้อมูลบ้านที่กรอกไว้)</label>
@@ -1029,12 +1032,13 @@ function viewRender() {
     $('#go').disabled = true; $('#out').innerHTML = '';
     const t0 = performance.now();
     try {
+      await probeItems([...state.items, ...lib.area]); // อ่านความยาวคลิปวิดีโอที่ยังไม่รู้
       const PL = makePlan(), { imgs: gimgs, durs, entries, starts, sceneAt, total } = PL;
       let luts = null;
       if (!isNeutral(state.color)) {
-        const stats = [];
-        for (const it of gimgs) { if (!statCache.has(it.id)) statCache.set(it.id, imageStats(await getSmall(it))); stats.push(statCache.get(it.id)); }
-        luts = makeLuts(stats, state.color);
+        const stats = [], idx = [];
+        for (let k = 0; k < gimgs.length; k++) { const it = gimgs[k]; if (it.type === 'video') continue; if (!statCache.has(it.id)) statCache.set(it.id, imageStats(await getSmall(it))); stats.push(statCache.get(it.id)); idx.push(k); }
+        const L = makeLuts(stats, state.color); luts = new Array(gimgs.length).fill(null); idx.forEach((k, j) => { luts[k] = L[j]; });
       }
       const sceneList = [];
       if (lib.closeBuiltin) sceneList.push({ at: gimgs.length, scene: await closeScene() });
@@ -1059,7 +1063,7 @@ function viewRender() {
           spans = out;
         }
         PRESENTER.spans = spans; }
-      const blob = await renderMp4(gimgs.map(i => i.blob), s.w, s.h, (p, msg) => { $('#prog').textContent = `${msg} ${Math.round(p * 100)}%`; }, luts, sceneList, durs, audioMix);
+      const blob = await renderMp4(gimgs.map(i => (i.type === 'video' ? { video: i.blob, dur: vidDur(i) } : i.blob)), s.w, s.h, (p, msg) => { $('#prog').textContent = `${msg} ${Math.round(p * 100)}%`; }, luts, sceneList, durs, audioMix);
       const url = URL.createObjectURL(blob), kept = await storeVideo(pid0, blob); await markRendered(pid0, blob, kept);
       $('#prog').textContent = `${kept ? '💾 เก็บไว้ในหน้า "คลิปของฉัน" แล้ว · ' : '⚠️ พื้นที่เก็บในเครื่องไม่พอจะเก็บวิดีโอไว้ในแอป (โหลดลงเครื่องเลย) · '}เสร็จใน ${((performance.now() - t0) / 1000).toFixed(0)} วินาที · ขนาดไฟล์ ${(blob.size / 1048576).toFixed(1)} MB`;
       $('#out').innerHTML = `<video src="${url}" controls playsinline style="width:100%;max-height:60vh;background:#000;border-radius:12px"></video><a class="btn" id="dl" download="${clipName(metaOf(pid0) || {})}.mp4" href="${url}" style="text-decoration:none;text-align:center">⬇ บันทึกไฟล์ MP4</a>`;
@@ -1358,7 +1362,7 @@ function wavBlob(data, sr) {
 const MASCOT_SELL = ['room:หน้าบ้าน/ภายนอก', 'room:สระว่ายน้ำ', 'room:สวน/ระเบียง', 'life'];
 function makePlan() {
   const { pre, hero, imgs } = timelineImages(), routeOk = routeOkNow(), nH = hero ? 1 : 0;
-  const routeAt = nH + pre.length + areaLibOrdered().filter(i => i.type === 'image').length + state.items.filter(i => i.type === 'image' && (i.room === AREA_ROOM || i.room === MAP_ROOM)).length;
+  const routeAt = nH + pre.length + areaLibOrdered().filter(isMedia).length + state.items.filter(i => isMedia(i) && (i.room === AREA_ROOM || i.room === MAP_ROOM)).length;
   const durs = imageDurations(imgs), idKey = new Map(), idBeat = new Map();
   Object.entries(segPlan()).forEach(([k, P]) => P.imgs.forEach(i => idKey.set(i.id, k)));
   if (state.audio.mode === 'beats') beatsList().forEach(b => b.imgs.forEach(i => idBeat.set(i.id, b.id)));
