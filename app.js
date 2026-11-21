@@ -9,7 +9,7 @@ const SIZES = [
 const ROOMS = [AREA_ROOM, MAP_ROOM, 'หน้าบ้าน/ภายนอก','ที่จอดรถ','ห้องนั่งเล่น','ห้องทานอาหาร','ครัว','ห้องนอนใหญ่','ห้องนอน','ห้องน้ำ','สระว่ายน้ำ','สวน/ระเบียง','วิวรอบๆ','อื่นๆ'];
 const STEPS = ['1 ขนาด','2 ใส่รูป/คลิป','3 สี','4 สคริปต์','5 เสียง','6 มาสคอต','7 เรนเดอร์'];
 
-const state = { facts: { name: '', beds: '', baths: '', usable: '', land: '', price: '', travel: '', highlights: '' }, slot: 'title', step: 0, size: '4:5', items: [], color: { ...COLOR_DEFAULT }, useArea: true, contact: { mode: 'std', custom: { name: '', phone: '', line: '' } }, script: { area: '', rooms: {} } };
+const state = { facts: { name: '', beds: '', baths: '', usable: '', land: '', price: '', travel: '', coord: '', highlights: '' }, slot: 'title', step: 0, size: '4:5', items: [], color: { ...COLOR_DEFAULT }, useArea: true, contact: { mode: 'std', custom: { name: '', phone: '', line: '' } }, script: { area: '', rooms: {} } };
 let nextId = 1;
 
 // ---- เก็บงานไว้ในเครื่อง (IndexedDB) ปิดแอปแล้วงานไม่หาย ----
@@ -116,7 +116,7 @@ function draftFor(sl) {
   const bits = [n(f.beds) && `${n(f.beds)} ห้องนอน`, n(f.baths) && `${n(f.baths)} ห้องน้ำ`, n(f.usable) && `พื้นที่ใช้สอย ${n(f.usable)}`, n(f.land) && `บนที่ดิน ${n(f.land)}`].filter(Boolean);
   const T = {
     cat: 'หัวหินเมืองริมทะเลที่มีครบทุกอย่าง ทั้งชายหาดสวย ตลาดและร้านอาหารหลากหลาย ธรรมชาติภูเขาให้พักผ่อน เหมาะทั้งอยู่อาศัยจริงและลงทุน',
-    map: n(f.travel) ? `เดินทางสะดวก ${n(f.travel)}` : 'เดินทางเข้าถึงสะดวก ใกล้ทุกความสะดวกสบายในเมืองหัวหิน',
+    map: mapScriptText() || (n(f.travel) ? `เดินทางสะดวก ${n(f.travel)}` : 'เดินทางเข้าถึงสะดวก ใกล้ทุกความสะดวกสบายในเมืองหัวหิน'),
     ext: `${intro} หน้าบ้านกว้างขวาง ดูโปร่งสบาย${bits.length ? ' ' + bits.join(' ') : ''}${n(f.highlights) ? ' จุดเด่นคือ ' + n(f.highlights) : ''}${n(f.price) ? ' ราคา ' + n(f.price) : ''}`,
     park: 'มีที่จอดรถสะดวก จอดได้สบาย',
     liv: 'ห้องนั่งเล่นโปร่งโล่ง รับแสงธรรมชาติ ตกแต่งอบอุ่น เหมาะกับการนั่งเล่นพักผ่อนกับครอบครัว',
@@ -145,14 +145,22 @@ function draftAll() {
 function openFacts(after) {
   document.querySelector('#factsSheet')?.remove();
   const f = state.facts, d = document.createElement('div'); d.className = 'sheet tall'; d.id = 'factsSheet';
-  const F = [['name', 'ชื่อโครงการ / ชื่อบ้าน', ''], ['beds', 'จำนวนห้องนอน', 'tel'], ['baths', 'จำนวนห้องน้ำ', 'tel'], ['usable', 'พื้นที่ใช้สอย (เช่น 150 ตร.ม.)', ''], ['land', 'ที่ดิน (เช่น 80 ตร.ว.)', ''], ['price', 'ราคา (เช่น 4.9 ล้านบาท)', ''], ['travel', 'การเดินทาง (เช่น ห่างหาดหัวหิน 15 นาที)', ''], ['highlights', 'จุดเด่น 2–3 ข้อ (เช่น สระส่วนตัว ใกล้ตลาด)', '']];
+  const F = [['name', 'ชื่อโครงการ / ชื่อบ้าน', ''], ['beds', 'จำนวนห้องนอน', 'tel'], ['baths', 'จำนวนห้องน้ำ', 'tel'], ['usable', 'พื้นที่ใช้สอย (เช่น 150 ตร.ม.)', ''], ['land', 'ที่ดิน (เช่น 80 ตร.ว.)', ''], ['price', 'ราคา (เช่น 4.9 ล้านบาท)', ''], ['coord', 'พิกัดบ้าน (คัดลอกจาก Google Maps เช่น 12.558940,99.909039)', ''], ['highlights', 'จุดเด่น 2–3 ข้อ (เช่น สระส่วนตัว ใกล้ตลาด)', '']];
   d.innerHTML = `<div class="sh-head"><b>🏠 ข้อมูลบ้าน</b><button class="ib" data-a="x" aria-label="ปิด">✕</button></div>
     <p class="hint">กรอกเท่าที่มี ไม่กรอกช่องไหนก็ได้ แอปจะใช้ร่างสคริปต์ให้ (ข้อมูลนี้อยู่ในเครื่องคุณเท่านั้น)</p>
     ${F.map(([k, ph, t]) => `<input class="ct" data-k="${k}" ${t ? `type="${t}" ` : ''}placeholder="${ph}" value="${String(f[k] || '').replace(/"/g, '&quot;')}">`).join('')}
+    <div class="hint" id="distPrev"></div>
+    <button class="btn alt" data-a="places">📍 ตั้งสถานที่สำคัญ (วางพิกัดครั้งเดียว ใช้ซ้ำทุกบ้าน)</button>
+    <button class="btn alt" data-a="dist">🗺️ สร้างสคริปต์ระยะทาง (แทนท่อนแผนที่)</button>
     <button class="btn" data-a="draft">✨ บันทึกและร่างสคริปต์อัตโนมัติ</button><button class="btn alt" data-a="x">บันทึกเฉยๆ</button>`;
-  d.addEventListener('input', e => { if (e.target.dataset.k) { f[e.target.dataset.k] = e.target.value; save(); } });
+  const prev = () => { const dd = placeDistances(), el = d.querySelector('#distPrev'); el.textContent = !parseCoord(f.coord) ? (f.coord ? '⚠️ อ่านพิกัดบ้านไม่ออก ลองวางแบบ 12.558940,99.909039' : '') : dd.length ? '📏 ' + dd.slice(0, 5).map(x => `${x.name} ~${fmtKm(x.km)} (ขับ ~${x.min} นาที)`).join(' · ') + ' — ประมาณการ ไม่ใช่เวลาจริงจาก Google Maps' : 'ยังไม่มีสถานที่ที่ใส่พิกัด กด 📍 ตั้งสถานที่สำคัญ';
+  };
+  setTimeout(prev, 0);
+  d.addEventListener('input', e => { if (e.target.dataset.k) { f[e.target.dataset.k] = e.target.value; save(); prev(); } });
   d.onclick = e => {
     const a = e.target.closest('[data-a]')?.dataset.a; if (!a) return;
+    if (a === 'places') { openPlaces(prev); return; }
+    if (a === 'dist') { const t = mapScriptText(); if (!t) { alert('ยังสร้างไม่ได้: ต้องวางพิกัดบ้าน และพิกัดสถานที่สำคัญอย่างน้อย 1 แห่ง'); return; } const cur = state.script.rooms[MAP_ROOM]; if (cur && cur.trim() && !confirm('มีสคริปต์ท่อนแผนที่อยู่แล้ว ต้องการแทนที่ใช่ไหม?')) return; state.script.rooms[MAP_ROOM] = t; save(); alert('สร้างสคริปต์ระยะทางแล้ว (ใช้กับท่อน แผนที่/การเดินทาง)\n\n' + t); return; }
     d.remove();
     if (a === 'draft') { const n = draftAll(); alert(n ? `ร่างสคริปต์ให้ ${n} ช่วงแล้ว (เฉพาะที่ยังว่าง) ลองอ่านและแก้ได้เลย` : 'ทุกช่วงที่มีรูปมีสคริปต์อยู่แล้ว ไม่มีท่อนว่างให้ร่าง'); }
     if (after) after();

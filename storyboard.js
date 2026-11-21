@@ -28,12 +28,13 @@ const SLOTS = [
   { id: 'contact', ico: '☎️', short: 'ติดต่อ', label: 'เบอร์โทร / ข้อมูลติดต่อ', kind: 'contact', min: 1, rec: 1, hint: 'เลือกใช้เบอร์มาตรฐาน พิมพ์เบอร์ใหม่ หรือไม่แสดงเบอร์' },
   { id: 'close', ico: '🏁', short: 'เครดิตปิด', label: 'เครดิตปิดท้าย (คลิปประจำ)', kind: 'lib', min: 1, rec: 1, max1: true, hint: 'คลิปเครดิต/ข้อมูลติดต่อปิดท้าย · 1 ไฟล์ · ใส่ครั้งเดียวใช้ซ้ำทุกคลิป' },
 ];
-const lib = { title: null, close: null, area: [], contact: { name: '', phone: '', line: '' } };
+const DEFAULT_PLACES = ['หาดหัวหิน', 'ตลาดโต้รุ่งหัวหิน', 'สถานีรถไฟหัวหิน', 'สนามบินหัวหิน', 'เขาตะเกียบ', 'ซีคาด้า มาร์เก็ต', 'มาร์เก็ต วิลเลจ'];
+const lib = { title: null, close: null, area: [], contact: { name: '', phone: '', line: '' }, places: DEFAULT_PLACES.map((name, i) => ({ id: i + 1, name, coord: '' })) };
 let libSeq = 1000000;
 const saveLib = () => DB.set('library', lib);
 async function loadLib() {
   const l = await DB.get('library'); if (!l) return;
-  lib.contact = { name: '', phone: '', line: '', ...(l.contact || {}) }; lib.title = l.title || null; lib.close = l.close || null; lib.area = l.area || [];
+  lib.contact = { name: '', phone: '', line: '', ...(l.contact || {}) }; lib.title = l.title || null; lib.close = l.close || null; lib.area = l.area || []; if (l.places && l.places.length) lib.places = l.places;
   libSeq = Math.max(libSeq, ...lib.area.map(a => a.id || 0), (lib.title && lib.title.id) || 0, (lib.close && lib.close.id) || 0) + 1;
 }
 const libArea = cat => lib.area.filter(x => x.cat === cat);
@@ -140,6 +141,48 @@ function openSb() {
     const r = e.target.closest('[data-a=open]'); if (!r) return; d.remove();
     if (r.dataset.id === 'un') { go(2); return; }
     state.slot = r.dataset.id; go(1);
+  };
+  document.body.appendChild(d);
+}
+
+// ---- ระยะทางจากพิกัด (ประมาณการ: ระยะเส้นตรง ×1.3 ขับที่ความเร็วเฉลี่ย 40 กม./ชม.) ----
+function parseCoord(t) {
+  const m = String(t || '').match(/(-?\d{1,3}(?:\.\d+)?)\s*[,\s]\s*(-?\d{1,3}(?:\.\d+)?)/); if (!m) return null;
+  const la = +m[1], lo = +m[2]; return la >= -90 && la <= 90 && lo >= -180 && lo <= 180 ? { la, lo } : null;
+}
+function haversineKm(a, b) {
+  const R = 6371, r = d => d * Math.PI / 180, dLa = r(b.la - a.la), dLo = r(b.lo - a.lo);
+  const h = Math.sin(dLa / 2) ** 2 + Math.cos(r(a.la)) * Math.cos(r(b.la)) * Math.sin(dLo / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+function placeDistances() {
+  const home = parseCoord(state.facts.coord); if (!home) return [];
+  return lib.places.map(p => ({ p, c: parseCoord(p.coord) })).filter(x => x.c).map(({ p, c }) => {
+    const km = haversineKm(home, c), road = km * 1.3;
+    return { name: p.name, km, min: Math.max(2, Math.round(road / 40 * 60)) };
+  }).sort((a, b) => a.km - b.km);
+}
+const fmtKm = km => (km < 1 ? `${Math.max(100, Math.round(km * 10) * 100)} เมตร` : `${km < 10 ? km.toFixed(1) : Math.round(km)} กิโลเมตร`);
+function mapScriptText(max = 4) {
+  const near = placeDistances().slice(0, max); if (!near.length) return '';
+  return 'บ้านหลังนี้ ' + near.map(x => `ห่างจาก${x.name}ประมาณ ${fmtKm(x.km)} ขับรถราว ${x.min} นาที`).join(' ');
+}
+
+// หน้าต่างตั้งสถานที่สำคัญ (วางพิกัดครั้งเดียว ใช้ซ้ำทุกบ้าน)
+function openPlaces(after) {
+  document.querySelector('#placesSheet')?.remove();
+  const d = document.createElement('div'); d.className = 'sheet tall'; d.id = 'placesSheet';
+  const rows = () => lib.places.map(p => `<div class="prow" data-id="${p.id}"><b>${p.name}</b><input class="ct" data-c="${p.id}" inputmode="decimal" placeholder="วางพิกัด เช่น 12.5698,99.9577" value="${esc(p.coord)}"><span class="pst">${p.coord ? (parseCoord(p.coord) ? '✅' : '⚠️ อ่านพิกัดไม่ออก') : ''}</span><button class="ib sm" data-rm="${p.id}" aria-label="ลบ">✕</button></div>`).join('');
+  d.innerHTML = `<div class="sh-head"><b>📍 สถานที่สำคัญ</b><button class="ib" data-a="x" aria-label="ปิด">✕</button></div>
+    <p class="hint">วางพิกัดของแต่ละที่ <b>ครั้งเดียว</b> ใช้ซ้ำทุกบ้าน · วิธีคัดลอก: เปิด Google Maps กดค้างที่จุดนั้น แล้วแตะตัวเลขพิกัดด้านบนเพื่อคัดลอก · ที่ไม่ใส่พิกัดจะไม่ถูกนำมาคำนวณ</p>
+    <div id="prows">${rows()}</div>
+    <button class="btn alt" data-a="add">+ เพิ่มสถานที่</button><button class="btn" data-a="x">เสร็จ</button>`;
+  d.addEventListener('input', e => { const id = +e.target.dataset.c; if (!id) return; const p = lib.places.find(x => x.id === id); p.coord = e.target.value; saveLib(); e.target.closest('.prow').querySelector('.pst').textContent = p.coord ? (parseCoord(p.coord) ? '✅' : '⚠️ อ่านพิกัดไม่ออก') : ''; });
+  d.onclick = async e => {
+    const rm = e.target.closest('[data-rm]'); if (rm) { lib.places = lib.places.filter(x => x.id !== +rm.dataset.rm); await saveLib(); d.querySelector('#prows').innerHTML = rows(); return; }
+    const a = e.target.closest('[data-a]')?.dataset.a; if (!a) return;
+    if (a === 'add') { const name = prompt('ชื่อสถานที่ เช่น โรงพยาบาลหัวหิน'); if (name && name.trim()) { lib.places.push({ id: Date.now(), name: name.trim(), coord: '' }); await saveLib(); d.querySelector('#prows').innerHTML = rows(); } return; }
+    d.remove(); if (after) after();
   };
   document.body.appendChild(d);
 }
