@@ -78,6 +78,7 @@ function slotStatus(s, n = slotCount(s)) {
   return n >= s.rec ? 'ok' : 'warn';
 }
 function slotInfo(s, n) {
+  if (s.id === 'map' && !n && state.skipMap) return 'ข้ามแผนที่ในคลิปนี้';
   if (s.kind === 'contact') { const ct = activeContact(); return state.contact.mode === 'none' ? 'ไม่แสดงเบอร์ในคลิปนี้' : n ? `${ct.name} ${ct.phone}${ct.line ? ' · LINE ' + ct.line : ''}` : 'ยังไม่ได้กรอกเบอร์ (หรือเลือก "ไม่แสดง")'; }
   if (s.min === 0 && s.rec === 0) return n ? `${n} รูป/คลิป` : 'ไม่จำเป็น · ข้ามได้';
   if (n === 0) return s.min ? 'ยังไม่มี · จำเป็น' : 'ยังไม่มี · แนะนำให้ใส่';
@@ -185,4 +186,58 @@ function openPlaces(after) {
     d.remove(); if (after) after();
   };
   document.body.appendChild(d);
+}
+
+// ---- สร้างรูปแผนที่จากพิกัดบ้าน (แผนที่ OpenStreetMap โหลดตอนสร้าง ต้องต่อเน็ต · ไม่ใช้รหัส API) ----
+const TILE_URL = 'https://tile.openstreetmap.org';
+const lonToX = (lon, z) => (lon + 180) / 360 * 2 ** z;
+const latToY = (lat, z) => { const r = lat * Math.PI / 180; return (1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2 * 2 ** z; };
+const tileCache = new Map();
+async function loadTile(z, x, y) {
+  const n = 2 ** z; x = ((x % n) + n) % n; const k = `${z}/${x}/${y}`;
+  if (!tileCache.has(k)) tileCache.set(k, fetch(`${TILE_URL}/${k}.png`, { mode: 'cors' }).then(async r => { if (!r.ok) throw new Error('tile ' + r.status); return createImageBitmap(await r.blob()); }));
+  return tileCache.get(k);
+}
+async function renderMap(W, H, pts, zoomFixed) {
+  let z = zoomFixed;
+  if (!z) for (z = 17; z > 9; z--) {
+    const xs = pts.map(p => lonToX(p.lo, z) * 256), ys = pts.map(p => latToY(p.la, z) * 256);
+    if (Math.max(...xs) - Math.min(...xs) <= W * 0.62 && Math.max(...ys) - Math.min(...ys) <= H * 0.62) break;
+  }
+  const px = pts.map(p => lonToX(p.lo, z) * 256), py = pts.map(p => latToY(p.la, z) * 256);
+  const left = (Math.min(...px) + Math.max(...px)) / 2 - W / 2, top = (Math.min(...py) + Math.max(...py)) / 2 - H / 2;
+  const cv = document.createElement('canvas'); cv.width = W; cv.height = H; const x = cv.getContext('2d');
+  x.fillStyle = '#e8e0d0'; x.fillRect(0, 0, W, H);
+  const jobs = [], n = 2 ** z;
+  for (let tx = Math.floor(left / 256); tx <= Math.floor((left + W) / 256); tx++) for (let ty = Math.floor(top / 256); ty <= Math.floor((top + H) / 256); ty++) if (ty >= 0 && ty < n) jobs.push([tx, ty]);
+  for (let i = 0; i < jobs.length; i += 6) await Promise.all(jobs.slice(i, i + 6).map(async ([tx, ty]) => { const b = await loadTile(z, tx, ty); x.drawImage(b, tx * 256 - left, ty * 256 - top); }));
+  const at = (p, i) => ({ X: px[i] - left, Y: py[i] - top });
+  const fs = Math.round(W / 30), label = (t, X, Y, bg, fg) => { x.font = `bold ${fs}px sans-serif`; const w = x.measureText(t).width + fs; x.fillStyle = bg; x.beginPath(); x.roundRect(X - w / 2, Y - fs * 0.85, w, fs * 1.5, fs * 0.4); x.fill(); x.fillStyle = fg; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(t, X, Y - fs * 0.1); };
+  const home = pts.findIndex(p => p.home), h = at(pts[home], home);
+  let k = 0;
+  pts.forEach((p, i) => { if (i === home) return; const a = at(p, i), idx = k++;
+    x.strokeStyle = '#7a1f2b'; x.lineWidth = Math.max(4, W / 220); x.setLineDash([W / 45, W / 70]); x.beginPath(); x.moveTo(a.X, a.Y); x.lineTo(h.X, h.Y); x.stroke(); x.setLineDash([]);
+    x.fillStyle = '#1f6fb5'; x.beginPath(); x.arc(a.X, a.Y, W / 70, 0, 7); x.fill(); x.lineWidth = 4; x.strokeStyle = '#fff'; x.stroke();
+    label(p.label, a.X, a.Y + (idx % 2 ? W / 16 : -W / 22), 'rgba(255,255,255,.92)', '#2e2220');
+    if (p.km != null) { const t = [0.5, 0.3, 0.7][idx % 3]; label(`~${fmtKm(p.km)}`, h.X + (a.X - h.X) * t, h.Y + (a.Y - h.Y) * t + (idx % 2 ? W / 18 : 0), 'rgba(122,31,43,.92)', '#fff'); } });
+  x.fillStyle = '#7a1f2b'; x.beginPath(); x.arc(h.X, h.Y, W / 28, 0, 7); x.fill(); x.lineWidth = 6; x.strokeStyle = '#fff'; x.stroke();
+  x.font = `${Math.round(W / 22)}px sans-serif`; x.fillStyle = '#fff'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('🏠', h.X, h.Y + 2);
+  label(pts[home].label, h.X, h.Y + W / 14, '#7a1f2b', '#fff');
+  x.fillStyle = 'rgba(255,255,255,.85)'; x.fillRect(0, H - fs * 1.4, W, fs * 1.4); x.fillStyle = '#444'; x.font = `${Math.round(fs * 0.7)}px sans-serif`; x.textAlign = 'right'; x.fillText('© OpenStreetMap contributors', W - 12, H - fs * 0.7);
+  return new Promise(r => cv.toBlob(r, 'image/png'));
+}
+async function generateMapImages(statusEl) {
+  const home = parseCoord(state.facts.coord);
+  if (!home) { alert('ยังไม่มีพิกัดบ้าน: กด 🏠 ข้อมูลบ้าน แล้ววางพิกัดบ้านก่อน'); return false; }
+  const sz = sizeInfo();
+  const near = lib.places.map(p => ({ p, c: parseCoord(p.coord) })).filter(o => o.c).map(({ p, c }) => ({ la: c.la, lo: c.lo, label: p.name, km: haversineKm(home, c) })).sort((a, b) => a.km - b.km).slice(0, 3);
+  try {
+    statusEl.textContent = 'กำลังโหลดแผนที่... (ต้องต่อเน็ต)';
+    const blobs = [];
+    if (near.length) blobs.push(await renderMap(sz.w, sz.h, [{ ...home, home: true, label: 'บ้านหลังนี้' }, ...near]));
+    blobs.push(await renderMap(sz.w, sz.h, [{ ...home, home: true, label: 'บ้านหลังนี้' }], 16));
+    state.items.filter(i => i.name && i.name.startsWith('map-auto-')).map(i => i.id).forEach(removeItem);
+    blobs.forEach((b, i) => state.items.push({ id: nextId++, blob: b, type: 'image', room: MAP_ROOM, name: `map-auto-${i + 1}.png` }));
+    await save(); state.skipMap = false; return blobs.length;
+  } catch (e) { statusEl.textContent = '❌ โหลดแผนที่ไม่สำเร็จ (ต่อเน็ตอยู่ไหม?) ' + (e.message || e) + ' · หรือแคปหน้า Google Maps แล้วเพิ่มรูปเองแทนได้'; return false; }
 }
