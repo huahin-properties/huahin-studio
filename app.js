@@ -9,7 +9,7 @@ const SIZES = [
 const ROOMS = [AREA_ROOM, MAP_ROOM, 'หน้าบ้าน/ภายนอก','ที่จอดรถ','ห้องนั่งเล่น','ห้องทานอาหาร','ครัว','ห้องนอนใหญ่','ห้องนอน','ห้องน้ำ','สระว่ายน้ำ','สวน/ระเบียง','วิวรอบๆ','อื่นๆ'];
 const STEPS = ['1 ขนาด','2 ใส่รูป/คลิป','3 สี','4 สคริปต์','5 เสียง','6 มาสคอต','7 เรนเดอร์'];
 
-const state = { mascot: { presenter: true, size: 0.28, side: 'left' }, audio: { mode: 'single', single: null, chunks: {}, music: null, musicVol: 15, sfx: true }, stretch: true, clipSec: 180, routeData: null, skipMap: false, facts: { name: '', beds: '', baths: '', usable: '', land: '', price: '', travel: '', coord: '', routeStart: '', routeLabel: '', highlights: '' }, slot: 'title', step: 0, size: '4:5', items: [], color: { ...COLOR_DEFAULT }, useArea: true, contact: { mode: 'std', custom: { name: '', phone: '', line: '' } }, script: { area: '', rooms: {}, en: {}, enSrc: {} } };
+const state = { mascot: { presenter: true, size: 0.28, side: 'left' }, audio: { mode: 'single', single: null, chunks: {}, music: null, musicVol: 15, duck: true, duckBoost: 2.5, sfx: true }, stretch: true, clipSec: 180, routeData: null, skipMap: false, facts: { name: '', beds: '', baths: '', usable: '', land: '', price: '', travel: '', coord: '', routeStart: '', routeLabel: '', highlights: '' }, slot: 'title', step: 0, size: '4:5', items: [], color: { ...COLOR_DEFAULT }, useArea: true, contact: { mode: 'std', custom: { name: '', phone: '', line: '' } }, script: { area: '', rooms: {}, en: {}, enSrc: {} } };
 let nextId = 1;
 
 // ---- เก็บงานไว้ในเครื่อง (IndexedDB) ปิดแอปแล้วงานไม่หาย ----
@@ -25,7 +25,7 @@ const DB = {
 const save = () => (typeof updateSb === 'function' && updateSb(), DB.set('project', { v: 2, mascot: state.mascot, audio: state.audio, stretch: state.stretch, clipSec: state.clipSec, routeData: state.routeData, skipMap: state.skipMap, facts: state.facts, useArea: state.useArea, contact: state.contact, size: state.size, color: state.color, script: state.script, items: state.items.map(({ id, blob, type, room, name }) => ({ id, blob, type, room, name })) }));
 async function load() {
   await loadLib(); const p = await DB.get('project');
-  if (p) { if (!p.v) p.items.forEach(i => { if (i.room === 'หน้าบ้าน/ภายนอก') i.room = ''; }); state.size = p.size; state.color = { ...COLOR_DEFAULT, ...(p.color || {}) }; state.script = { area: '', rooms: {}, en: {}, enSrc: {}, ...(p.script || {}) }; state.skipMap = !!p.skipMap; state.clipSec = p.clipSec || 180; state.audio = { mode: 'single', single: null, chunks: {}, music: null, musicVol: 15, sfx: true, ...(p.audio || {}) }; state.mascot = { presenter: true, size: 0.28, side: 'left', ...(p.mascot || {}) }; state.stretch = p.stretch !== false; state.routeData = p.routeData || null; state.facts = { ...state.facts, ...(p.facts || {}) }; state.useArea = true; state.contact = { mode: 'std', ...(p.contact || {}), custom: { name: '', phone: '', line: '', ...((p.contact || {}).custom || {}) } }; state.items = p.items; nextId = Math.max(0, ...p.items.map(i => i.id)) + 1; }
+  if (p) { if (!p.v) p.items.forEach(i => { if (i.room === 'หน้าบ้าน/ภายนอก') i.room = ''; }); state.size = p.size; state.color = { ...COLOR_DEFAULT, ...(p.color || {}) }; state.script = { area: '', rooms: {}, en: {}, enSrc: {}, ...(p.script || {}) }; state.skipMap = !!p.skipMap; state.clipSec = p.clipSec || 180; state.audio = { mode: 'single', single: null, chunks: {}, music: null, musicVol: 15, duck: true, duckBoost: 2.5, sfx: true, ...(p.audio || {}) }; state.mascot = { presenter: true, size: 0.28, side: 'left', ...(p.mascot || {}) }; state.stretch = p.stretch !== false; state.routeData = p.routeData || null; state.facts = { ...state.facts, ...(p.facts || {}) }; state.useArea = true; state.contact = { mode: 'std', ...(p.contact || {}), custom: { name: '', phone: '', line: '', ...((p.contact || {}).custom || {}) } }; state.items = p.items; nextId = Math.max(0, ...p.items.map(i => i.id)) + 1; }
 }
 
 const $ = s => document.querySelector(s);
@@ -1027,10 +1027,14 @@ function viewAudio() {
     <label class="sw"><input type="radio" name="amode" value="chunks" ${single ? '' : 'checked'}> แยกเป็นหลายช่วง</label>
     ${single ? singleHtml() : chunkHtml()}
     <div class="seg"><b>🎵 เพลงประกอบ (mp3)</b>
-      ${A.music ? `<p class="hint">📄 ${A.music.name.replace(/</g, '&lt;')} · ${fmtSec(A.music.dur || 0)}</p><audio controls preload="none" src="${urlFor('m', A.music.blob)}" style="width:100%"></audio>` : '<p class="hint">ยังไม่มีเพลง (ไม่ใส่ก็ได้)</p>'}
+      ${A.music ? `<p class="hint">📄 ${A.music.name.replace(/</g, '&lt;')} · ${fmtSec(A.music.dur || 0)}</p><audio id="musicAud" controls preload="none" src="${urlFor('m', A.music.blob)}" style="width:100%"></audio><p class="hint">เครื่องเล่นนี้เล่นไฟล์เพลงดิบ (แถบเลื่อนด้านล่างปรับเสียงตัวอย่างนี้ได้บนบางเครื่อง) · ต้องการฟังเสียงที่จะออกจริง กด <b>🎧 ฟังตัวอย่างเสียงผสม</b></p>` : '<p class="hint">ยังไม่มีเพลง (ไม่ใส่ก็ได้)</p>'}
       <div class="tools"><button class="ib wide" id="pickMusic">${A.music ? '↻ เปลี่ยนเพลง' : '+ เลือกไฟล์เพลง'}</button>${A.music ? '<button class="ib" id="rmMusic" aria-label="ลบ">🗑️</button>' : ''}</div>
-      <label class="sl"><span>ความดังเพลง <b id="mvTxt">${A.musicVol}%</b> (เสียงพากย์ = 100%)</span><input type="range" id="mv" min="0" max="50" step="1" value="${A.musicVol}"></label>
-      <p class="hint">เพลงเล่นตลอดคลิป ค่อยๆ ดังขึ้นตอนต้น และค่อยๆ เบาลงตอนจบ · เพลงยาวกว่าคลิปจะถูกตัด สั้นกว่าจะเล่นวน</p></div>
+      <label class="sl"><span>ความดังเพลง ตอนมีเสียงพูด <b id="mvTxt">${A.musicVol}%</b> (เสียงพากย์ = 100%)</span><input type="range" id="mv" min="0" max="50" step="1" value="${A.musicVol}"></label>
+      <label class="sw"><input type="checkbox" id="duck" ${A.duck ? 'checked' : ''}> 🎚️ ให้เพลงดังขึ้นเองตอนเสียงพูดเงียบ (เหมือนดีเจ)</label>
+      <label class="fl"><span>เพลงดังขึ้นมากแค่ไหนตอนเงียบ</span><select class="ct" id="duckBoost"><option value="1.6" ${A.duckBoost == 1.6 ? 'selected' : ''}>เล็กน้อย (×1.6)</option><option value="2.5" ${A.duckBoost == 2.5 ? 'selected' : ''}>ปานกลาง (×2.5)</option><option value="4" ${A.duckBoost == 4 ? 'selected' : ''}>มาก (×4)</option></select></label>
+      <div class="tools"><button class="ib wide" id="mixPrev">🎧 ฟังตัวอย่างเสียงผสม</button></div>
+      <p class="hint" id="mixMsg"></p><audio id="mixAud" controls style="width:100%;display:none"></audio>
+      <p class="hint">เพลงเบาลงก่อนเริ่มพูดเล็กน้อย และค่อยๆ ดังกลับหลังพูดจบ · ค่อยๆ ดังขึ้นตอนต้นคลิป และค่อยๆ เบาลงตอนจบ · เพลงยาวกว่าคลิปจะถูกตัด สั้นกว่าจะเล่นวน</p></div>
     <label class="sw"><input type="checkbox" id="sfx" ${A.sfx ? 'checked' : ''}> เสียงเอฟเฟกต์ที่แอปสร้างให้ (ตอนมาสคอตกระโดดลงมาและตอนดีใจ ในไตเติลและเครดิต)</label>
     <button class="btn" id="nx">ถัดไป: 6 มาสคอต →</button><button class="btn alt" id="bk">← ย้อนกลับ</button>`;
   bindStyleCard($('#view'));
@@ -1060,7 +1064,18 @@ function viewAudio() {
   document.querySelectorAll('[data-rm]').forEach(b => b.onclick = async () => { if (!confirm('ลบไฟล์เสียงช่วงนี้?')) return; delete A.chunks[+b.dataset.rm]; await save(); rerender(); });
   $('#pickMusic').onclick = async () => { const [f] = await pickFiles('audio/*,.mp3,.wav,.m4a', false); if (!f) return; try { const buf = await decodeBlob(f); A.music = { blob: f, name: f.name, dur: buf.duration }; await save(); } catch (e) { alert('อ่านไฟล์เพลงไม่ได้ ลองไฟล์ mp3'); } rerender(); };
   if ($('#rmMusic')) $('#rmMusic').onclick = async () => { A.music = null; await save(); rerender(); };
-  $('#mv').oninput = e => { A.musicVol = +e.target.value; $('#mvTxt').textContent = A.musicVol + '%'; save(); };
+  const mAud = $('#musicAud'); if (mAud) mAud.volume = Math.min(1, A.musicVol / 50);
+  $('#mv').oninput = e => { A.musicVol = +e.target.value; $('#mvTxt').textContent = A.musicVol + '%'; if ($('#musicAud')) $('#musicAud').volume = Math.min(1, A.musicVol / 50); save(); };
+  $('#duck').onchange = e => { A.duck = e.target.checked; save(); }; $('#duckBoost').onchange = e => { A.duckBoost = +e.target.value; save(); };
+  $('#mixPrev').onclick = async e => {
+    const btn = e.currentTarget, msg = $('#mixMsg'); btn.disabled = true; msg.textContent = 'กำลังผสมเสียง... (คลิป 3 นาทีใช้เวลาสักครู่)';
+    try {
+      const T = computeTimeline(), mix = await buildMix(T.starts, T.total, T.sceneAt);
+      if (!mix) { msg.textContent = 'ยังไม่มีเสียงให้ผสม (ใส่ไฟล์เสียงหรือเพลงก่อน)'; }
+      else { const au = $('#mixAud'); if (au.dataset.u) URL.revokeObjectURL(au.dataset.u); const url = URL.createObjectURL(wavBlob(mix.data, mix.sampleRate)); au.dataset.u = url; au.src = url; au.style.display = 'block'; msg.textContent = `ตัวอย่างเสียงผสมทั้งคลิป ยาว ${fmtSec(T.total)} · เสียงนี้ตรงกับที่จะอยู่ในไฟล์ MP4`; au.play(); }
+    } catch (err) { msg.textContent = '❌ ผสมเสียงไม่สำเร็จ: ' + (err.message || err); }
+    btn.disabled = false;
+  };
   $('#sfx').onchange = e => { A.sfx = e.target.checked; save(); };
   $('#goScript').onclick = () => go(3); $('#nx').onclick = () => go(5); $('#bk').onclick = () => go(3);
 }
@@ -1081,6 +1096,25 @@ const fullSig = () => chunkSig({ texts: scriptSegmentsAll().filter(g => g.text.t
 
 // ---- ผสมเสียงทั้งคลิป (เสียงพากย์ + เพลง + เอฟเฟกต์) เป็นแทร็กเดียว และเก็บแทร็กเสียงพากย์ล้วนไว้คำนวณการขยับปาก ----
 const MIX_SR = 44100;
+function wavBlob(data, sr) {
+  const n = data.length, buf = new ArrayBuffer(44 + n * 2), v = new DataView(buf), w = (o, t) => { for (let i = 0; i < t.length; i++) v.setUint8(o + i, t.charCodeAt(i)); };
+  w(0, 'RIFF'); v.setUint32(4, 36 + n * 2, true); w(8, 'WAVE'); w(12, 'fmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true); v.setUint32(24, sr, true); v.setUint32(28, sr * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true); w(36, 'data'); v.setUint32(40, n * 2, true);
+  for (let i = 0; i < n; i++) v.setInt16(44 + i * 2, Math.max(-1, Math.min(1, data[i])) * 32767, true);
+  return new Blob([buf], { type: 'audio/wav' });
+}
+// แผนเวลาทั้งคลิป (ใช้ตอนฟังตัวอย่างเสียงผสม): ฉากไตเติล → รูป (ฉากรถวิ่งแทรก) → ฉากเครดิต
+function computeTimeline() {
+  const { pre, imgs } = timelineImages(), routeOk = !!(state.routeData && state.routeData.size === state.size);
+  const routeAt = pre.length + areaLibOrdered().filter(i => i.type === 'image').length + state.items.filter(i => i.type === 'image' && (i.room === AREA_ROOM || i.room === MAP_ROOM)).length;
+  const durs = imageDurations(imgs), idKey = new Map(); Object.entries(segPlan()).forEach(([k, P]) => P.imgs.forEach(i => idKey.set(i.id, k)));
+  const entries = []; if (lib.titleBuiltin) entries.push({ key: 'open', dur: titleDur(), title: true });
+  imgs.forEach((im, i) => { if (routeOk && i === routeAt) entries.push({ key: null, dur: ROUTE_DUR }); entries.push({ key: idKey.get(im.id) || null, dur: durs[i].dur }); });
+  if (routeOk && routeAt >= imgs.length) entries.push({ key: null, dur: ROUTE_DUR });
+  if (lib.closeBuiltin) entries.push({ key: 'close', dur: closeDur(), close: true });
+  const starts = {}, sceneAt = {}; let acc = 0;
+  entries.forEach(e => { if (e.key && starts[e.key] == null) starts[e.key] = acc; if (e.title) sceneAt.title = acc; if (e.close) sceneAt.close = acc; acc += e.dur; });
+  return { starts, sceneAt, total: acc + STYLE.fade };
+}
 async function buildMix(starts, total, sceneAt) {
   const A = state.audio, sr = MIX_SR, n = Math.ceil(total * sr), voice = new Float32Array(n), ctx = new (audioCtxClass())(1, n, sr);
   let any = false, hasVoice = false;
@@ -1104,7 +1138,18 @@ async function buildMix(starts, total, sceneAt) {
   if (hasVoice) { const vb = ctx.createBuffer(1, n, sr); vb.copyToChannel(voice, 0); const src = ctx.createBufferSource(); src.buffer = vb; src.connect(ctx.destination); src.start(0); any = true; }
   if (A.music && A.musicVol > 0) {
     const src = ctx.createBufferSource(); src.buffer = await ctx.decodeAudioData(await A.music.blob.arrayBuffer()); src.loop = true;
-    const g = ctx.createGain(), v = A.musicVol / 100; g.gain.setValueAtTime(0, 0); g.gain.linearRampToValueAtTime(v, Math.min(1.5, total)); g.gain.setValueAtTime(v, Math.max(1.5, total - 3)); g.gain.linearRampToValueAtTime(0, total);
+    const v = A.musicVol / 100, boost = A.duck && hasVoice ? (A.duckBoost || 2.5) : 1, hopS = 0.05, hop = Math.floor(sr * hopS), m = Math.ceil(n / hop) + 1;
+    // ตรวจว่าตอนไหนมีคนพูด (เสียงพากย์) → หรี่เพลงก่อนเริ่มพูด 0.15 วิ และค่อยๆ ดันกลับหลังพูดจบ (~0.7 วิ)
+    const act = new Float32Array(m);
+    if (boost > 1) {
+      const r = new Float32Array(m); for (let i = 0; i < m; i++) { let sum = 0, c = 0; const a = i * hop, e = Math.min(n, a + hop * 2); for (let j = a; j < e; j += 4) { sum += voice[j] * voice[j]; c++; } r[i] = c ? Math.sqrt(sum / c) : 0; }
+      const sorted = Array.from(r).filter(x => x > 1e-4).sort((x, y) => x - y), ref = sorted.length ? sorted[Math.floor(sorted.length * 0.95)] : 1, sp = new Uint8Array(m);
+      for (let i = 0; i < m; i++) sp[i] = r[i] > ref * 0.07 ? 1 : 0;
+      let prev = 0; for (let i = 0; i < m; i++) { let t = 0; for (let k = i; k < Math.min(m, i + 3); k++) if (sp[k]) { t = 1; break; } prev = Math.max(t, prev - hopS / 0.7); act[i] = prev; }
+    }
+    const curve = new Float32Array(m);
+    for (let i = 0; i < m; i++) { const t = i * hopS; let g = v * (1 + (boost - 1) * (1 - act[i])); g *= Math.min(1, t / 1.5) * Math.min(1, Math.max(0, (total - t) / 3)); curve[i] = Math.min(0.85, g); }
+    const g = ctx.createGain(); g.gain.setValueCurveAtTime(curve, 0, (m - 1) * hopS);
     src.connect(g).connect(ctx.destination); src.start(0); any = true;
   }
   if (A.sfx) {
