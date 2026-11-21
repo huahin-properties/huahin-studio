@@ -24,12 +24,13 @@ function drawFrame(ctx, W, H, images, t) {
     if (t >= start && t <= end) {
       const alpha = i === 0 ? 1 : Math.min(1, (t - start) / F);
       ctx.globalAlpha = alpha;
-      if (img.draw) { ctx.save(); img.draw(ctx, W, H, t - start); ctx.restore(); }
+      if (img.draw) { ctx.save(); img.draw(ctx, W, H, t - start, start); ctx.restore(); }
       else drawCover(ctx, img, W, H, 1 + STYLE.zoom * ((t - start) / (end - start)));
     }
     start += d;
   });
   ctx.globalAlpha = 1;
+  if (typeof PRESENTER !== 'undefined' && PRESENTER.on) PRESENTER.draw(ctx, W, H, t);
 }
 
 // ช็อตซูม/แพนจากรูปเดียว (ใช้เมื่อรูปน้อยแต่ต้องแสดงนาน: ภาพเดียวกันแต่เปลี่ยนมุมกล้องทุกช็อต)

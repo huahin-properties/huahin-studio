@@ -4,12 +4,8 @@ const BRAND_DEFAULT = { greeting: 'สวัสดีครับ', tagline: 'YO
 // ข้อความแบรนด์ตั้งครั้งเดียวในคลังกลาง (lib.brand) ใช้ซ้ำทุกคลิป · ช่องว่าง = ใช้ค่ามาตรฐาน
 const BR = () => { const b = (typeof lib !== 'undefined' && lib.brand) || {}, o = {}; for (const k in BRAND_DEFAULT) o[k] = (k === 'subtitle' ? (b[k] || '') : ((b[k] || '').trim() || BRAND_DEFAULT[k])); return o; };
 const BRAND_TAGLINE = 'YOUR HOME IS OUR PRIORITY';
-const MASCOT_FILES = ['wave', 'hello', 'celebrate', 'yourhome', 'greeting'];
-const mascotCache = {};
-async function loadMascots() {
-  await Promise.all(MASCOT_FILES.map(async n => { if (!mascotCache[n]) mascotCache[n] = fetch(`assets/${n}.png`).then(r => { if (!r.ok) throw new Error('assets/' + n); return r.blob(); }).then(createImageBitmap); }));
-  const m = {}; for (const n of MASCOT_FILES) m[n] = await mascotCache[n]; return m;
-}
+const MASCOT_FILES = ['wave', 'hello', 'celebrate', 'yourhome', 'greeting', 'handover'];
+async function loadMascots() { await loadPoses(); const m = {}; for (const n of Object.keys(POSES)) m[n] = n; return m; }
 const _c = (v, a, b) => Math.min(b, Math.max(a, v));
 const easeOutBounce = x => { const n = 7.5625, d = 2.75; if (x < 1 / d) return n * x * x; if (x < 2 / d) return n * (x -= 1.5 / d) * x + 0.75; if (x < 2.5 / d) return n * (x -= 2.25 / d) * x + 0.9375; return n * (x -= 2.625 / d) * x + 0.984375; };
 const easeOut = x => 1 - (1 - x) ** 3;
@@ -43,10 +39,11 @@ function brandLine(ctx, cx, y, size, t, at, maxW) {
   const ws = parts.map(p => ctx.measureText(p[0]).width), tot = ws.reduce((x, y) => x + y, 0); let x = cx - tot / 2; ctx.textAlign = 'left';
   parts.forEach((p, i) => { ctx.fillStyle = p[1]; ctx.fillText(p[0], x, y); x += ws[i]; }); ctx.restore();
 }
-function drawMascot(ctx, img, cx, bottom, h, yoff = 0, rot = 0) {
-  const w = img.width * h / img.height;
+let SCENE_T = 0; // เวลาจริงในคลิป (วินาที) ของเฟรมที่กำลังวาด ใช้ดึงค่าขยับปากจากเสียง
+function drawMascot(ctx, pose, cx, bottom, h, yoff = 0, rot = 0) {
+  const img = MASCOT_IMG[pose], w = img.width * h / img.height;
   ctx.save(); ctx.fillStyle = 'rgba(80,40,20,.18)'; ctx.beginPath(); ctx.ellipse(cx, bottom + 6, w * 0.34, h * 0.03, 0, 0, 7); ctx.fill(); ctx.restore();
-  ctx.save(); ctx.translate(cx, bottom + yoff); ctx.rotate(rot); ctx.drawImage(img, -w / 2, -h, w, h); ctx.restore();
+  const mo = mouthAt(SCENE_T); drawMascotTalking(ctx, pose, cx, bottom, h, { yoff, rot, mouth: mo.m, wf: mo.wf, blink: blinkAt(SCENE_T) });
 }
 function layoutFor(W, H) { return W > H * 1.2 ? 'land' : 'port'; }
 
@@ -54,8 +51,8 @@ async function titleScene() {
   const M = await loadMascots();
   return {
     dur: typeof titleDur === 'function' ? titleDur() : TITLE_DUR,
-    draw(ctx, W, H, t) {
-      const u = Math.min(W, H) / 1080, land = layoutFor(W, H) === 'land'; sceneBackground(ctx, W, H, t);
+    draw(ctx, W, H, t, abs = 0) {
+      SCENE_T = abs + t; const u = Math.min(W, H) / 1080, land = layoutFor(W, H) === 'land'; sceneBackground(ctx, W, H, t);
       const mh = land ? H * 0.74 : H * 0.42, cx = land ? W * 0.27 : W / 2, bottom = land ? H * 0.86 : H * 0.55;
       let yoff = 0, pose = M.hello, rot = 0;
       if (t < 0.9) { yoff = -(1 - easeOutBounce(_c(t / 0.9, 0, 1))) * H * 0.6; }
@@ -75,8 +72,8 @@ async function closeScene() {
   const M = await loadMascots(), ct = typeof activeContact === 'function' ? activeContact() : null;
   return {
     dur: typeof closeDur === 'function' ? closeDur() : CLOSE_DUR,
-    draw(ctx, W, H, t) {
-      const u = Math.min(W, H) / 1080, land = layoutFor(W, H) === 'land'; sceneBackground(ctx, W, H, t);
+    draw(ctx, W, H, t, abs = 0) {
+      SCENE_T = abs + t; const u = Math.min(W, H) / 1080, land = layoutFor(W, H) === 'land'; sceneBackground(ctx, W, H, t);
       const mh = land ? H * 0.74 : H * 0.38, cx = land ? W * 0.27 : W / 2, bottom = land ? H * 0.86 : H * 0.5;
       let yoff = 0; if (t < 0.8) yoff = -(1 - easeOutBounce(_c(t / 0.8, 0, 1))) * H * 0.5; else yoff = Math.sin((t - 0.8) * 3) * -6 * u;
       const pose = t < 1.0 ? M.greeting : (Math.floor((t - 1.0) / 1.2) % 2 ? M.greeting : M.yourhome);

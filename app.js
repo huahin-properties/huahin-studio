@@ -9,7 +9,7 @@ const SIZES = [
 const ROOMS = [AREA_ROOM, MAP_ROOM, 'หน้าบ้าน/ภายนอก','ที่จอดรถ','ห้องนั่งเล่น','ห้องทานอาหาร','ครัว','ห้องนอนใหญ่','ห้องนอน','ห้องน้ำ','สระว่ายน้ำ','สวน/ระเบียง','วิวรอบๆ','อื่นๆ'];
 const STEPS = ['1 ขนาด','2 ใส่รูป/คลิป','3 สี','4 สคริปต์','5 เสียง','6 มาสคอต','7 เรนเดอร์'];
 
-const state = { audio: { chunks: {}, music: null, musicVol: 15, sfx: true }, stretch: true, clipSec: 180, routeData: null, skipMap: false, facts: { name: '', beds: '', baths: '', usable: '', land: '', price: '', travel: '', coord: '', routeStart: '', routeLabel: '', highlights: '' }, slot: 'title', step: 0, size: '4:5', items: [], color: { ...COLOR_DEFAULT }, useArea: true, contact: { mode: 'std', custom: { name: '', phone: '', line: '' } }, script: { area: '', rooms: {}, en: {}, enSrc: {} } };
+const state = { mascot: { presenter: true, size: 0.28, side: 'left' }, audio: { mode: 'single', single: null, chunks: {}, music: null, musicVol: 15, sfx: true }, stretch: true, clipSec: 180, routeData: null, skipMap: false, facts: { name: '', beds: '', baths: '', usable: '', land: '', price: '', travel: '', coord: '', routeStart: '', routeLabel: '', highlights: '' }, slot: 'title', step: 0, size: '4:5', items: [], color: { ...COLOR_DEFAULT }, useArea: true, contact: { mode: 'std', custom: { name: '', phone: '', line: '' } }, script: { area: '', rooms: {}, en: {}, enSrc: {} } };
 let nextId = 1;
 
 // ---- เก็บงานไว้ในเครื่อง (IndexedDB) ปิดแอปแล้วงานไม่หาย ----
@@ -22,10 +22,10 @@ const DB = {
   async get(k) { const db = await this.open(); return new Promise(res => { const q = db.transaction('kv').objectStore('kv').get(k); q.onsuccess = () => res(q.result); }); },
   async set(k, v) { const db = await this.open(); return new Promise(res => { const tx = db.transaction('kv', 'readwrite'); tx.objectStore('kv').put(v, k); tx.oncomplete = res; }); },
 };
-const save = () => (typeof updateSb === 'function' && updateSb(), DB.set('project', { v: 2, audio: state.audio, stretch: state.stretch, clipSec: state.clipSec, routeData: state.routeData, skipMap: state.skipMap, facts: state.facts, useArea: state.useArea, contact: state.contact, size: state.size, color: state.color, script: state.script, items: state.items.map(({ id, blob, type, room, name }) => ({ id, blob, type, room, name })) }));
+const save = () => (typeof updateSb === 'function' && updateSb(), DB.set('project', { v: 2, mascot: state.mascot, audio: state.audio, stretch: state.stretch, clipSec: state.clipSec, routeData: state.routeData, skipMap: state.skipMap, facts: state.facts, useArea: state.useArea, contact: state.contact, size: state.size, color: state.color, script: state.script, items: state.items.map(({ id, blob, type, room, name }) => ({ id, blob, type, room, name })) }));
 async function load() {
   await loadLib(); const p = await DB.get('project');
-  if (p) { if (!p.v) p.items.forEach(i => { if (i.room === 'หน้าบ้าน/ภายนอก') i.room = ''; }); state.size = p.size; state.color = { ...COLOR_DEFAULT, ...(p.color || {}) }; state.script = { area: '', rooms: {}, en: {}, enSrc: {}, ...(p.script || {}) }; state.skipMap = !!p.skipMap; state.clipSec = p.clipSec || 180; state.audio = { chunks: {}, music: null, musicVol: 15, sfx: true, ...(p.audio || {}) }; state.stretch = p.stretch !== false; state.routeData = p.routeData || null; state.facts = { ...state.facts, ...(p.facts || {}) }; state.useArea = true; state.contact = { mode: 'std', ...(p.contact || {}), custom: { name: '', phone: '', line: '', ...((p.contact || {}).custom || {}) } }; state.items = p.items; nextId = Math.max(0, ...p.items.map(i => i.id)) + 1; }
+  if (p) { if (!p.v) p.items.forEach(i => { if (i.room === 'หน้าบ้าน/ภายนอก') i.room = ''; }); state.size = p.size; state.color = { ...COLOR_DEFAULT, ...(p.color || {}) }; state.script = { area: '', rooms: {}, en: {}, enSrc: {}, ...(p.script || {}) }; state.skipMap = !!p.skipMap; state.clipSec = p.clipSec || 180; state.audio = { mode: 'single', single: null, chunks: {}, music: null, musicVol: 15, sfx: true, ...(p.audio || {}) }; state.mascot = { presenter: true, size: 0.28, side: 'left', ...(p.mascot || {}) }; state.stretch = p.stretch !== false; state.routeData = p.routeData || null; state.facts = { ...state.facts, ...(p.facts || {}) }; state.useArea = true; state.contact = { mode: 'std', ...(p.contact || {}), custom: { name: '', phone: '', line: '', ...((p.contact || {}).custom || {}) } }; state.items = p.items; nextId = Math.max(0, ...p.items.map(i => i.id)) + 1; }
 }
 
 const $ = s => document.querySelector(s);
@@ -417,7 +417,6 @@ function viewSlots() {
 function go(n) { selMode = false; picked.clear(); state.step = n; render(); window.scrollTo(0, 0); }
 
 const COMING = {
-  5: ['มาสคอต', 'ปากขยับตามเสียงพูด กะพริบตา โบกมือ กระโดด เดินสั้นๆ'],
 };
 function viewComing() {
   const [t, d] = COMING[state.step];
@@ -472,10 +471,53 @@ function ttsChunks() {
   return chunks;
 }
 const chunkSig = c => { let h = 0; const t = c.texts.join('|'); for (let i = 0; i < t.length; i++) h = (h * 31 + t.charCodeAt(i)) | 0; return h; };
-// ความยาวเสียงจริงของแต่ละท่อน (แบ่งตามสัดส่วนความยาวข้อความในช่วงเดียวกัน)
+// วิเคราะห์ไฟล์เสียงยาว: หาจุดเริ่ม-จบของเสียงพูด และ "ช่วงเงียบ" ระหว่างย่อหน้า (ใช้ตัดแบ่งท่อน)
+function analyzeAudio(buf) {
+  const sr = buf.sampleRate, ch = []; for (let c = 0; c < buf.numberOfChannels; c++) ch.push(buf.getChannelData(c));
+  const hop = Math.round(sr * 0.01), n = Math.floor(buf.length / hop), rms = new Float32Array(n);
+  for (let f = 0; f < n; f++) { let sum = 0; const a = f * hop, e = Math.min(buf.length, a + hop * 2); for (let i = a; i < e; i += 2) { let v = 0; for (let c = 0; c < ch.length; c++) v += ch[c][i]; v /= ch.length; sum += v * v; } rms[f] = Math.sqrt(sum / ((e - a) / 2)); }
+  const sorted = Array.from(rms).sort((x, y) => x - y), ref = sorted[Math.floor(n * 0.95)] || 0.01, thr = Math.max(ref * 0.05, 0.0015);
+  const silent = f => rms[f] < thr; let first = 0, last = n - 1; while (first < n && silent(first)) first++; while (last > first && silent(last)) last--;
+  const pauses = []; let f = first;
+  while (f <= last) { if (silent(f)) { let g = f; while (g <= last && silent(g)) g++; const dur = (g - f) * 0.01; if (dur >= 0.2) pauses.push({ t: (f + g) / 2 * 0.01, dur }); f = g; } else f++; }
+  return { dur: buf.duration, start: first * 0.01, end: (last + 1) * 0.01, pauses };
+}
+// แบ่งไฟล์เสียงเดียวเป็นท่อน: เลือก "ช่วงเงียบ" ที่ใกล้ตำแหน่งที่คาดไว้ (ตามความยาวข้อความ) และยาวที่สุด ด้วย DP
+function alignSegments(lengths, an, adj, keys) {
+  const N = lengths.length, total = lengths.reduce((a, b) => a + b, 0) || 1, L = Math.max(0.5, an.end - an.start);
+  const cum = []; let c = 0; lengths.forEach(l => { c += l; cum.push(c); });
+  const exp = k => an.start + L * cum[k - 1] / total; // ตำแหน่งขอบก่อนท่อน k (k=1..N-1)
+  const cand = an.pauses.filter(p => p.t > an.start + 0.3 && p.t < an.end - 0.3);
+  const opts = []; for (let k = 1; k < N; k++) opts[k] = [...cand.map(p => ({ t: p.t, dur: p.dur, fb: false })), { t: exp(k), dur: 0, fb: true }];
+  const cost = (k, o) => Math.abs(o.t - exp(k)) / L * 8 + (o.fb ? 1.0 : -Math.min(o.dur, 1.5) * 2.0); // ช่วงเงียบยาว = น่าจะเป็นรอยต่อย่อหน้า
+  const best = [], back = [];
+  for (let k = 1; k < N; k++) {
+    best[k] = []; back[k] = [];
+    opts[k].forEach((o, i) => {
+      let bv = Infinity, bj = -1;
+      if (k === 1) { if (o.t > an.start + 0.2) { bv = cost(k, o); bj = -2; } }
+      else opts[k - 1].forEach((p, j) => { if (best[k - 1][j] < Infinity && o.t > p.t + 0.4) { const v = best[k - 1][j] + cost(k, o); if (v < bv) { bv = v; bj = j; } } });
+      best[k][i] = bv; back[k][i] = bj;
+    });
+  }
+  const chosen = []; if (N > 1) {
+    let bi = -1, bv = Infinity; best[N - 1].forEach((v, i) => { if (v < bv) { bv = v; bi = i; } });
+    if (bi < 0) { for (let k = 1; k < N; k++) chosen[k] = { t: exp(k), fb: true }; }
+    else for (let k = N - 1; k >= 1; k--) { chosen[k] = opts[k][bi]; bi = back[k][bi]; }
+  }
+  const b = [Math.max(0, an.start - 0.08)]; for (let k = 1; k < N; k++) b.push(chosen[k].t + ((adj || {})[keys[k]] || 0)); b.push(Math.min(an.dur, an.end + 0.15));
+  return keys.map((key, i) => ({ key, a0: b[i], a1: Math.max(b[i] + 0.3, b[i + 1]), found: i === 0 ? true : !chosen[i].fb }));
+}
+function singleAlign() {
+  const S = state.audio.single; if (!S || !S.an) return null;
+  const segs = scriptSegmentsAll().filter(g => g.text.trim()); if (!segs.length) return null;
+  return alignSegments(segs.map(g => g.text.trim().length), S.an, S.adj || {}, segs.map(g => g.key));
+}
+// ความยาวเสียงจริงของแต่ละท่อน: ไฟล์เดียว = ตามช่วงเงียบที่จับได้ · แยกช่วง = แบ่งตามสัดส่วนความยาวข้อความ
 function segAudioSec() {
-  const out = {}, A = (state.audio && state.audio.chunks) || {};
-  ttsChunks().forEach((c, i) => { const a = A[i + 1]; if (!a || !a.dur) return; c.keys.forEach((k, j) => { out[k] = a.dur * c.texts[j].length / c.len; }); });
+  const out = {}, A = state.audio || {};
+  if (A.mode === 'single') { const al = A.single && singleAlign(); if (al) al.forEach(x => { out[x.key] = x.a1 - x.a0; }); return out; }
+  ttsChunks().forEach((c, i) => { const a = (A.chunks || {})[i + 1]; if (!a || !a.dur) return; c.keys.forEach((k, j) => { out[k] = a.dur * c.texts[j].length / c.len; }); });
   return out;
 }
 // ความยาวฉากเปิด/ปิด ปรับตามความยาวเสียงพูด (อย่างน้อยเท่าค่ามาตรฐาน)
@@ -603,14 +645,16 @@ function viewScript() {
     const chunks = ttsChunks(); if (!chunks.length) { alert('ยังไม่มีสคริปต์ให้คัดลอก'); return; }
     const d = document.createElement('div'); d.className = 'sheet tall'; d.id = 'ttsSheet';
     d.innerHTML = `<div class="sh-head"><b>🔊 สร้างเสียง (ทีละช่วง)</b><button class="ib" data-a="x" aria-label="ปิด">✕</button></div>
-      <p class="hint">ทำทีละช่วงตามลำดับ: กด <b>คัดลอก</b> → กด <b>เปิดหน้าสร้างเสียง</b> → ในช่องข้อความ <b>ลบของเก่าให้ว่างก่อน</b> แล้ววาง → ตรวจว่าบรรทัดแรกตรงกับ "ขึ้นต้นว่า" ด้านล่าง → สร้างเสียง → ตั้งชื่อไฟล์ตามเลขช่วง (เช่น ช่วง 1 = <b>01</b>) แล้วทำช่วงต่อไป</p>
+      <p class="hint"><b>หรือแยกทำทีละช่วง</b> ตามลำดับ: กด <b>คัดลอก</b> → กด <b>เปิดหน้าสร้างเสียง</b> → ในช่องข้อความ <b>ลบของเก่าให้ว่างก่อน</b> แล้ววาง → ตรวจว่าบรรทัดแรกตรงกับ "ขึ้นต้นว่า" ด้านล่าง → สร้างเสียง → ตั้งชื่อไฟล์ตามเลขช่วง (เช่น ช่วง 1 = <b>01</b>) แล้วทำช่วงต่อไป</p>
       ${chunks.map((c, i) => `<div class="seg"><div class="seg-h"><b>ช่วง ${String(i + 1).padStart(2, '0')} · ท่อน ${c.nos[0]}${c.nos.length > 1 ? '–' + c.nos[c.nos.length - 1] : ''}</b><span class="badge">${c.len} ตัวอักษร · ~${secOf(c.texts.join(''))} วิ</span></div>
         <p class="hint">ขึ้นต้นว่า: <b>"${c.texts[0].slice(0, 32).replace(/</g, '&lt;')}…"</b></p>
         <div class="tools"><button class="ib wide" data-cc="${i}">📋 คัดลอกช่วง ${i + 1}</button></div></div>`).join('')}
+      <div class="seg"><b>🎙️ ไฟล์เดียวทั้งคลิป (แนะนำ เสียงเป็นเนื้อเดียวกัน)</b><p class="hint">คัดลอกสคริปต์ทุกท่อนต่อกัน เว้นบรรทัดระหว่างท่อน แล้วสร้างเสียงครั้งเดียว · แอปแบ่งท่อนจากช่วงเงียบระหว่างย่อหน้า ดังนั้น <b>อย่าตัดบรรทัดว่างทิ้ง</b></p><div class="tools"><button class="ib wide" data-all-one="1">📋 คัดลอกทั้งคลิป (ไฟล์เดียว)</button></div></div>
       <button class="btn" data-a="open">🔊 เปิดหน้าสร้างเสียง</button><button class="btn alt" data-a="x">ปิด</button>`;
     d.onclick = async e => {
       if (e.target.closest('[data-a=x]')) { d.remove(); return; }
       if (e.target.closest('[data-a=open]')) { openLink(lib.links.tts); return; }
+      const one = e.target.closest('[data-all-one]'); if (one) { flash(one, await copyText(chunks.flatMap(c => c.texts).join('\n\n'))); return; }
       const b = e.target.closest('[data-cc]'); if (!b) return;
       const ok = await copyText(chunks[+b.dataset.cc].texts.join('\n\n')); flash(b, ok);
     };
@@ -814,14 +858,20 @@ function viewRender() {
       const starts = {}, sceneAt = {}; let acc = 0;
       entries.forEach(e => { if (e.key && starts[e.key] == null) starts[e.key] = acc; if (e.title) sceneAt.title = acc; if (e.close) sceneAt.close = acc; acc += e.dur; });
       const total = acc + STYLE.fade;
-      const hasAudio = Object.keys(state.audio.chunks).length || state.audio.music || state.audio.sfx;
+      const hasAudio = (state.audio.mode === 'single' ? state.audio.single : Object.keys(state.audio.chunks).length) || state.audio.music || state.audio.sfx;
       let audioMix = null;
       if (hasAudio) { $('#prog').textContent = 'กำลังผสมเสียง...'; audioMix = await buildMix(starts, total, sceneAt); }
+      // มาสคอต: ปากขยับตามแทร็กเสียงพากย์ล้วน · มาสคอตนำเสนอ (ตามช่วงของแต่ละท่อน)
+      await loadPoses(); MOUTH.babble = false;
+      if (audioMix && audioMix.voice) { const me = computeMouthEnv(audioMix.voice, audioMix.sampleRate, MOUTH.fps); MOUTH.env = me.env; MOUTH.wid = me.wid; } else { MOUTH.env = null; MOUTH.wid = null; }
+      PRESENTER.on = !!state.mascot.presenter; PRESENTER.size = state.mascot.size; PRESENTER.side = state.mascot.side; PRESENTER.spans = [];
+      { let tt = 0; const seen = {}; entries.forEach(e => { if (e.key && e.key !== 'open' && e.key !== 'close') { const sp = seen[e.key] || (seen[e.key] = { start: tt, end: tt, pose: poseForSeg(e.key), seed: Object.keys(seen).length }); sp.end = tt + e.dur; } tt += e.dur; }); PRESENTER.spans = Object.values(seen); }
       const blob = await renderMp4(imgs.map(i => i.blob), s.w, s.h, (p, msg) => { $('#prog').textContent = `${msg} ${Math.round(p * 100)}%`; }, luts, sceneList, durs, audioMix);
       const url = URL.createObjectURL(blob);
       $('#prog').textContent = `เสร็จใน ${((performance.now() - t0) / 1000).toFixed(0)} วินาที · ขนาดไฟล์ ${(blob.size / 1048576).toFixed(1)} MB`;
       $('#out').innerHTML = `<video src="${url}" controls playsinline style="width:100%;max-height:60vh;background:#000;border-radius:12px"></video><a class="btn" download="huahin-clip.mp4" href="${url}" style="text-decoration:none;text-align:center">⬇ บันทึกไฟล์ MP4</a>`;
     } catch (e) { $('#prog').textContent = '❌ ' + (e.message || e); }
+    PRESENTER.on = false; MOUTH.env = null; MOUTH.wid = null; MOUTH.babble = true;
     $('#go').disabled = false;
   };
 }
@@ -913,21 +963,38 @@ async function setChunkAudio(idx, file) {
   return true;
 }
 function viewAudio() {
-  const A = state.audio, chunks = ttsChunks();
+  const A = state.audio, chunks = ttsChunks(), single = A.mode === 'single';
   const urls = viewAudio._u || (viewAudio._u = {});
   const urlFor = (k, blob) => { if (!urls[k] || urls[k].blob !== blob) { if (urls[k]) URL.revokeObjectURL(urls[k].url); urls[k] = { blob, url: URL.createObjectURL(blob) }; } return urls[k].url; };
   const have = chunks.filter((c, i) => A.chunks[i + 1]).length;
   const totalVoice = chunks.reduce((a, c, i) => a + ((A.chunks[i + 1] || {}).dur || 0), 0);
-  $('#view').innerHTML = `
-    <h2>5 เสียง: เสียงพากย์และเพลง</h2>
-    <p class="hint">นำไฟล์เสียงที่สร้างจากหน้า Google AI Studio มาใส่ตามช่วง (ช่วง 01 = ไฟล์ 01) แอปจะวัดความยาวเสียงจริง แล้วปรับเวลาแสดงรูปของแต่ละห้องให้พอดีกับเสียง และใส่เสียงเข้าไฟล์ MP4 ตอนเรนเดอร์ · ยังไม่มีสคริปต์หรือยังไม่ได้ทำเสียง กลับไป <button class="lnk" id="goScript">ขั้น 4 สคริปต์</button></p>
-    ${chunks.length ? `<button class="btn" id="multi">📂 เลือกไฟล์เสียงหลายไฟล์พร้อมกัน (จับคู่ตามเลขในชื่อไฟล์)</button>
+  const segsAll = scriptSegmentsAll().filter(g => g.text.trim()), align = single ? singleAlign() : null;
+  const label = g => g.edge ? (g.key === 'open' ? 'เปิดคลิป' : 'ปิดท้าย/ติดต่อ') : `ท่อน ${String(g.no).padStart(2, '0')} ${g.label}`;
+  const singleHtml = () => {
+    const S = A.single;
+    if (!S) return `<div class="seg"><b>🎙️ ไฟล์เสียงพากย์ทั้งคลิป (ไฟล์เดียว)</b><p class="hint">สร้างเสียงจากสคริปต์ทั้งหมดในครั้งเดียวที่ AI Studio (ที่ขั้น 4 กด 🔊 สร้างเสียง → 📋 คัดลอกทั้งคลิป) แล้วนำไฟล์มาใส่ที่นี่ แอปจะหา "ช่วงเงียบ" ระหว่างย่อหน้าเพื่อแบ่งท่อนให้ตรงกับภาพ</p><div class="tools"><button class="ib wide" id="pickSingle">+ เลือกไฟล์เสียงทั้งคลิป</button></div></div>`;
+    const stale = S.sig !== fullSig();
+    const rows = (align || []).map((x, i) => { const g = segsAll[i]; return `<div class="alrow"><div class="alt"><b>${label(g)}</b><small>${fmtSec(x.a0)}–${fmtSec(x.a1)} · ${(x.a1 - x.a0).toFixed(1)} วิ · ${i === 0 ? 'จุดเริ่มเสียง' : (x.found ? '✓ พบช่วงเงียบตรงรอยต่อ' : '⚠️ ไม่พบช่วงเงียบ (ประมาณตามข้อความ)')}</small></div>
+      ${i ? `<div class="alb"><button class="ib sm" data-nudge="${x.key}|-0.2" aria-label="เลื่อนขอบเข้าก่อน">◀</button><button class="ib sm" data-listen="${x.a0}" aria-label="ฟังรอยต่อ">▶</button><button class="ib sm" data-nudge="${x.key}|0.2" aria-label="เลื่อนขอบถัดไป">▶▶</button></div>` : ''}</div>`; }).join('');
+    return `<div class="seg"><div class="seg-h"><b>🎙️ ไฟล์เสียงทั้งคลิป</b><span class="badge">✅ ${fmtSec(S.dur)}</span></div><p class="hint">📄 ${S.name.replace(/</g, '&lt;')}</p>
+      <audio id="singleAud" controls preload="metadata" src="${urlFor('s', S.blob)}" style="width:100%"></audio>
+      ${stale ? '<p class="stale">⚠️ สคริปต์ถูกแก้หลังอัปโหลดเสียง การแบ่งท่ออาจเพี้ยน และเสียงอาจไม่ตรงข้อความ</p>' : ''}
+      <p class="hint"><b>การแบ่งท่อนจากเสียง</b> (ตรวจรอยต่อแต่ละท่อน: กด ▶ ฟังตรงรอยต่อ ถ้าไม่ตรงกด ◀ ▶▶ เลื่อนครั้งละ 0.2 วินาที)</p>${rows}
+      <div class="tools"><button class="ib wide" id="pickSingle">↻ เปลี่ยนไฟล์</button><button class="ib" id="rmSingle" aria-label="ลบ">🗑️</button></div></div>`;
+  };
+  const chunkHtml = () => chunks.length ? `<button class="btn" id="multi">📂 เลือกไฟล์เสียงหลายไฟล์พร้อมกัน (จับคู่ตามเลขในชื่อไฟล์)</button>
     <p class="hint" id="audMsg">${have}/${chunks.length} ช่วงมีไฟล์เสียงแล้ว${have ? ` · เสียงพากย์รวม ${fmtSec(totalVoice)}` : ''}</p>
     ${chunks.map((c, i) => { const a = A.chunks[i + 1], est = secOf(c.texts.join('')), bad = a && a.sig !== chunkSig(c), off = a && Math.abs(a.dur - est) > Math.max(6, est * 0.5);
       return `<div class="seg" data-ci="${i + 1}"><div class="seg-h"><b>ช่วง ${String(i + 1).padStart(2, '0')} · ท่อน ${c.nos[0]}${c.nos.length > 1 ? '–' + c.nos[c.nos.length - 1] : ''}</b><span class="badge">${a ? '✅ ' + fmtSec(a.dur) : 'ยังไม่มีไฟล์ · ประมาณ ' + est + ' วิ'}</span></div>
       <p class="hint">ขึ้นต้นว่า: "${c.texts[0].slice(0, 30).replace(/</g, '&lt;')}…"</p>
       ${a ? `<p class="hint">📄 ${a.name.replace(/</g, '&lt;')}</p><audio controls preload="none" src="${urlFor('c' + i, a.blob)}" style="width:100%"></audio>${bad ? '<p class="stale">⚠️ สคริปต์ช่วงนี้ถูกแก้หลังอัปโหลดเสียง เสียงอาจไม่ตรงข้อความ</p>' : ''}${off ? `<p class="stale">⚠️ ความยาวเสียง (${fmtSec(a.dur)}) ต่างจากที่คาดไว้ (~${est} วิ) มาก ตรวจว่าไฟล์ตรงกับช่วงนี้</p>` : ''}` : ''}
-      <div class="tools"><button class="ib wide" data-pick="${i + 1}">${a ? '↻ เปลี่ยนไฟล์' : '+ เลือกไฟล์เสียง'}</button>${a ? `<button class="ib" data-rm="${i + 1}" aria-label="ลบ">🗑️</button>` : ''}</div></div>`; }).join('')}` : '<div class="soon">ยังไม่มีสคริปต์ กลับไปขั้น 4 ก่อน</div>'}
+      <div class="tools"><button class="ib wide" data-pick="${i + 1}">${a ? '↻ เปลี่ยนไฟล์' : '+ เลือกไฟล์เสียง'}</button>${a ? `<button class="ib" data-rm="${i + 1}" aria-label="ลบ">🗑️</button>` : ''}</div></div>`; }).join('')}` : '<div class="soon">ยังไม่มีสคริปต์ กลับไปขั้น 4 ก่อน</div>';
+  $('#view').innerHTML = `
+    <h2>5 เสียง: เสียงพากย์และเพลง</h2>
+    <p class="hint">ใส่เสียงที่สร้างจาก Google AI Studio แอปจะวัดความยาวเสียงจริง ปรับเวลาแสดงรูปของแต่ละท่อนให้ตรงกับเสียง ให้มาสคอตขยับปากตามความดังของเสียง และใส่เสียงเข้าไฟล์ MP4 · ยังไม่มีเสียง กลับไป <button class="lnk" id="goScript">ขั้น 4 สคริปต์</button></p>
+    <label class="sw"><input type="radio" name="amode" value="single" ${single ? 'checked' : ''}> ไฟล์เดียวทั้งคลิป (แนะนำ เสียงเป็นเนื้อเดียวกัน)</label>
+    <label class="sw"><input type="radio" name="amode" value="chunks" ${single ? '' : 'checked'}> แยกเป็นหลายช่วง</label>
+    ${single ? singleHtml() : chunkHtml()}
     <div class="seg"><b>🎵 เพลงประกอบ (mp3)</b>
       ${A.music ? `<p class="hint">📄 ${A.music.name.replace(/</g, '&lt;')} · ${fmtSec(A.music.dur || 0)}</p><audio controls preload="none" src="${urlFor('m', A.music.blob)}" style="width:100%"></audio>` : '<p class="hint">ยังไม่มีเพลง (ไม่ใส่ก็ได้)</p>'}
       <div class="tools"><button class="ib wide" id="pickMusic">${A.music ? '↻ เปลี่ยนเพลง' : '+ เลือกไฟล์เพลง'}</button>${A.music ? '<button class="ib" id="rmMusic" aria-label="ลบ">🗑️</button>' : ''}</div>
@@ -938,8 +1005,18 @@ function viewAudio() {
   const rerender = () => viewAudio();
   const msg = t => { const m = $('#audMsg'); if (m) m.textContent = t; };
   const pickNum = f => { const m = f.name.replace(/\.[^.]+$/, '').match(/(\d{1,2})/); return m ? +m[1] : null; };
+  const AUD = 'audio/*,.mp3,.wav,.m4a,.aac,.ogg';
+  document.querySelectorAll('input[name=amode]').forEach(r => r.onchange = async () => { A.mode = r.value; await save(); rerender(); });
+  if ($('#pickSingle')) $('#pickSingle').onclick = async () => {
+    const [f] = await pickFiles(AUD, false); if (!f) return;
+    try { const buf = await decodeBlob(f); A.single = { blob: f, name: f.name, dur: buf.duration, an: analyzeAudio(buf), adj: {}, sig: fullSig() }; await save(); }
+    catch (e) { alert('อ่านไฟล์เสียงไม่ได้ ลองไฟล์ wav หรือ mp3'); } rerender();
+  };
+  if ($('#rmSingle')) $('#rmSingle').onclick = async () => { if (!confirm('ลบไฟล์เสียงทั้งคลิป?')) return; A.single = null; await save(); rerender(); };
+  document.querySelectorAll('[data-nudge]').forEach(b => b.onclick = async () => { const [k, d] = b.dataset.nudge.split('|'); A.single.adj = A.single.adj || {}; A.single.adj[k] = Math.round(((A.single.adj[k] || 0) + +d) * 100) / 100; await save(); rerender(); });
+  document.querySelectorAll('[data-listen]').forEach(b => b.onclick = () => { const au = $('#singleAud'); au.currentTime = Math.max(0, +b.dataset.listen - 1.2); au.play(); setTimeout(() => au.pause(), 3000); });
   if ($('#multi')) $('#multi').onclick = async () => {
-    const fs = await pickFiles('audio/*,.mp3,.wav,.m4a,.aac,.ogg', true); if (!fs.length) return;
+    const fs = await pickFiles(AUD, true); if (!fs.length) return;
     const used = new Set(), todo = []; const sorted = fs.slice().sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
     sorted.forEach(f => { const n = pickNum(f); if (n && n <= chunks.length && !used.has(n)) { used.add(n); todo.push([n, f]); } else todo.push([null, f]); });
     let next = 1; todo.forEach(t => { if (t[0] == null) { while (used.has(next)) next++; if (next <= chunks.length) { t[0] = next; used.add(next); } } });
@@ -947,7 +1024,7 @@ function viewAudio() {
     for (const [n, f] of todo) { if (n == null) { skip.push(f.name); continue; } msg(`กำลังอ่านไฟล์ ${f.name}...`); try { if (await setChunkAudio(n, f)) ok++; } catch (e) { skip.push(f.name + ' (อ่านไม่ได้)'); } }
     await save(); if (skip.length) alert('ใส่เสียงให้ ' + ok + ' ช่วง\nข้ามไฟล์: ' + skip.join(', ')); rerender();
   };
-  document.querySelectorAll('[data-pick]').forEach(b => b.onclick = async () => { const [f] = await pickFiles('audio/*,.mp3,.wav,.m4a,.aac,.ogg', false); if (!f) return; try { await setChunkAudio(+b.dataset.pick, f); await save(); } catch (e) { alert('อ่านไฟล์เสียงไม่ได้ ลองไฟล์ mp3 หรือ wav'); } rerender(); });
+  document.querySelectorAll('[data-pick]').forEach(b => b.onclick = async () => { const [f] = await pickFiles(AUD, false); if (!f) return; try { await setChunkAudio(+b.dataset.pick, f); await save(); } catch (e) { alert('อ่านไฟล์เสียงไม่ได้ ลองไฟล์ mp3 หรือ wav'); } rerender(); });
   document.querySelectorAll('[data-rm]').forEach(b => b.onclick = async () => { if (!confirm('ลบไฟล์เสียงช่วงนี้?')) return; delete A.chunks[+b.dataset.rm]; await save(); rerender(); });
   $('#pickMusic').onclick = async () => { const [f] = await pickFiles('audio/*,.mp3,.wav,.m4a', false); if (!f) return; try { const buf = await decodeBlob(f); A.music = { blob: f, name: f.name, dur: buf.duration }; await save(); } catch (e) { alert('อ่านไฟล์เพลงไม่ได้ ลองไฟล์ mp3'); } rerender(); };
   if ($('#rmMusic')) $('#rmMusic').onclick = async () => { A.music = null; await save(); rerender(); };
@@ -955,17 +1032,31 @@ function viewAudio() {
   $('#sfx').onchange = e => { A.sfx = e.target.checked; save(); };
   $('#goScript').onclick = () => go(3); $('#nx').onclick = () => go(5); $('#bk').onclick = () => go(3);
 }
+const fullSig = () => chunkSig({ texts: scriptSegmentsAll().filter(g => g.text.trim()).map(g => g.text.trim()) });
 
-// ---- ผสมเสียงทั้งคลิป (เสียงพากย์ + เพลง + เอฟเฟกต์) เป็นแทร็กเดียว ----
+// ---- ผสมเสียงทั้งคลิป (เสียงพากย์ + เพลง + เอฟเฟกต์) เป็นแทร็กเดียว และเก็บแทร็กเสียงพากย์ล้วนไว้คำนวณการขยับปาก ----
 const MIX_SR = 44100;
 async function buildMix(starts, total, sceneAt) {
-  const A = state.audio, ctx = new (audioCtxClass())(1, Math.ceil(total * MIX_SR), MIX_SR);
-  const chunks = ttsChunks(); let any = false;
-  for (let i = 0; i < chunks.length; i++) {
-    const a = A.chunks[i + 1]; if (!a) continue;
-    const st = starts[chunks[i].keys[0]]; if (st == null) continue;
-    const src = ctx.createBufferSource(); src.buffer = await ctx.decodeAudioData(await a.blob.arrayBuffer()); src.connect(ctx.destination); src.start(Math.max(0, st)); any = true;
+  const A = state.audio, sr = MIX_SR, n = Math.ceil(total * sr), voice = new Float32Array(n), ctx = new (audioCtxClass())(1, n, sr);
+  let any = false, hasVoice = false;
+  const put = (buf, a0, a1, dst) => {
+    const chs = []; for (let c = 0; c < buf.numberOfChannels; c++) chs.push(buf.getChannelData(c));
+    const s0 = Math.floor(a0 * buf.sampleRate), s1 = Math.min(buf.length, Math.floor(a1 * buf.sampleRate)), d0 = Math.floor(dst * sr), ramp = Math.floor(sr * 0.01);
+    for (let i = s0; i < s1; i++) {
+      const di = d0 + (i - s0); if (di < 0) continue; if (di >= n) break;
+      let v = 0; for (let c = 0; c < chs.length; c++) v += chs[c][i]; v /= chs.length;
+      const e = Math.min(i - s0, s1 - 1 - i); if (e < ramp) v *= e / ramp; voice[di] += v;
+    }
+    hasVoice = true;
+  };
+  if (A.mode === 'single') {
+    const al = A.single && singleAlign();
+    if (al) { const buf = await decodeBlob(A.single.blob); al.forEach(x => { const st = starts[x.key]; if (st != null) put(buf, x.a0, x.a1, st); }); }
+  } else {
+    const chunks = ttsChunks();
+    for (let i = 0; i < chunks.length; i++) { const a = A.chunks[i + 1]; if (!a) continue; const st = starts[chunks[i].keys[0]]; if (st == null) continue; put(await decodeBlob(a.blob), 0, a.dur, st); }
   }
+  if (hasVoice) { const vb = ctx.createBuffer(1, n, sr); vb.copyToChannel(voice, 0); const src = ctx.createBufferSource(); src.buffer = vb; src.connect(ctx.destination); src.start(0); any = true; }
   if (A.music && A.musicVol > 0) {
     const src = ctx.createBufferSource(); src.buffer = await ctx.decodeAudioData(await A.music.blob.arrayBuffer()); src.loop = true;
     const g = ctx.createGain(), v = A.musicVol / 100; g.gain.setValueAtTime(0, 0); g.gain.linearRampToValueAtTime(v, Math.min(1.5, total)); g.gain.setValueAtTime(v, Math.max(1.5, total - 3)); g.gain.linearRampToValueAtTime(0, total);
@@ -979,13 +1070,38 @@ async function buildMix(starts, total, sceneAt) {
     any = true;
   }
   if (!any) return null;
-  const buf = await ctx.startRendering(); return { data: buf.getChannelData(0), sampleRate: MIX_SR };
+  const buf = await ctx.startRendering(); return { data: buf.getChannelData(0), sampleRate: sr, voice: hasVoice ? voice : null };
+}
+
+// ---- ขั้น 6: มาสคอต ----
+async function viewMascot() {
+  const M = state.mascot, segs = scriptSegments();
+  $('#view').innerHTML = `<h2>6 มาสคอต</h2><p class="hint">กำลังโหลดมาสคอต...</p>`;
+  await loadPoses();
+  state.script.poses = state.script.poses || {};
+  const opts = cur => Object.keys(POSES).map(k => `<option value="${k}" ${k === cur ? 'selected' : ''}>${POSES[k].label}</option>`).join('');
+  $('#view').innerHTML = `
+    <h2>6 มาสคอต</h2>
+    <p class="hint">มาสคอตปรากฏเต็มตัวในฉากไตเติลและเครดิตปิดเสมอ ขยับปากตามเสียงพากย์ และกะพริบตา · ที่นี่ตั้งค่า <b>มาสคอตนำเสนอ</b> ที่ยืนมุมจอระหว่างเล่าเรื่องแต่ละห้อง เปลี่ยนท่าตามเนื้อหา</p>
+    <label class="sw"><input type="checkbox" id="mpres" ${M.presenter ? 'checked' : ''}> แสดงมาสคอตนำเสนอระหว่างเล่าเรื่อง</label>
+    <div class="seg"><div class="tgt"><label class="fl" style="flex:1"><span>ขนาด</span><select class="ct" id="msize"><option value="0.2" ${M.size === 0.2 ? 'selected' : ''}>เล็ก</option><option value="0.28" ${M.size === 0.28 ? 'selected' : ''}>กลาง</option><option value="0.36" ${M.size === 0.36 ? 'selected' : ''}>ใหญ่</option></select></label>
+      <label class="fl" style="flex:1"><span>ตำแหน่ง</span><select class="ct" id="mside"><option value="left" ${M.side === 'left' ? 'selected' : ''}>มุมซ้ายล่าง</option><option value="right" ${M.side === 'right' ? 'selected' : ''}>มุมขวาล่าง</option></select></label></div></div>
+    <p class="hint"><b>ท่าของแต่ละท่อน</b> (แอปเลือกให้ตามเนื้อหา เปลี่ยนเองได้)</p>
+    ${segs.map(g => { const cur = poseForSeg(g.key); return `<div class="seg"><div class="seg-h"><b>${String(g.no).padStart(2, '0')} · ${g.label}</b></div><div class="mrow"><canvas class="mth" data-pk="${g.key}" width="90" height="130"></canvas><select class="ct" data-pose="${g.key}">${opts(cur)}</select></div></div>`; }).join('') || '<div class="soon">ยังไม่มีท่อนเล่าเรื่อง</div>'}
+    <p class="hint">ปากขยับตามความดังของเสียงพากย์จริง ตอนเรนเดอร์ (ถ้ายังไม่ใส่เสียง ปากจะปิด) · มาสคอตกระโดดเข้าจอทุกครั้งที่เริ่มท่อนใหม่ · ยังไม่มีท่อนเดินหรือกระโดดต่อเนื่อง</p>
+    <button class="btn" id="nx">ถัดไป: 7 เรนเดอร์ →</button><button class="btn alt" id="bk">← ย้อนกลับ</button>`;
+  const paint = cv => { const k = cv.dataset.pk, x = cv.getContext('2d'); x.clearRect(0, 0, 90, 130); const pose = poseForSeg(k), img = MASCOT_IMG[pose], h = 124, w = img.width * h / img.height; drawMascotTalking(x, pose, 45, 127, h, { mouth: 0.45, wf: 1, blink: 0 }); };
+  document.querySelectorAll('.mth').forEach(paint);
+  document.querySelectorAll('[data-pose]').forEach(sel => sel.onchange = () => { state.script.poses[sel.dataset.pose] = sel.value; save(); paint(document.querySelector(`.mth[data-pk="${CSS.escape(sel.dataset.pose)}"]`)); });
+  $('#mpres').onchange = e => { M.presenter = e.target.checked; save(); };
+  $('#msize').onchange = e => { M.size = +e.target.value; save(); }; $('#mside').onchange = e => { M.side = e.target.value; save(); };
+  $('#nx').onclick = () => go(6); $('#bk').onclick = () => go(4);
 }
 
 function render() {
   clearInterval(previewTimer);
   renderSteps();
-  if (state.step === 0) viewSize(); else if (state.step === 6) viewRender(); else if (state.step === 1) viewSlots(); else if (state.step === 2) viewColor(); else if (state.step === 3) viewScript(); else if (state.step === 4) viewAudio(); else viewComing();
+  if (state.step === 0) viewSize(); else if (state.step === 6) viewRender(); else if (state.step === 1) viewSlots(); else if (state.step === 2) viewColor(); else if (state.step === 3) viewScript(); else if (state.step === 4) viewAudio(); else if (state.step === 5) viewMascot(); else viewComing();
 }
 
 (async () => {
