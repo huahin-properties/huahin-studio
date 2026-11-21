@@ -7,9 +7,9 @@ const SIZES = [
 ];
 // ลำดับห้องตามการเล่าเรื่อง: ภายนอก -> ในบ้าน -> สระ/สวน (ระบบเรียงรูปตามลำดับนี้เอง)
 const ROOMS = [AREA_ROOM, MAP_ROOM, 'หน้าบ้าน/ภายนอก','ที่จอดรถ','ห้องนั่งเล่น','ห้องทานอาหาร','ครัว','ห้องนอนใหญ่','ห้องนอน','ห้องน้ำ','สระว่ายน้ำ','สวน/ระเบียง','วิวรอบๆ','อื่นๆ'];
-const STEPS = ['1 ขนาด','2 รูป/คลิป','3 สี','4 สคริปต์','5 เสียง','6 มาสคอต','7 เรนเดอร์'];
+const STEPS = ['1 ขนาด','2 ใส่รูป/คลิป','3 สี','4 สคริปต์','5 เสียง','6 มาสคอต','7 เรนเดอร์'];
 
-const state = { step: 0, size: '4:5', items: [], color: { ...COLOR_DEFAULT }, useArea: true, contact: { mode: 'std', custom: { name: '', phone: '', line: '' } }, script: { area: '', rooms: {} } };
+const state = { slot: 'title', step: 0, size: '4:5', items: [], color: { ...COLOR_DEFAULT }, useArea: true, contact: { mode: 'std', custom: { name: '', phone: '', line: '' } }, script: { area: '', rooms: {} } };
 let nextId = 1;
 
 // ---- เก็บงานไว้ในเครื่อง (IndexedDB) ปิดแอปแล้วงานไม่หาย ----
@@ -109,55 +109,55 @@ function viewSize() {
   $('#next').onclick = () => go(1);
 }
 
-function viewMedia() {
+// ---- ขั้น 2: แท็บเช็กลิสต์ ใส่รูป/คลิปตามช่วงของคลิป (รูปที่ใส่ในแท็บไหนถูกตั้งห้องให้อัตโนมัติ) ----
+let refreshChips = null;
+function viewSlots() {
   selExtra = ''; selPre = '';
-  const list = state.items.map((it, i) => `
-    <div class="item ${it.room ? 'ok' : 'un'}${selMode && picked.has(it.id) ? ' picked' : ''}" data-id="${it.id}">
-      ${selMode ? `<input type="checkbox" class="ck" ${picked.has(it.id) ? 'checked' : ''}>` : ''}
-      ${it.type === 'video' ? `<video src="${urlOf(it)}#t=0.1" muted playsinline></video>` : `<img src="${urlOf(it)}" alt="">`}
-      <div class="col">
-        <span class="badge">☰ ${i + 1}. ${it.type === 'video' ? '🎬 คลิปสั้น' : '🖼️ รูป'} · กดค้างแล้วลาก</span>
-        <select data-act="room">${['', ...ROOMS].map(r => `<option value="${r}" ${r === it.room ? 'selected' : ''}>${r || '⚠ ยังไม่ตั้งห้อง'}</option>`).join('')}</select>
-        <div class="row"><button data-act="del">🗑️ ลบ</button></div>
-      </div>
-    </div>`).join('');
+  if (!SLOTS.some(x => x.id === state.slot)) { const first = SLOTS.find(x => slotStatus(x) === 'miss') || SLOTS.find(x => slotStatus(x) === 'warn') || SLOTS[0]; state.slot = first.id; }
+  const mark = { ok: '✓', warn: '!', miss: '●', info: '' };
   $('#view').innerHTML = `
-    <h2>ใส่รูปบ้านและคลิปสั้น</h2>
-    <p class="hint">เลือกได้ทีละหลายไฟล์ แล้วติดแท็กห้อง · กดค้างที่การ์ดแล้วลากเพื่อสลับลำดับ</p>
-    <input type="file" id="file" accept="image/*,video/*" multiple hidden>
-    <button class="btn" id="add">+ เพิ่มรูป / คลิป</button>
-    ${state.items.length ? '<div id="selbar" class="tools"></div>' : ''}
-    <div class="items${selMode ? ' selmode' : ''}">${list || '<div class="soon">ยังไม่มีรูป กดปุ่มด้านบนเพื่อเพิ่ม</div>'}</div>
-    ${state.items.some(i => i.type === 'image') ? `<h2>พรีวิวสไตล์ v3</h2><canvas id="pv"></canvas><button class="btn alt" id="play">▶ เล่นพรีวิวอีกครั้ง</button>` : ''}
-    ${state.items.length ? '<button class="btn" id="toNext">ถัดไป: ขั้น 3 ปรับสี →</button>' : ''}
-    `;
-  $('#add').onclick = () => $('#file').click();
-  $('#file').onchange = async e => { await addFiles(e.target.files); viewMedia(); };
-  $('.items').onchange = e => { if (e.target.dataset.act === 'room') { const it = state.items.find(x => x.id == e.target.closest('.item').dataset.id); it.room = e.target.value; e.target.closest('.item').className = 'item ' + (it.room ? 'ok' : 'un'); save(); } };
-  if ($('#selbar')) bindSelBar($('#selbar'), () => state.items.map(x => x.id), () => viewMedia());
-  $('.items').onclick = async e => {
-    if (selMode) {
-      const el = e.target.closest('.item');
-      if (el) {
-        const id = +el.dataset.id; picked.has(id) ? picked.delete(id) : picked.add(id);
-        el.classList.toggle('picked', picked.has(id)); el.querySelector('.ck').checked = picked.has(id);
-        $('#selbar').innerHTML = selBarHtml();
-      }
-      return;
-    }
-    const act = e.target.dataset.act, el = e.target.closest('.item');
-    if (!el || act === 'room') return;
-    const i = state.items.findIndex(x => x.id == el.dataset.id);
-    if (act === 'del') { if (!confirm('ลบรูปนี้ใช่ไหม?')) return; removeItem(state.items[i].id); }
-    await save(); viewMedia();
+    <h2>ใส่รูป/คลิปตามช่วงของคลิป</h2>
+    <div class="chips" id="chips"></div>
+    <div id="panel"></div>`;
+  refreshChips = () => {
+    const el = $('#chips'); if (!el) return;
+    el.innerHTML = SLOTS.map(x => `<button class="chip st-${slotStatus(x)}${x.id === state.slot ? ' cur' : ''}" data-s="${x.id}">${x.ico} ${x.short} <i>${mark[slotStatus(x)]}</i></button>`).join('');
+    const cur = el.querySelector('.cur'); if (cur && !el.dataset.done) { cur.scrollIntoView({ inline: 'center', block: 'nearest' }); }
   };
-  if ($('#toNext')) $('#toNext').onclick = () => go(2);
-  enableDrag($('.items'), { itemSel: '.item', grid: false, onEnd: async els => {
-    const order = els.map(c => +c.dataset.id);
-    state.items = order.map(id => state.items.find(x => x.id === id));
-    await save(); viewMedia();
-  } });
-  if ($('#pv')) { startPreview(); $('#play').onclick = startPreview; }
+  const showPanel = () => {
+    const sl = SLOTS.find(x => x.id === state.slot), idx = SLOTS.indexOf(sl), panel = $('#panel');
+    refreshChips();
+    const items = slotItems(sl), n = slotCount(sl), st = slotStatus(sl, n);
+    const stTxt = { ok: '✅ ผ่านแล้ว', warn: '⚠️ ' + slotInfo(sl, n), miss: '❌ ' + slotInfo(sl, n), info: '➖ ไม่จำเป็น' }[st];
+    const nextLabel = idx < SLOTS.length - 1 ? `ถัดไป: ${SLOTS[idx + 1].ico} ${SLOTS[idx + 1].short} →` : 'ถัดไป: 3 สี →';
+    panel.innerHTML = `
+      <h3 class="ph">${sl.ico} ${sl.label}</h3>
+      <p class="hint">${sl.hint}</p>
+      <p class="stline st-${st}">${stTxt}</p>
+      ${sl.kind === 'contact' ? contactCardHtml() : `
+        <button class="btn" id="addSlot">${sl.max1 && items.length ? '↻ เปลี่ยนไฟล์' : '+ เพิ่มรูป / คลิป'}</button>
+        <div class="sgrid" id="sgrid">${items.map(it => `<div class="th" data-id="${it.id}">${it.type === 'video' ? `<video src="${urlOf(it)}#t=0.1" muted playsinline></video>` : `<img src="${urlOf(it)}" alt="">`}<button class="x" data-del="${it.id}" aria-label="ลบ">✕</button></div>`).join('') || '<div class="soon" style="grid-column:1/-1">ยังไม่มีไฟล์ในแท็บนี้</div>'}</div>
+        ${items.length > 4 && !sl.max1 ? '<p class="hint">ใส่เกิน 4 ไฟล์ได้ แต่ช่วงนี้จะยาวขึ้น</p>' : ''}`}
+      <div class="row2"><button class="btn alt" id="prevSlot" ${idx ? '' : 'disabled'}>← ก่อนหน้า</button><button class="btn" id="nextSlot">${nextLabel}</button></div>`;
+    $('#nextSlot').onclick = () => { if (idx < SLOTS.length - 1) { state.slot = SLOTS[idx + 1].id; showPanel(); window.scrollTo(0, 0); } else go(2); };
+    $('#prevSlot').onclick = () => { if (idx) { state.slot = SLOTS[idx - 1].id; showPanel(); window.scrollTo(0, 0); } };
+    if (sl.kind === 'contact') { bindContact(panel, showPanel); return; }
+    $('#addSlot').onclick = async () => { const fs = await pickFiles('image/*,video/*', !sl.max1); if (fs.length) { await addToSlot(sl, fs); updateSb(); showPanel(); } };
+    $('#sgrid').onclick = async e => {
+      const b = e.target.closest('[data-del]'); if (!b) return;
+      if (!confirm('ลบไฟล์นี้ใช่ไหม?')) return;
+      await removeFromSlot(sl, +b.dataset.del); updateSb(); showPanel();
+    };
+    if (sl.kind === 'room') enableDrag($('#sgrid'), { itemSel: '.th', grid: true, onEnd: async els => {
+      const ids = els.map(c => +c.dataset.id), slots = [];
+      state.items.forEach((x, k) => { if (sl.rooms.includes(x.room)) slots.push(k); });
+      const byId = new Map(state.items.map(x => [x.id, x])), next = state.items.slice();
+      slots.forEach((k, i) => { next[k] = byId.get(ids[i]); });
+      state.items = next; await save(); showPanel();
+    } });
+  };
+  $('#chips').onclick = e => { const b = e.target.closest('.chip'); if (b) { state.slot = b.dataset.s; showPanel(); } };
+  showPanel();
 }
 
 function go(n) { selMode = false; picked.clear(); state.step = n; render(); window.scrollTo(0, 0); }
@@ -454,7 +454,7 @@ async function startPreview() {
 function render() {
   clearInterval(previewTimer);
   renderSteps();
-  if (state.step === 0) viewSize(); else if (state.step === 6) viewRender(); else if (state.step === 1) viewMedia(); else if (state.step === 2) viewColor(); else if (state.step === 3) viewScript(); else viewComing();
+  if (state.step === 0) viewSize(); else if (state.step === 6) viewRender(); else if (state.step === 1) viewSlots(); else if (state.step === 2) viewColor(); else if (state.step === 3) viewScript(); else viewComing();
 }
 
 (async () => {
