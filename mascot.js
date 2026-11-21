@@ -144,13 +144,13 @@ const PRESENTER = { on: false, spans: [], size: 0.28, side: 'left', move: true, 
   const W8 = [['cross', 0.34], ['return', 0.15], ['sit', 0.18], ['lie', 0.13], ['lean', 0.14], ['stand', 0.06]];
   const pick = prev => { for (let t = 0; t < 20; t++) { let r = Math.random(), a = 0; for (const [k, w] of W8) { a += w; if (r < a) { if (k !== prev) return k; break; } } } return 'cross'; };
   let prev = '';
-  this.spans.forEach((sp, i) => { const L = sp.end - sp.start; sp.from = cur; sp.mv = L < 6 ? 'stand' : this.random ? pick(prev) : MOVES[i % MOVES.length]; prev = sp.mv; sp.r = this.random ? [Math.random(), Math.random(), Math.random()] : [0.5, 0.5, 0.5]; if (sp.mv === 'cross') cur = 1 - cur; sp.to = cur; });
+  this.spans.forEach((sp, i) => { const L = sp.end - sp.start; sp.from = cur; sp.mv = L < 6 || sp.small ? 'stand' : this.random ? pick(prev) : MOVES[i % MOVES.length]; prev = sp.mv; sp.r = this.random ? [Math.random(), Math.random(), Math.random()] : [0.5, 0.5, 0.5]; if (sp.mv === 'cross') cur = 1 - cur; sp.to = cur; });
   this._prep = this.spans.length;
 },
 draw(ctx, W, H, t) {
   const sp = this.spans.find(s => t >= s.start && t < s.end); if (!sp || !MASCOT_IMG[sp.pose]) return;
   if (this._prep !== this.spans.length) this.prep();
-  const k = t - sp.start, L = sp.end - sp.start, h = H * this.size, img = MASCOT_IMG[sp.pose], hp = h * (ARTF[sp.pose] || 1), w = img.width * hp / img.height, mg = W * 0.015;
+  const k = t - sp.start, L = sp.end - sp.start, h = H * this.size * (sp.small ? 0.72 : sp.big ? 1.08 : 1), alpha = Math.min(1, k / 0.35, (sp.end - t) / 0.35), img = MASCOT_IMG[sp.pose], hp = h * (ARTF[sp.pose] || 1), w = img.width * hp / img.height, mg = W * 0.015;
   const xl = w * 0.55 + mg, xr = W - w * 0.55 - mg, TRAVEL = 1, X = f => (this.side === 'left' ? xl + (xr - xl) * TRAVEL * f : xr - (xr - xl) * TRAVEL * f);
   let f = sp.from, walk = 0, dir = 0, sit = 0, lie = 0, lean = 0;
   if (!this.move) { f = 0; }
@@ -174,13 +174,13 @@ draw(ctx, W, H, t) {
   const mo = mouthAt(t), bottom = H - H * 0.015, idl = this.fidget === false ? { dy: 0, rot: 0, sx: 1, sy: 1 } : idleAt(t, sp.seed || 0, mo.m, (walk ? 0.4 : 1) * (lie ? 0.5 : 1));
   yoff += idl.dy * H; rot += idl.rot;
   ctx.save();
-  if (cA > 0) ctx.globalAlpha = 1 - cA;
+  ctx.globalAlpha = alpha * (cA > 0 ? 1 - cA : 1);
   if (flip && !lie) { ctx.translate(cx, 0); ctx.scale(-1, 1); ctx.translate(-cx, 0); }
   if (sit > 0) { ctx.translate(cx, bottom); ctx.scale(1 + 0.07 * sit, 1 - 0.17 * sit); ctx.translate(-cx, -bottom); } // นั่งยอง: ตัวเตี้ยลง แต่ยังอยู่ในจอครบตัว
   ctx.translate(cx, bottom); ctx.scale(idl.sx, idl.sy); ctx.translate(-cx, -bottom);
   drawMascotTalking(ctx, sp.pose, cx, bottom, hp, { mouth: mo.m, wf: mo.wf, blink: lie > 0.6 ? 1 : blinkAt(t, sp.seed || 0), yoff, rot });
   ctx.restore();
   if (cA > 0) { const im = cI === 'sit' ? csImg : cI === 'lean' ? lnImg : clImg, hh = h * (cI === 'sit' ? (csK ? ARTF[csK] : 0.8) : cI === 'lean' ? (lnK ? ARTF[lnK] : 0.86) : (clK ? ARTF[clK] : 0.72)), ww = im.width * hh / im.height, x = cI !== 'lie' ? (sideL ? ww / 2 : W - ww / 2) : Math.min(W - ww / 2 - mg, Math.max(ww / 2 + mg, X(f)));
-    ctx.save(); ctx.globalAlpha = cA; const ia = cI === 'lie' ? 0.6 : 1; ctx.translate(x, bottom); ctx.rotate(idl.rot * (cI === 'lie' ? 0.5 : 1)); ctx.scale(idl.sx, idl.sy); ctx.translate(-x, -bottom + idl.dy * H * ia); ctx.drawImage(im, x - ww / 2, bottom - hh, ww, hh); ctx.restore(); }
+    ctx.save(); ctx.globalAlpha = alpha * cA; const ia = cI === 'lie' ? 0.6 : 1; ctx.translate(x, bottom); ctx.rotate(idl.rot * (cI === 'lie' ? 0.5 : 1)); ctx.scale(idl.sx, idl.sy); ctx.translate(-x, -bottom + idl.dy * H * ia); ctx.drawImage(im, x - ww / 2, bottom - hh, ww, hh); ctx.restore(); }
   if (lie > 0.85) { ctx.save(); ctx.fillStyle = 'rgba(255,255,255,.9)'; ctx.strokeStyle = 'rgba(90,24,32,.8)'; ctx.lineWidth = H * 0.003; ctx.textAlign = 'left'; ['z', 'Z', 'Z'].forEach((c, i) => { const q = ((t * 0.6 + i * 0.33) % 1), fs = H * (0.022 + i * 0.01); ctx.globalAlpha = Math.sin(Math.PI * q) * lie; ctx.font = `700 ${fs}px sans-serif`; const px = cx - h * 1.0 + q * H * 0.05 + i * H * 0.02, py = H - H * 0.015 - w * 0.9 - q * H * 0.07; ctx.strokeText(c, px, py); ctx.fillText(c, px, py); }); ctx.restore(); }
 } };

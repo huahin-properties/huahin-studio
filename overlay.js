@@ -40,7 +40,7 @@ function overlayLabels(key, f) {
 // entries = รายการเวลา [{key, dur}] ตามที่ตัวเรนเดอร์ประกอบ → ป้ายแรกโผล่ที่ 0.8 วิหลังเริ่มช่วง และซ้ำทุก ~9 วิถ้าช่วงยาว (ไม่เกิน 3 ป้ายต่อช่วง)
 function buildOverlayEvents(entries, f) {
   const spans = []; let tt = 0, cur = null;
-  entries.forEach(e => { if (e.key && e.key !== 'open' && e.key !== 'close') { if (cur && cur.key === e.key) cur.b = tt + e.dur; else { cur = { key: e.key, a: tt, b: tt + e.dur }; spans.push(cur); } } else cur = null; tt += e.dur; });
+  entries.forEach(e => { if (e.key && e.key !== 'open' && e.key !== 'close' && e.key !== 'hook') { if (cur && cur.key === e.key) cur.b = tt + e.dur; else { cur = { key: e.key, a: tt, b: tt + e.dur }; spans.push(cur); } } else cur = null; tt += e.dur; });
   const events = [];
   spans.forEach(sp => {
     const labs = overlayLabels(sp.key, f); if (!labs.length) return;

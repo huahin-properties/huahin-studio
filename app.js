@@ -9,7 +9,7 @@ const SIZES = [
 const ROOMS = [AREA_ROOM, MAP_ROOM, 'หน้าบ้าน/ภายนอก','ที่จอดรถ','ห้องนั่งเล่น','ห้องทานอาหาร','ครัว','ห้องนอนใหญ่','ห้องนอน','ห้องน้ำ','สระว่ายน้ำ','สวน/ระเบียง','วิวรอบๆ','อื่นๆ'];
 const STEPS = ['1 ขนาด','2 ใส่รูป/คลิป','3 สี','4 สคริปต์','5 เสียง','6 มาสคอต','7 เรนเดอร์'];
 
-const state = { trans: 'auto', overlay: true, mascot: { presenter: true, size: 0.28, side: 'left' }, audio: { mode: 'single', single: null, chunks: {}, music: null, musicVol: 15, duck: true, duckBoost: 2.5, sfx: true }, stretch: true, clipSec: 180, routeData: null, skipMap: false, facts: { name: '', beds: '', baths: '', usable: '', land: '', price: '', travel: '', coord: '', routeStart: '', routeLabel: '', highlights: '' }, slot: 'title', step: 0, size: '4:5', items: [], color: { ...COLOR_DEFAULT }, useArea: true, contact: { mode: 'std', custom: { name: '', phone: '', line: '' } }, script: { area: '', rooms: {}, en: {}, enSrc: {} } };
+const state = { hookOn: true, hero: null, trans: 'auto', overlay: true, mascot: { presenter: true, size: 0.28, side: 'left' }, audio: { mode: 'single', single: null, chunks: {}, beatAud: {}, music: null, musicVol: 15, duck: true, duckBoost: 2.5, sfx: true }, stretch: true, clipSec: 180, routeData: null, skipMap: false, facts: { name: '', beds: '', baths: '', usable: '', land: '', price: '', travel: '', coord: '', routeStart: '', routeLabel: '', highlights: '' }, slot: 'title', step: 0, size: '4:5', items: [], color: { ...COLOR_DEFAULT }, useArea: true, contact: { mode: 'std', custom: { name: '', phone: '', line: '' } }, script: { area: '', rooms: {}, en: {}, enSrc: {} } };
 const STATE0 = structuredClone(state);
 let nextId = 1;
 
@@ -24,10 +24,10 @@ const DB = {
   async set(k, v) { const db = await this.open(); return new Promise((res, rej) => { const tx = db.transaction('kv', 'readwrite'); tx.objectStore('kv').put(v, k); tx.oncomplete = res; tx.onerror = tx.onabort = () => rej(tx.error || new Error('บันทึกไม่ได้ (พื้นที่เต็ม?)')); }); },
   async del(k) { const db = await this.open(); return new Promise((res, rej) => { const tx = db.transaction('kv', 'readwrite'); tx.objectStore('kv').delete(k); tx.oncomplete = res; tx.onerror = tx.onabort = () => rej(tx.error); }); },
 };
-const projData = () => ({ v: 2, trans: state.trans, overlay: state.overlay, mascot: state.mascot, audio: state.audio, stretch: state.stretch, clipSec: state.clipSec, routeData: state.routeData, skipMap: state.skipMap, facts: state.facts, useArea: state.useArea, contact: state.contact, size: state.size, color: state.color, script: state.script, items: state.items.map(({ id, blob, type, room, name }) => ({ id, blob, type, room, name })) });
+const projData = () => ({ v: 2, hookOn: state.hookOn, hero: state.hero, trans: state.trans, overlay: state.overlay, mascot: state.mascot, audio: state.audio, stretch: state.stretch, clipSec: state.clipSec, routeData: state.routeData, skipMap: state.skipMap, facts: state.facts, useArea: state.useArea, contact: state.contact, size: state.size, color: state.color, script: state.script, items: state.items.map(({ id, blob, type, room, name }) => ({ id, blob, type, room, name })) });
 const save = () => { if (typeof updateSb === 'function') updateSb(); if (!state.pid) return Promise.resolve(); if (typeof schedMeta === 'function') schedMeta(); return DB.set('project:' + state.pid, projData()).catch(() => {}); };
 function applyProject(p) {
-  if (p) { if (!p.v) p.items.forEach(i => { if (i.room === 'หน้าบ้าน/ภายนอก') i.room = ''; }); state.size = p.size; state.trans = p.trans || 'auto'; state.overlay = p.overlay !== false; state.color = { ...COLOR_DEFAULT, ...(p.color || {}) }; state.script = { area: '', rooms: {}, en: {}, enSrc: {}, ...(p.script || {}) }; state.skipMap = !!p.skipMap; state.clipSec = p.clipSec || 180; state.audio = { mode: 'single', single: null, chunks: {}, music: null, musicVol: 15, duck: true, duckBoost: 2.5, sfx: true, ...(p.audio || {}) }; state.mascot = { presenter: true, size: 0.28, side: 'left', ...(p.mascot || {}) }; state.stretch = p.stretch !== false; state.routeData = p.routeData || null; state.facts = { ...state.facts, ...(p.facts || {}) }; state.useArea = true; state.contact = { mode: 'std', ...(p.contact || {}), custom: { name: '', phone: '', line: '', ...((p.contact || {}).custom || {}) } }; state.items = p.items; nextId = Math.max(0, ...p.items.map(i => i.id)) + 1; }
+  if (p) { if (!p.v) p.items.forEach(i => { if (i.room === 'หน้าบ้าน/ภายนอก') i.room = ''; }); state.size = p.size; state.hookOn = p.hookOn !== false; state.hero = p.hero || null; state.trans = p.trans || 'auto'; state.overlay = p.overlay !== false; state.color = { ...COLOR_DEFAULT, ...(p.color || {}) }; state.script = { area: '', rooms: {}, en: {}, enSrc: {}, ...(p.script || {}) }; state.skipMap = !!p.skipMap; state.clipSec = p.clipSec || 180; state.audio = { mode: 'single', single: null, chunks: {}, beatAud: {}, music: null, musicVol: 15, duck: true, duckBoost: 2.5, sfx: true, ...(p.audio || {}) }; state.mascot = { presenter: true, size: 0.28, side: 'left', ...(p.mascot || {}) }; state.stretch = p.stretch !== false; state.routeData = p.routeData || null; state.facts = { ...state.facts, ...(p.facts || {}) }; state.useArea = true; state.contact = { mode: 'std', ...(p.contact || {}), custom: { name: '', phone: '', line: '', ...((p.contact || {}).custom || {}) } }; state.items = p.items; nextId = Math.max(0, ...p.items.map(i => i.id)) + 1; }
 }
 
 const $ = s => document.querySelector(s);
@@ -153,7 +153,7 @@ function bankFor(id) {
 }
 // ความยาวคลิปรวม (ค่าเริ่มต้น 3:00) − ฉากคงที่ (ไตเติล/เครดิต/รถวิ่ง) = เวลาที่ช่วงเล่าเรื่องต้องมี
 const routeOkNow = () => !!(state.routeData && state.routeData.size === state.size);
-const fixedSec = () => (lib.titleBuiltin ? titleDur() : 0) + (lib.closeBuiltin ? closeDur() : 0) + (routeOkNow() ? ROUTE_DUR : 0) + STYLE.fade;
+const fixedSec = () => (heroItem() ? hookDur() : 0) + (lib.titleBuiltin ? titleDur() : 0) + (lib.closeBuiltin ? closeDur() : 0) + (routeOkNow() ? ROUTE_DUR : 0) + STYLE.fade;
 const narrTarget = () => Math.max(30, state.clipSec - fixedSec());
 const SEG_WEIGHT = { 'cat-city': 14, map: 7, ext: 12, park: 3, liv: 9, dine: 4, kit: 10, bed: 10, bath: 5, pool: 9, garden: 4, 'cat-lifestyle': 9 };
 function segSlot(g) {
@@ -256,7 +256,7 @@ function buildAiPrompt() {
   const f = state.facts, T = segTargets(), lines = [];
   [['ชื่อโครงการ', f.name], ['ห้องนอน', f.beds], ['ห้องน้ำ', f.baths], ['พื้นที่ใช้สอย (ตร.ม.)', f.usable], ['ที่ดิน (ตร.ว.)', f.land], ['ราคา (ล้านบาท)', f.price], ['จุดเด่น', f.highlights]].forEach(([k, v]) => { if (String(v || '').trim()) lines.push(`- ${k}: ${v}`); });
   const near = typeof mapScriptText === 'function' ? mapScriptText(4) : ''; if (near) lines.push('- ระยะทาง (ประมาณการ): ' + near);
-  const segs = scriptSegments().map((g, i) => `[${String(g.no).padStart(2, '0')}] ${g.label} · เป้าหมาย ${T[g.key]} วินาที (ประมาณ ${T[g.key] * SPEAK_CPS} ตัวอักษร)${g.text.trim() ? ' · ร่างเดิม: ' + g.text.trim() : ''}`);
+  const segs = scriptSegments().map((g, i) => { const nImg = Math.max(1, segItems(g).length); return `[${String(g.no).padStart(2, '0')}] ${g.label} · เป้าหมาย ${T[g.key]} วินาที (ประมาณ ${T[g.key] * SPEAK_CPS} ตัวอักษร) · มี ${nImg} รูป: เขียนเป็นประโยคสั้นๆ ${nImg} ประโยค ประโยคละ 1 รูป (ประมาณ ${Math.max(2, Math.round(T[g.key] / nImg))} วินาทีต่อประโยค)${g.text.trim() ? ' · ร่างเดิม: ' + g.text.trim() : ''}`; });
   return `คุณคือผู้เขียนสคริปต์พากย์คลิปแนะนำบ้านพักตากอากาศระดับพรีเมียมที่หัวหิน สไตล์ luxury editorial อบอุ่น เป็นกันเอง เล่าเหมือนพาเดินชมบ้านจริง ใช้ภาษาไทยที่พูดแล้วลื่นไหลและน่าฟัง
 
 ข้อมูลบ้าน (ใช้เฉพาะข้อมูลนี้ ห้ามแต่งตัวเลข ราคา หรือสิ่งอำนวยความสะดวกที่ไม่ได้ให้ไว้):
@@ -488,8 +488,54 @@ function closeDefault() {
   if (!ct || !(ct.phone || '').trim()) return `${B.thanks} ติดต่อสอบถามข้อมูลเพิ่มเติมได้ที่ Huahin Properties`;
   return `${B.thanks} ${B.invite}${(ct.name || '').trim() ? ' ' + ct.name.trim() : ' Huahin Properties'} โทร ${spokenPhone(ct.phone)}${(ct.line || '').trim() ? ' หรือแอดไลน์ ' + ct.line.trim() : ''}`;
 }
+// ---- ฮุกเปิดคลิป: ภาพบ้านที่เด่นที่สุด + เสียงบอกจุดเด่นทันที ใน 5–10 วินาทีแรก ก่อนไตเติลและพาไปดูทำเล ----
+const isHeroId = id => typeof id === 'string' && id.startsWith('hero:');
+function heroItem() {
+  if (state.hookOn === false) return null;
+  const imgs = state.items.filter(i => i.type === 'image'); if (!imgs.length) return null;
+  const pick = (state.hero && imgs.find(i => i.id === state.hero.id)) || imgs.find(i => i.room === 'หน้าบ้าน/ภายนอก') || imgs.find(i => i.room === 'สระว่ายน้ำ') || imgs[0];
+  return { id: 'hero:' + pick.id, srcId: pick.id, blob: pick.blob, type: 'image', room: '', name: pick.name };
+}
+function hookDefault() {
+  const f = state.facts, n = v => String(v || '').trim(), num = v => /^[\d.,]+$/.test(n(v)), bits = [];
+  if (n(f.beds)) bits.push(`${n(f.beds)} ห้องนอน`); if (n(f.baths)) bits.push(`${n(f.baths)} ห้องน้ำ`);
+  const x = num(f.price) ? Number(n(f.price).replace(/,/g, '')) : null, price = x == null ? n(f.price) : (x < 1000 ? `${x} ล้านบาท` : `${x.toLocaleString('th-TH')} บาท`);
+  return `${n(f.name) ? 'นี่คือ ' + n(f.name) : 'นี่คือบ้านพักตากอากาศที่หัวหิน'} ${bits.join(' ')}${n(f.highlights) ? ' ' + n(f.highlights) : ''}${price ? ' ราคา ' + price : ''}`.replace(/\s+/g, ' ').trim();
+}
+const hookDur = () => { const au = segAudioSec().hook; if (au != null) return Math.min(12, Math.max(5, au + 0.35)); const g = scriptSegmentsAll().find(x => x.key === 'hook'); return g ? Math.min(10, Math.max(5, secOf(g.text) + 0.8)) : 5; };
+
+// ---- บทเสียงแบ่งช่วงตามภาพ (Beat sheet): 1 ช่วง = ข้อความสั้นๆ + รูปที่แสดงตอนพูดช่วงนั้น + เวลา · ใช้สร้างเสียงทีละช่วงที่ AI Studio แล้วแก้เฉพาะช่วงได้ ----
+function cutText(t, m) {
+  t = String(t || '').trim().replace(/\s+/g, ' '); if (m <= 1) return [t];
+  const parts = []; let rest = t;
+  for (let k = m; k > 1; k--) {
+    const target = Math.round(rest.length / k); let best = -1, bd = 1e9;
+    for (let i = 1; i < rest.length - 1; i++) if (rest[i] === ' ') { const d = Math.abs(i - target); if (d < bd) { bd = d; best = i; } }
+    if (best < 0) break; parts.push(rest.slice(0, best).trim()); rest = rest.slice(best + 1);
+  }
+  parts.push(rest.trim()); return parts.filter(Boolean);
+}
+const segItems = g => (g.key === 'life' ? lifeItems() : g.key === 'area' ? areaItems() : state.items.filter(i => i.room === g.room)).filter(i => i.type === 'image');
+function beatsList() {
+  const out = [], sc = state.script;
+  scriptSegmentsAll().forEach(g => {
+    const t = (g.text || '').trim(); if (!t) return;
+    if (g.edge) { out.push({ id: g.key, segKey: g.key, no: g.key === 'open' ? 'เปิด' : g.key === 'hook' ? 'ฮุก' : 'ปิด', label: g.label, text: t, imgs: [], share: 1, edge: true }); return; }
+    const its = segItems(g), n = Math.max(1, its.length), norm = t.replace(/\s+/g, ' ');
+    const stored = sc.beats && sc.beats[g.key], parts = stored && stored.join(' ') === norm ? stored.slice() : cutText(norm, Math.min(n, Math.max(1, Math.floor(norm.length / 25))));
+    const m = parts.length, tot = parts.reduce((x, p) => x + p.length, 0) || 1;
+    parts.forEach((p, i) => { const a0 = Math.floor(i * its.length / m), b0 = Math.max(a0 + 1, Math.floor((i + 1) * its.length / m)); out.push({ id: `${g.key}#${i + 1}`, segKey: g.key, no: `${String(g.no).padStart(2, '0')}.${i + 1}`, label: g.label, text: p, imgs: its.slice(a0, b0), share: p.length / tot, edge: false, idx: i }); });
+  });
+  return out;
+}
+function beatMap() { const m = new Map(); beatsList().forEach(b => b.imgs.forEach(i => m.set(i.id, b))); return m; }
+const audStore = () => (state.audio.mode === 'beats' ? (state.audio.beatAud = state.audio.beatAud || {}) : state.audio.chunks);
+const audKey = (i, c) => (state.audio.mode === 'beats' ? c.keys[0] : i + 1);
+function beatAudioSec(id) { const A = state.audio, a = (A.beatAud || {})[id]; return a && a.dur ? a.dur : null; }
+function setSegText(key, v) { const sc = state.script; if (key === 'hook') sc.hook = v; else if (key === 'open') sc.open = v; else if (key === 'close') sc.close = v; else if (key === 'life') sc.life = v; else if (key === 'area') sc.area = v; else sc.rooms[key.slice(5)] = v; }
 function scriptSegmentsAll() {
   const mid = scriptSegments(), out = [];
+  if (heroItem()) out.push({ no: -1, key: 'hook', label: 'ภาพเด่น + จุดเด่น (ฮุกเปิดคลิป)', text: state.script.hook != null ? state.script.hook : hookDefault(), edge: true });
   if (lib.titleBuiltin) out.push({ no: 0, key: 'open', label: 'เปิดคลิป (ฉากไตเติล)', text: state.script.open != null ? state.script.open : openDefault(), edge: true });
   out.push(...mid);
   if (lib.closeBuiltin) out.push({ no: mid.length + 1, key: 'close', label: 'ปิดท้าย + ติดต่อ (ฉากเครดิต)', text: state.script.close != null ? state.script.close : closeDefault(), edge: true });
@@ -497,11 +543,12 @@ function scriptSegmentsAll() {
 }
 // แบ่งสคริปต์เป็นช่วงสำหรับสร้างเสียง: ท่อนเปิด/ปิดแยกเป็นช่วงของตัวเอง ท่อนกลางรวมกันไม่เกิน ~700 ตัวอักษร (ลำดับช่วง = ชื่อไฟล์เสียง 01, 02, ...)
 function ttsChunks() {
+  if (state.audio && state.audio.mode === 'beats') return beatsList().map(b => ({ keys: [b.id], nos: [b.no], texts: [b.text], len: b.text.length, edge: !!b.edge, beat: b }));
   const chunks = []; let cur = null;
   scriptSegmentsAll().filter(g => g.text.trim()).forEach(g => {
     const t = g.text.trim();
     if (g.edge || !cur || cur.edge || cur.len + t.length > 700) { cur = { keys: [], nos: [], texts: [], len: 0, edge: !!g.edge }; chunks.push(cur); }
-    cur.keys.push(g.key); cur.nos.push(g.edge ? (g.key === 'open' ? 'เปิด' : 'ปิด') : String(g.no).padStart(2, '0')); cur.texts.push(t); cur.len += t.length;
+    cur.keys.push(g.key); cur.nos.push(g.edge ? (g.key === 'open' ? 'เปิด' : g.key === 'hook' ? 'ฮุก' : 'ปิด') : String(g.no).padStart(2, '0')); cur.texts.push(t); cur.len += t.length;
   });
   return chunks;
 }
@@ -552,7 +599,8 @@ function singleAlign() {
 function segAudioSec() {
   const out = {}, A = state.audio || {};
   if (A.mode === 'single') { const al = A.single && singleAlign(); if (al) al.forEach(x => { out[x.key] = x.a1 - x.a0; }); return out; }
-  ttsChunks().forEach((c, i) => { const a = (A.chunks || {})[i + 1]; if (!a || !a.dur) return; c.keys.forEach((k, j) => { out[k] = a.dur * c.texts[j].length / c.len; }); });
+  ttsChunks().forEach((c, i) => { const a = audStore()[audKey(i, c)]; if (!a || !a.dur) return; c.keys.forEach((k, j) => { out[k] = a.dur * c.texts[j].length / c.len; }); });
+  if (A.mode === 'beats') { const by = {}; beatsList().forEach(b => { if (!b.edge) (by[b.segKey] = by[b.segKey] || []).push(b); }); Object.entries(by).forEach(([k, bs]) => { if (bs.every(b => out[b.id] != null)) out[k] = bs.reduce((s, b) => s + out[b.id] + 0.25, 0) - 0.25; }); }
   return out;
 }
 // ความยาวฉากเปิด/ปิด ปรับตามความยาวเสียงพูด (อย่างน้อยเท่าค่ามาตรฐาน)
@@ -583,19 +631,50 @@ async function translateTh2En(text) {
   return out.join(' ').replace(/\s+/g, ' ').trim();
 }
 
+
+function openBeatSheet() {
+  document.querySelector('#beatSheet')?.remove();
+  const beats = beatsList(), A = state.audio; if (!beats.length) { alert('ยังไม่มีสคริปต์ให้แบ่งช่วง'); return; }
+  let TL = {}; try { TL = computeTimeline().starts; } catch (e) {}
+  const est = b => { const au = beatAudioSec(b.id); return au != null ? au : Math.max(2, b.text.length / SPEAK_CPS); };
+  const row = (b, i) => `<div class="seg" data-bi="${i}"><div class="seg-h"><b>${b.no} · ${b.label}</b><span class="badge" data-bt="${i}">เริ่ม ${fmtSec(TL[b.id] != null ? TL[b.id] : (TL[b.segKey] || 0))} · ~${est(b).toFixed(1)} วิ</span></div>
+    ${b.imgs.length ? `<div class="mini">${b.imgs.slice(0, 3).map(im => `<img src="${urlOf(im)}" alt="">`).join('')}<small>${b.imgs.length} รูป</small></div>` : ''}
+    <textarea rows="2" data-b="${i}">${b.text.replace(/</g, '&lt;')}</textarea>
+    <div class="tools"><button class="ib wide" data-bc="${i}">📋 คัดลอกช่วงนี้</button><small class="hint" data-bs="${i}">${beatAudioSec(b.id) != null ? '✅ มีเสียงแล้ว ' + beatAudioSec(b.id).toFixed(1) + ' วิ' : '⬜ ยังไม่มีเสียง'}</small></div></div>`;
+  const d = document.createElement('div'); d.className = 'sheet tall'; d.id = 'beatSheet';
+  d.innerHTML = `<div class="sh-head"><b>🎙️ บทเสียงแบ่งช่วงตามภาพ</b><button class="ib" data-a="x" aria-label="ปิด">✕</button></div>
+    <p class="hint">แต่ละช่วงคือ <b>ข้อความสั้นๆ ที่พูดตอนภาพนั้นขึ้น</b> พร้อมเวลาโดยประมาณ ใช้เป็นผังก่อนไปสร้างเสียงที่ Google AI Studio: คัดลอกทีละช่วง → สร้างเสียงช่วงละไฟล์ → ที่ขั้น 5 เลือก "แยกตามภาพ" แล้วใส่ไฟล์ แอปจะตั้งเวลาแต่ละภาพตามเสียงจริง ช่วงไหนจังหวะไม่ลงตัว แก้ข้อความที่นี่ สร้างเสียงใหม่เฉพาะช่วงนั้นแล้วกด "↻ เปลี่ยนไฟล์" ช่วงอื่นไม่ต้องทำใหม่ (แก้ข้อความที่นี่ = แก้สคริปต์ท่อนนั้นด้วย)</p>
+    <p class="hint">${beats.length} ช่วง · เสียงโดยประมาณรวม ~${Math.round(beats.reduce((s, b) => s + est(b), 0))} วินาที · เวลา "เริ่ม" คำนวณจากผังเวลาตอนนี้</p>
+    <div class="tools"><button class="ib wide" id="bAll">📋 คัดลอกตารางทั้งหมด (ข้อความ + วินาที)</button><button class="ib wide" id="bMode">🎞️ ใช้โหมด "แยกตามภาพ" (ขั้น 5)</button></div>
+    ${beats.map(row).join('')}<button class="btn alt" data-a="x">ปิด</button>`;
+  const flash = (btn, ok) => { const o = btn.dataset.o || btn.textContent; btn.dataset.o = o; btn.textContent = ok ? '✓ คัดลอกแล้ว' : 'คัดลอกไม่ได้'; setTimeout(() => { btn.textContent = o; }, 1500); };
+  d.oninput = e => {
+    const ta = e.target.closest('textarea[data-b]'); if (!ta) return; const i = +ta.dataset.b, b = beats[i]; b.text = ta.value;
+    if (b.edge) setSegText(b.segKey, ta.value);
+    else { const same = beats.filter(x => x.segKey === b.segKey), parts = same.map(x => x.text.trim().replace(/\s+/g, ' ')).filter(Boolean); state.script.beats = state.script.beats || {}; state.script.beats[b.segKey] = parts; setSegText(b.segKey, parts.join(' ')); }
+    save(); const bt = d.querySelector(`[data-bt="${i}"]`); if (bt) bt.textContent = `เริ่ม ${fmtSec(TL[b.id] != null ? TL[b.id] : (TL[b.segKey] || 0))} · ~${Math.max(2, b.text.length / SPEAK_CPS).toFixed(1)} วิ`;
+  };
+  d.onclick = async e => {
+    if (e.target.closest('[data-a=x]')) { d.remove(); if (state.step === 3) viewScript(); return; }
+    const c = e.target.closest('[data-bc]'); if (c) { flash(c, await copyText(beats[+c.dataset.bc].text)); return; }
+    if (e.target.closest('#bAll')) { flash(e.target.closest('#bAll'), await copyText(beats.map(b => `[${b.no}] (${b.imgs.length ? b.imgs.length + ' รูป · ' : ''}≈${est(b).toFixed(1)} วิ) ${b.text}`).join('\n\n'))); return; }
+    if (e.target.closest('#bMode')) { A.mode = 'beats'; await save(); d.remove(); go(4); }
+  };
+  document.body.appendChild(d);
+}
 function viewScript() {
   organizeItems(); save();
   const segs = scriptSegmentsAll(), no2 = n => String(n).padStart(2, '0');
   let segT = segTargets();
   const sc = state.script; sc.en = sc.en || {}; sc.enSrc = sc.enSrc || {};
-  const setText = (seg, v) => { if (seg.key === 'open') sc.open = v; else if (seg.key === 'close') sc.close = v; else if (seg.key === 'life') sc.life = v; else if (seg.key === 'area') sc.area = v; else sc.rooms[seg.room] = v; };
+  const setText = (seg, v) => { if (seg.key === 'hook') sc.hook = v; else if (seg.key === 'open') sc.open = v; else if (seg.key === 'close') sc.close = v; else if (seg.key === 'life') sc.life = v; else if (seg.key === 'area') sc.area = v; else sc.rooms[seg.room] = v; };
   const total = () => scriptSegments().reduce((a, g) => a + secOf(g.text), 0);
   const stale = g => !!(sc.en[g.key] && g.text.trim() && sc.enSrc[g.key] !== g.text);
   const staleTxt = g => (stale(g) ? '⚠️ แก้ไทยหลังแปลแล้ว กด 🌐 แปลใหม่' : '');
   const card = g => {
     const its = g.edge ? [] : g.key === 'life' ? lifeItems() : g.key === 'area' ? areaItems() : state.items.filter(i => i.room === g.room);
     return `<div class="seg" data-key="${g.key}">
-      <div class="seg-h"><b>${g.edge ? (g.key === 'open' ? 'เริ่ม' : 'จบ') : no2(g.no)} · ${g.label}</b><span class="badge" data-t="${g.key}">~${secOf(g.text)}${g.edge ? ' วิ' : ' / เป้า ' + segT[g.key] + ' วิ'}</span></div>
+      <div class="seg-h"><b>${g.edge ? (g.key === 'open' ? 'เริ่ม' : g.key === 'hook' ? 'ฮุก' : 'จบ') : no2(g.no)} · ${g.label}</b><span class="badge" data-t="${g.key}">~${secOf(g.text)}${g.edge ? ' วิ' : ' / เป้า ' + segT[g.key] + ' วิ'}</span></div>
       ${its.length ? `<div class="mini">${its.slice(0, 4).map(i => i.type === 'image' ? `<img src="${urlOf(i)}" alt="">` : '<span>🎬</span>').join('')}<small>${its.length} รูป/คลิป</small></div>` : ''}
       <div class="lang"><span>🇹🇭 ไทย</span><button class="ib sm" data-cp="th:${g.key}">📋 ไทย</button></div>
       <textarea rows="3" data-k="${g.key}" placeholder="พิมพ์เรื่องเล่าของห้องนี้...">${g.text.replace(/</g, '&lt;')}</textarea>
@@ -611,13 +690,18 @@ function viewScript() {
       <div class="sbar ok" id="totBar" style="height:10px"><i style="width:0%"></i></div><small class="sbl" id="totTxt"></small>
       <div class="tools"><button class="ib wide danger" id="s4Draft">✨ เติมให้ครบเวลา</button><button class="ib wide" id="s4Facts">🏠 ข้อมูลบ้าน</button></div>
       <div class="tools"><button class="ib wide" id="aiCopy">🤖 คัดลอก + เปิด AI Studio (เขียนสคริปต์)</button><button class="ib wide" id="aiPaste">📥 วางสคริปต์จาก AI</button></div>
-      <div class="tools"><button class="ib wide" id="chk">🔍 ตรวจข้อมูลในสคริปต์</button></div>
+      <div class="tools"><button class="ib wide" id="chk">🔍 ตรวจข้อมูลในสคริปต์</button><button class="ib wide" id="beatBtn">🎙️ บทเสียงแบ่งช่วง (ตาราง ภาพ+ข้อความ+วินาที)</button></div>
       <div class="tools"><button class="ib wide" id="ttsOpen">🔊 สร้างเสียง (คัดลอกทีละช่วง + เปิดหน้าสร้างเสียง)</button><button class="ib" id="linkEdit" title="แก้ลิงก์" aria-label="แก้ลิงก์">⚙️</button></div></div>
     <div class="tools"><button class="ib wide" id="trAll">🌐 แปลทั้งหมด</button><button class="ib wide" data-all="th">📋 ไทยทั้งหมด</button><button class="ib wide" data-all="en">📋 EN ทั้งหมด</button></div>
     <p class="hint" id="saved">💾 บันทึกอัตโนมัติทุกครั้งที่พิมพ์</p>
     <p class="hint">เวลารวมโดยประมาณ <b id="tot">${mmss(total())}</b> (เป้าหมายประมาณ 3:00) · ไตเติลและหน้าปิดเป็นคลิปประจำ ไม่ต้องเขียนสคริปต์</p>
     <div class="soon" style="text-align:left">📋 <b>ปุ่มคัดลอกใช้ทำอะไร:</b> กด 📋 ไทย หรือ 📋 EN ที่ท่อนไหน แล้วนำไปวางใน <b>Google AI Studio</b> เพื่อสร้างเสียงพากย์ จากนั้นตั้งชื่อไฟล์เสียงตามเลขท่อน (01, 02, ...) แล้วนำมาอัปโหลดในขั้น 5 · ปุ่ม 📋 ไทยทั้งหมด / EN ทั้งหมด คัดลอกข้อความล้วนทุกท่อนต่อกัน (ไม่มี [01] [02]) เว้นบรรทัดระหว่างท่อน พร้อมวางสร้างเสียงทีเดียวได้<br>🌐 การแปลใช้บริการแปลฟรีออนไลน์ ต้องต่อเน็ต คุณภาพพื้นฐาน อ่านและแก้ก่อนใช้ทุกครั้ง</div>
     ${state.items.length ? '' : '<div class="soon">ยังไม่มีรูป กลับไปขั้น 2 เพื่อใส่รูปและติดแท็กห้องก่อน</div>'}
+    ${(() => { const h = heroItem(), srcIt = h && state.items.find(i => i.id === h.srcId), hasI = state.items.some(i => i.type === 'image');
+      return `<div class="seg"><div class="seg-h"><b>🌟 ฮุกเปิดคลิป: ภาพบ้านเด่นที่สุด + จุดเด่นใน 5–10 วินาทีแรก</b><span class="badge">${h ? '~' + Math.round(hookDur()) + ' วิ' : 'ปิดอยู่'}</span></div>
+      <p class="hint">คลิปจะเปิดด้วย <b>ภาพบ้านที่เด่นที่สุด</b> พร้อมเสียงบอกจุดเด่นทันที (ข้อความแก้ได้ที่ท่อน "ฮุก" ด้านล่าง) แล้วจึงตามด้วยไตเติลมาสคอตทักทาย → ทำเล → รายละเอียดห้องต่างๆ</p>
+      ${srcIt ? `<div class="mini"><img src="${urlOf(srcIt)}" alt=""><small>ภาพเด่นที่ใช้: ${(srcIt.room || 'ยังไม่ตั้งห้อง')}${state.hero && state.hero.id === srcIt.id ? '' : ' (เลือกให้อัตโนมัติ)'}</small></div>` : ''}
+      <div class="tools"><button class="ib wide" id="heroPick" ${hasI ? '' : 'disabled'}>🖼️ เปลี่ยนภาพเด่น</button><button class="ib wide" id="hookTog" ${hasI ? '' : 'disabled'}>${state.hookOn === false ? '▶ เปิดฮุก' : '⏹ ปิดฮุก'}</button></div></div>`; })()}
     <div id="segs">${segs.map(card).join('')}</div>
     <p class="hint" id="warn"></p>
     <button class="btn" id="nx">ถัดไป: 5 เสียง →</button>
@@ -632,6 +716,14 @@ function viewScript() {
   };
   const updTot = () => { const nt = narrTarget(), tot = totalSecNow(), pct = Math.min(100, Math.round(tot / nt * 100)); const bar = $('#totBar'); bar.querySelector('i').style.width = pct + '%'; bar.className = 'sbar ' + (tot >= nt * 0.9 ? 'ok' : 'no'); $('#totTxt').textContent = `สคริปต์ตอนนี้ ~${mmss(tot)} จากเป้าเสียงพากย์ ${mmss(nt)} (${pct}%)${tot < nt * 0.9 ? ' · สั้นกว่าเป้า (ตอนเรนเดอร์ระบบยืดเวลาช่วงนั้นให้ครบ แต่ควรเขียนเพิ่ม)' : ' · ถึงเป้าแล้ว'}`; $('#totTxt').className = 'sbl ' + (tot >= nt * 0.9 ? 'ok' : 'no'); };
   updTot(); warn();
+  if ($('#beatBtn')) $('#beatBtn').onclick = openBeatSheet;
+  if ($('#hookTog')) $('#hookTog').onclick = () => { state.hookOn = state.hookOn === false; save(); viewScript(); };
+  if ($('#heroPick')) $('#heroPick').onclick = () => {
+    const d = document.createElement('div'); d.className = 'sheet tall'; d.id = 'heroSheet';
+    d.innerHTML = `<div class="sh-head"><b>🌟 เลือกภาพเด่นเปิดคลิป</b><button class="ib" data-a="x" aria-label="ปิด">✕</button></div><p class="hint">เลือกภาพบ้านที่สวยและเด่นที่สุด (ภาพนี้จะขึ้นก่อนใครในคลิป)</p><div class="pgrid">${state.items.filter(i => i.type === 'image').map(i => `<button class="pcell" data-h="${i.id}"><img src="${urlOf(i)}" alt="" style="width:100%;height:92px;object-fit:cover;border-radius:8px"><span>${i.room || 'ยังไม่ตั้งห้อง'}</span></button>`).join('')}</div><button class="btn alt" data-a="x">ปิด</button>`;
+    d.onclick = e => { if (e.target.closest('[data-a=x]')) { d.remove(); return; } const b = e.target.closest('[data-h]'); if (b) { state.hero = { id: +b.dataset.h }; save(); d.remove(); viewScript(); } };
+    document.body.appendChild(d);
+  };
   const stamp = () => { const d = new Date(); $('#saved').textContent = `💾 บันทึกแล้ว ${d.toLocaleTimeString('th-TH')}`; };
   $('#segs').oninput = e => {
     const ta = e.target.closest('textarea'); if (!ta) return;
@@ -830,16 +922,19 @@ function segPlan() {
 function imageDurations(imgs) {
   const plan = segPlan(), idToKey = new Map();
   Object.entries(plan).forEach(([k, P]) => P.imgs.forEach(i => idToKey.set(i.id, k)));
+  const BM = state.audio && state.audio.mode === 'beats' ? beatMap() : null;
   return imgs.map(i => {
+    if (isHeroId(i.id)) { const d = hookDur(); return { dur: d, shots: d > MAXSHOT ? Math.ceil(d / MAXSHOT) : 1 }; }
     const k = idToKey.get(i.id); if (!k || !state.stretch) return { dur: STYLE.secPerImage, shots: 1 };
+    const bt = BM && BM.get(i.id); if (bt) { const au = beatAudioSec(bt.id), P0 = plan[k], sec = au != null ? au + 0.25 : P0.sec * bt.share, d0 = Math.max(STYLE.secPerImage, sec / Math.max(1, bt.imgs.length)); return { dur: d0, shots: d0 > MAXSHOT ? Math.ceil(d0 / MAXSHOT) : 1 }; }
     const P = plan[k], d = Math.max(STYLE.secPerImage, P.sec / P.imgs.length);
     return { dur: d, shots: d > MAXSHOT ? Math.ceil(d / MAXSHOT) : 1 };
   });
 }
 function timelineImages() {
   const titleImg = (!lib.titleBuiltin && lib.title && lib.title.type === 'image') ? lib.title : null, closeImg = (!lib.closeBuiltin && lib.close && lib.close.type === 'image') ? lib.close : null;
-  const pre = titleImg ? [titleImg] : [], post = closeImg ? [closeImg] : [];
-  return { pre, imgs: [...pre, ...areaLibOrdered().filter(i => i.type === 'image'), ...state.items.filter(i => i.type === 'image'), ...lifeItems().filter(i => i.type === 'image'), ...post] };
+  const pre = titleImg ? [titleImg] : [], post = closeImg ? [closeImg] : [], hero = heroItem();
+  return { pre, hero, imgs: [...(hero ? [hero] : []), ...pre, ...areaLibOrdered().filter(i => i.type === 'image'), ...state.items.filter(i => i.type === 'image'), ...lifeItems().filter(i => i.type === 'image'), ...post] };
 }
 const predictedTotal = () => imageDurations(timelineImages().imgs).reduce((a, p) => a + p.dur, 0) + fixedSec();
 // ขีดวัด: จำนวนรูปเทียบกับเวลาของช่วงนั้น (ส้ม=น้อยไป เขียว=พอดี แดง=เยอะไป)
@@ -856,7 +951,7 @@ function viewRender() {
   organizeItems(); save();
   const { pre, imgs } = timelineImages(), s = sizeInfo();
   const blockers = sbBlockers();
-  const skipped = state.items.length - imgs.length;
+  const skipped = state.items.length - imgs.filter(i => !isHeroId(i.id)).length;
   const routeOk = !!(state.routeData && state.routeData.size === state.size);
   const routeAt = pre.length + areaLibOrdered().filter(i => i.type === 'image').length + state.items.filter(i => i.type === 'image' && (i.room === AREA_ROOM || i.room === MAP_ROOM)).length;
   $('#view').innerHTML = `
@@ -884,34 +979,37 @@ function viewRender() {
     $('#go').disabled = true; $('#out').innerHTML = '';
     const t0 = performance.now();
     try {
+      const PL = makePlan(), { imgs: gimgs, durs, entries, starts, sceneAt, total } = PL;
       let luts = null;
       if (!isNeutral(state.color)) {
         const stats = [];
-        for (const it of imgs) { if (!statCache.has(it.id)) statCache.set(it.id, imageStats(await getSmall(it))); stats.push(statCache.get(it.id)); }
+        for (const it of gimgs) { if (!statCache.has(it.id)) statCache.set(it.id, imageStats(await getSmall(it))); stats.push(statCache.get(it.id)); }
         luts = makeLuts(stats, state.color);
       }
       const sceneList = [];
-      if (lib.closeBuiltin) sceneList.push({ at: imgs.length, scene: await closeScene() });
-      if (routeOk) sceneList.push({ at: routeAt, scene: await routeScene(state.routeData) });
-      if (lib.titleBuiltin) sceneList.push({ at: 0, scene: await titleScene() });
-      // แผนเวลา (ต้องตรงกับที่ตัวเรนเดอร์ประกอบ): ฉากไตเติล → รูป (ฉากรถวิ่งแทรกตามตำแหน่ง) → ฉากเครดิต
-      const durs = imageDurations(imgs), idKey = new Map(); Object.entries(segPlan()).forEach(([k, P]) => P.imgs.forEach(i => idKey.set(i.id, k)));
-      const entries = []; if (lib.titleBuiltin) entries.push({ key: 'open', dur: titleDur(), title: true });
-      imgs.forEach((im, i) => { if (routeOk && i === routeAt) entries.push({ key: null, dur: ROUTE_DUR }); entries.push({ key: idKey.get(im.id) || null, dur: durs[i].dur }); });
-      if (routeOk && routeAt >= imgs.length) entries.push({ key: null, dur: ROUTE_DUR });
-      if (lib.closeBuiltin) entries.push({ key: 'close', dur: closeDur(), close: true });
-      const starts = {}, sceneAt = {}; let acc = 0;
-      entries.forEach(e => { if (e.key && starts[e.key] == null) starts[e.key] = acc; if (e.title) sceneAt.title = acc; if (e.close) sceneAt.close = acc; acc += e.dur; });
-      const total = acc + STYLE.fade;
-      const hasAudio = (state.audio.mode === 'single' ? state.audio.single : Object.keys(state.audio.chunks).length) || state.audio.music || state.audio.sfx;
+      if (lib.closeBuiltin) sceneList.push({ at: gimgs.length, scene: await closeScene() });
+      if (PL.routeOk) sceneList.push({ at: PL.routeAt, scene: await routeScene(state.routeData) });
+      if (lib.titleBuiltin) sceneList.push({ at: PL.hero ? 1 : 0, scene: await titleScene() });
+      const hasAudio = (state.audio.mode === 'single' ? state.audio.single : Object.keys(audStore()).length) || state.audio.music || state.audio.sfx;
       let audioMix = null;
       if (hasAudio) { $('#prog').textContent = 'กำลังผสมเสียง...'; audioMix = await buildMix(starts, total, sceneAt); }
       // มาสคอต: ปากขยับตามแทร็กเสียงพากย์ล้วน · มาสคอตนำเสนอ (ตามช่วงของแต่ละท่อน)
       await loadPoses(); await loadMyPoses(); MOUTH.babble = false;
       if (audioMix && audioMix.voice) { const me = computeMouthEnv(audioMix.voice, audioMix.sampleRate, MOUTH.fps); MOUTH.env = me.env; MOUTH.wid = me.wid; } else { MOUTH.env = null; MOUTH.wid = null; }
       STYLE.trans = state.trans; OVERLAY.on = !!state.overlay; OVERLAY.events = state.overlay ? buildOverlayEvents(entries, state.facts) : []; PRESENTER.on = !!state.mascot.presenter; PRESENTER.size = state.mascot.size; PRESENTER.move = state.mascot.move !== false; PRESENTER.random = state.mascot.random !== false; PRESENTER.fidget = state.mascot.fidget !== false; PRESENTER._prep = -1; PRESENTER.side = state.mascot.side; PRESENTER.spans = [];
-      { let tt = 0; const seen = {}; entries.forEach(e => { if (e.key && e.key !== 'open' && e.key !== 'close') { const sp = seen[e.key] || (seen[e.key] = { start: tt, end: tt, pose: poseForSeg(e.key), seed: Object.keys(seen).length }); sp.end = tt + e.dur; } tt += e.dur; }); PRESENTER.spans = Object.values(seen); }
-      const blob = await renderMp4(imgs.map(i => i.blob), s.w, s.h, (p, msg) => { $('#prog').textContent = `${msg} ${Math.round(p * 100)}%`; }, luts, sceneList, durs, audioMix);
+      { let tt = 0; const seen = {}, smart = (state.mascot.cadence || 'smart') === 'smart';
+        entries.forEach(e => { if (e.key && e.key !== 'open' && e.key !== 'close' && e.key !== 'hook') { const sp = seen[e.key] || (seen[e.key] = { key: e.key, start: tt, end: tt, pose: poseForSeg(e.key), seed: Object.keys(seen).length }); sp.end = tt + e.dur; } tt += e.dur; });
+        let spans = Object.values(seen);
+        if (smart) { // เด่นตอนทักทาย (ฉากไตเติล) · ชี้จุดขาย · ปิดคลิป (ฉากเครดิต) · ช่วงชมบ้านโผล่แวบสั้นๆ ไม่แย่งความสนใจจากภาพบ้าน
+          const out = [];
+          spans.forEach(sp => { const L = sp.end - sp.start, role = (state.script.mrole || {})[sp.key] || (MASCOT_SELL.includes(sp.key) ? 'sell' : 'tour');
+            if (role === 'hide') return;
+            if (role === 'sell') out.push({ ...sp, start: sp.start + 0.4, end: sp.start + Math.min(Math.max(L - 0.3, 2.5), 7), big: true });
+            else if (L >= 4.5) out.push({ ...sp, start: sp.start + 0.6, end: sp.start + 3.1, small: true }); });
+          spans = out;
+        }
+        PRESENTER.spans = spans; }
+      const blob = await renderMp4(gimgs.map(i => i.blob), s.w, s.h, (p, msg) => { $('#prog').textContent = `${msg} ${Math.round(p * 100)}%`; }, luts, sceneList, durs, audioMix);
       const url = URL.createObjectURL(blob), kept = await storeVideo(pid0, blob); await markRendered(pid0, blob, kept);
       $('#prog').textContent = `${kept ? '💾 เก็บไว้ในหน้า "คลิปของฉัน" แล้ว · ' : '⚠️ พื้นที่เก็บในเครื่องไม่พอจะเก็บวิดีโอไว้ในแอป (โหลดลงเครื่องเลย) · '}เสร็จใน ${((performance.now() - t0) / 1000).toFixed(0)} วินาที · ขนาดไฟล์ ${(blob.size / 1048576).toFixed(1)} MB`;
       $('#out').innerHTML = `<video src="${url}" controls playsinline style="width:100%;max-height:60vh;background:#000;border-radius:12px"></video><a class="btn" id="dl" download="${clipName(metaOf(pid0) || {})}.mp4" href="${url}" style="text-decoration:none;text-align:center">⬇ บันทึกไฟล์ MP4</a>`;
@@ -1056,17 +1154,17 @@ const fmtSec = n => `${Math.floor(n / 60)}:${String(Math.round(n % 60)).padStart
 async function setChunkAudio(idx, file) {
   const ch = ttsChunks()[idx - 1]; if (!ch) return false;
   const buf = await decodeBlob(file);
-  state.audio.chunks[idx] = { blob: file, name: file.name, dur: buf.duration, sig: chunkSig(ch) };
+  audStore()[audKey(idx - 1, ch)] = { blob: file, name: file.name, dur: buf.duration, sig: chunkSig(ch) };
   return true;
 }
 function viewAudio() {
-  const A = state.audio, chunks = ttsChunks(), single = A.mode === 'single';
+  const A = state.audio, chunks = ttsChunks(), single = A.mode === 'single', beatsM = A.mode === 'beats';
   const urls = viewAudio._u || (viewAudio._u = {});
   const urlFor = (k, blob) => { if (!urls[k] || urls[k].blob !== blob) { if (urls[k]) URL.revokeObjectURL(urls[k].url); urls[k] = { blob, url: URL.createObjectURL(blob) }; } return urls[k].url; };
-  const have = chunks.filter((c, i) => A.chunks[i + 1]).length;
-  const totalVoice = chunks.reduce((a, c, i) => a + ((A.chunks[i + 1] || {}).dur || 0), 0);
+  const have = chunks.filter((c, i) => audStore()[audKey(i, c)]).length;
+  const totalVoice = chunks.reduce((a, c, i) => a + ((audStore()[audKey(i, c)] || {}).dur || 0), 0);
   const segsAll = scriptSegmentsAll().filter(g => g.text.trim()), align = single ? singleAlign() : null, clipLen = (() => { try { return computeTimeline().total; } catch (e) { return 180; } })();
-  const label = g => g.edge ? (g.key === 'open' ? 'เปิดคลิป' : 'ปิดท้าย/ติดต่อ') : `ท่อน ${String(g.no).padStart(2, '0')} ${g.label}`;
+  const label = g => g.edge ? (g.key === 'open' ? 'เปิดคลิป' : g.key === 'hook' ? 'ฮุก (ภาพเด่น)' : 'ปิดท้าย/ติดต่อ') : `ท่อน ${String(g.no).padStart(2, '0')} ${g.label}`;
   const singleHtml = () => {
     const S = A.single;
     if (!S) return `<div class="seg"><b>🎙️ ไฟล์เสียงพากย์ทั้งคลิป (ไฟล์เดียว)</b><p class="hint">สร้างเสียงจากสคริปต์ทั้งหมดในครั้งเดียวที่ AI Studio (ที่ขั้น 4 กด 🔊 สร้างเสียง → 📋 คัดลอกทั้งคลิป) แล้วนำไฟล์มาใส่ที่นี่ แอปจะหา "ช่วงเงียบ" ระหว่างย่อหน้าเพื่อแบ่งท่อนให้ตรงกับภาพ</p><div class="tools"><button class="ib wide" id="pickSingle">+ เลือกไฟล์เสียงทั้งคลิป</button></div></div>`;
@@ -1081,9 +1179,9 @@ function viewAudio() {
   };
   const chunkHtml = () => chunks.length ? `<button class="btn" id="multi">📂 เลือกไฟล์เสียงหลายไฟล์พร้อมกัน (จับคู่ตามเลขในชื่อไฟล์)</button>
     <p class="hint" id="audMsg">${have}/${chunks.length} ช่วงมีไฟล์เสียงแล้ว${have ? ` · เสียงพากย์รวม ${fmtSec(totalVoice)}` : ''}</p>
-    ${chunks.map((c, i) => { const a = A.chunks[i + 1], est = secOf(c.texts.join('')), bad = a && a.sig !== chunkSig(c), off = a && Math.abs(a.dur - est) > Math.max(6, est * 0.5);
+    ${chunks.map((c, i) => { const a = audStore()[audKey(i, c)], est = secOf(c.texts.join('')), bad = a && a.sig !== chunkSig(c), off = a && Math.abs(a.dur - est) > Math.max(6, est * 0.5);
       return `<div class="seg" data-ci="${i + 1}"><div class="seg-h"><b>ช่วง ${String(i + 1).padStart(2, '0')} · ท่อน ${c.nos[0]}${c.nos.length > 1 ? '–' + c.nos[c.nos.length - 1] : ''}</b><span class="badge">${a ? '✅ ' + fmtSec(a.dur) : 'ยังไม่มีไฟล์ · ประมาณ ' + est + ' วิ'}</span></div>
-      <p class="hint">ขึ้นต้นว่า: "${c.texts[0].slice(0, 30).replace(/</g, '&lt;')}…"</p>
+      <p class="hint">${beatsM ? `🎞️ ${c.beat.imgs.length ? c.beat.imgs.length + ' รูป · ' : ''}พูดว่า: "${c.texts[0].slice(0, 60).replace(/</g, '&lt;')}${c.texts[0].length > 60 ? '…' : ''}" · เป้า ~${Math.max(2, Math.round(c.len / SPEAK_CPS))} วิ` : `ขึ้นต้นว่า: "${c.texts[0].slice(0, 30).replace(/</g, '&lt;')}…"`}</p>
       ${a ? `<p class="hint">📄 ${a.name.replace(/</g, '&lt;')}</p><audio controls preload="none" src="${urlFor('c' + i, a.blob)}" style="width:100%"></audio>${bad ? '<p class="stale">⚠️ สคริปต์ช่วงนี้ถูกแก้หลังอัปโหลดเสียง เสียงอาจไม่ตรงข้อความ</p>' : ''}${off ? `<p class="stale">⚠️ ความยาวเสียง (${fmtSec(a.dur)}) ต่างจากที่คาดไว้ (~${est} วิ) มาก ตรวจว่าไฟล์ตรงกับช่วงนี้</p>` : ''}` : ''}
       <div class="tools"><button class="ib wide" data-pick="${i + 1}">${a ? '↻ เปลี่ยนไฟล์' : '+ เลือกไฟล์เสียง'}</button>${a ? `<button class="ib" data-rm="${i + 1}" aria-label="ลบ">🗑️</button>` : ''}</div></div>`; }).join('')}` : '<div class="soon">ยังไม่มีสคริปต์ กลับไปขั้น 4 ก่อน</div>';
   $('#view').innerHTML = `
@@ -1092,7 +1190,9 @@ function viewAudio() {
     ${styleCardHtml()}
     <p class="hint">ใส่เสียงที่สร้างจาก Google AI Studio แอปจะวัดความยาวเสียงจริง ปรับเวลาแสดงรูปของแต่ละท่อนให้ตรงกับเสียง ให้มาสคอตขยับปากตามความดังของเสียง และใส่เสียงเข้าไฟล์ MP4 · ยังไม่มีเสียง กลับไป <button class="lnk" id="goScript">ขั้น 4 สคริปต์</button></p>
     <label class="sw"><input type="radio" name="amode" value="single" ${single ? 'checked' : ''}> ไฟล์เดียวทั้งคลิป (แนะนำ เสียงเป็นเนื้อเดียวกัน)</label>
-    <label class="sw"><input type="radio" name="amode" value="chunks" ${single ? '' : 'checked'}> แยกเป็นหลายช่วง</label>
+    <label class="sw"><input type="radio" name="amode" value="chunks" ${A.mode === 'chunks' ? 'checked' : ''}> แยกเป็นหลายช่วง (ช่วงละหลายท่อน)</label>
+    <label class="sw"><input type="radio" name="amode" value="beats" ${A.mode === 'beats' ? 'checked' : ''}> 🎞️ แยกตามภาพ (ช่วงสั้นช่วงละ 1 ภาพ ตรงจังหวะที่สุด · แก้เฉพาะช่วงได้) <b>แนะนำถ้าเสียงยังไม่ตรงภาพ</b></label>
+    ${beatsM ? `<div class="soon" style="text-align:left">🎞️ <b>โหมดแยกตามภาพ:</b> สคริปต์ถูกแบ่งเป็นช่วงสั้นตามรูป ช่วงละ 1 ไฟล์เสียง (ดูตารางข้อความ+วินาทีที่ขั้น 4 ปุ่ม "🎙️ บทเสียงแบ่งช่วง") ใส่เสียงครบ แอปจะตั้งเวลาแสดงแต่ละรูปตามความยาวเสียงของช่วงนั้นพอดี ช่วงไหนจังหวะไม่ลงตัว แก้ข้อความหรือสร้างเสียงใหม่เฉพาะช่วงนั้นแล้วกด "↻ เปลี่ยนไฟล์"</div>` : ''}
     ${single ? singleHtml() : chunkHtml()}
     <div class="seg"><b>🎵 เพลงประกอบ</b>
       <p class="hint">เลือกเพลงสำเร็จรูป (ฟรี ใบอนุญาต CC0 ไม่ต้องใส่เครดิต) แล้วกดฟังก่อนเลือก หรือใช้ไฟล์ของคุณเอง · เพลงสั้นกว่าคลิป แอปต่อวนให้จนจบคลิปอัตโนมัติ (ต่อเนียนด้วยครอสเฟด) · เพลงยาวกว่าคลิป แอปตัดที่จบคลิป · ท้ายคลิปเพลงค่อยๆ เฟดเอาต์เสมอ · ความยาวคลิปตอนนี้ <b>${fmtSec(clipLen)}</b></p>
@@ -1134,7 +1234,7 @@ function viewAudio() {
     await save(); if (skip.length) alert('ใส่เสียงให้ ' + ok + ' ช่วง\nข้ามไฟล์: ' + skip.join(', ')); rerender();
   };
   document.querySelectorAll('[data-pick]').forEach(b => b.onclick = async () => { const [f] = await pickFiles(AUD, false); if (!f) return; try { await setChunkAudio(+b.dataset.pick, f); await save(); } catch (e) { alert('อ่านไฟล์เสียงไม่ได้ ลองไฟล์ mp3 หรือ wav'); } rerender(); });
-  document.querySelectorAll('[data-rm]').forEach(b => b.onclick = async () => { if (!confirm('ลบไฟล์เสียงช่วงนี้?')) return; delete A.chunks[+b.dataset.rm]; await save(); rerender(); });
+  document.querySelectorAll('[data-rm]').forEach(b => b.onclick = async () => { if (!confirm('ลบไฟล์เสียงช่วงนี้?')) return; { const ix = +b.dataset.rm - 1; delete audStore()[audKey(ix, ttsChunks()[ix])]; } await save(); rerender(); });
   document.querySelectorAll('[data-use]').forEach(b => b.onclick = async () => {
     const t = MUSIC_CATALOG.find(x => x.id === b.dataset.use), m = $('#catMsg'); b.disabled = true; m.textContent = `กำลังโหลดเพลง ${t.name}... (ต้องต่อเน็ตครั้งแรก)`;
     try { const r = await fetch(`assets/music/${t.id}.mp3`); if (!r.ok) throw new Error('โหลดไม่ได้ (' + r.status + ')'); const blob = await r.blob(); const buf = await decodeBlob(blob); A.music = { blob, name: t.name + '.mp3', dur: buf.duration, cat: t.id }; await save(); rerender(); }
@@ -1159,14 +1259,14 @@ function viewAudio() {
 }
 function checklistHtml() {
   const A = state.audio, segs = scriptSegmentsAll(), withText = segs.filter(g => g.text.trim()), allText = segs.length > 0 && withText.length === segs.length;
-  const voice = A.mode === 'single' ? !!A.single : Object.keys(A.chunks).length > 0, al = A.mode === 'single' && A.single ? singleAlign() : null;
+  const voice = A.mode === 'single' ? !!A.single : Object.keys(audStore()).length > 0, al = A.mode === 'single' && A.single ? singleAlign() : null;
   const seams = al ? al.slice(1) : [], found = seams.filter(x => x.found).length, stale = A.mode === 'single' && A.single && A.single.sig !== fullSig();
   const row = (ok, t, sub) => `<div class="ckrow ${ok === true ? 'ok' : ok === false ? 'no' : ''}"><span>${ok === true ? '✅' : ok === false ? '⬜' : '➖'}</span><div><b>${t}</b>${sub ? `<small>${sub}</small>` : ''}</div></div>`;
   return `<div class="seg"><b>📋 ขั้นตอนทำเสียงให้เรียบร้อย</b>
     ${row(allText, '1) สคริปต์ครบทุกท่อน (เปิดคลิป → ห้องต่างๆ → ปิดท้าย) และตรวจข้อมูลแล้ว', allText ? '' : 'ยังมีท่อนว่าง กลับไปขั้น 4')}
     ${row(null, '2) นอกแอป: คัดลอกสไตล์ → ช่อง Style · คัดลอกทั้งคลิป → ช่องข้อความ · เลือกผู้พูดคนเดียว → Run → ดาวน์โหลด', 'ขั้น 4 กด 🔊 สร้างเสียง')}
     ${row(voice, '3) ใส่ไฟล์เสียงในแอป', voice ? '' : 'กดปุ่มด้านล่าง')}
-    ${row(A.mode === 'single' ? (al ? (found === seams.length && !stale) : false) : null, '4) รอยต่อแต่ละท่อนตรงกับเสียง', A.mode === 'single' ? (al ? `${found}/${seams.length} รอยต่อพบช่วงเงียบ${stale ? ' · สคริปต์ถูกแก้หลังอัปโหลดเสียง' : ''} · กด ▶ ฟังตรวจแต่ละรอยต่อ` : 'ยังไม่มีไฟล์เสียง') : 'โหมดแยกช่วง: เวลาในช่วงเดียวกันแบ่งตามความยาวข้อความ')}
+    ${row(A.mode === 'single' ? (al ? (found === seams.length && !stale) : false) : null, '4) รอยต่อแต่ละท่อนตรงกับเสียง', A.mode === 'single' ? (al ? `${found}/${seams.length} รอยต่อพบช่วงเงียบ${stale ? ' · สคริปต์ถูกแก้หลังอัปโหลดเสียง' : ''} · กด ▶ ฟังตรวจแต่ละรอยต่อ` : 'ยังไม่มีไฟล์เสียง') : (A.mode === 'beats' ? 'โหมดแยกตามภาพ: เวลาแสดงแต่ละรูปตั้งตามความยาวเสียงของช่วงนั้นพอดี' : 'โหมดแยกช่วง: เวลาในช่วงเดียวกันแบ่งตามความยาวข้อความ'))}
     ${row(false, '5) ขั้น 6 ตรวจท่ามาสคอต แล้ว ขั้น 7 เรนเดอร์', '')}
   </div>`;
 }
@@ -1204,18 +1304,25 @@ function wavBlob(data, sr) {
   return new Blob([buf], { type: 'audio/wav' });
 }
 // แผนเวลาทั้งคลิป (ใช้ตอนฟังตัวอย่างเสียงผสม): ฉากไตเติล → รูป (ฉากรถวิ่งแทรก) → ฉากเครดิต
-function computeTimeline() {
-  const { pre, imgs } = timelineImages(), routeOk = !!(state.routeData && state.routeData.size === state.size);
-  const routeAt = pre.length + areaLibOrdered().filter(i => i.type === 'image').length + state.items.filter(i => i.type === 'image' && (i.room === AREA_ROOM || i.room === MAP_ROOM)).length;
-  const durs = imageDurations(imgs), idKey = new Map(); Object.entries(segPlan()).forEach(([k, P]) => P.imgs.forEach(i => idKey.set(i.id, k)));
-  const entries = []; if (lib.titleBuiltin) entries.push({ key: 'open', dur: titleDur(), title: true });
-  imgs.forEach((im, i) => { if (routeOk && i === routeAt) entries.push({ key: null, dur: ROUTE_DUR }); entries.push({ key: idKey.get(im.id) || null, dur: durs[i].dur }); });
+// แผนเวลาของคลิปทั้งหมด (ต้องตรงกับที่ตัวเรนเดอร์ประกอบ): ฮุก(ภาพเด่น) → ฉากไตเติล → รูป (ฉากรถวิ่งแทรกตามตำแหน่ง) → ฉากเครดิต
+const MASCOT_SELL = ['room:หน้าบ้าน/ภายนอก', 'room:สระว่ายน้ำ', 'room:สวน/ระเบียง', 'life'];
+function makePlan() {
+  const { pre, hero, imgs } = timelineImages(), routeOk = routeOkNow(), nH = hero ? 1 : 0;
+  const routeAt = nH + pre.length + areaLibOrdered().filter(i => i.type === 'image').length + state.items.filter(i => i.type === 'image' && (i.room === AREA_ROOM || i.room === MAP_ROOM)).length;
+  const durs = imageDurations(imgs), idKey = new Map(), idBeat = new Map();
+  Object.entries(segPlan()).forEach(([k, P]) => P.imgs.forEach(i => idKey.set(i.id, k)));
+  if (state.audio.mode === 'beats') beatsList().forEach(b => b.imgs.forEach(i => idBeat.set(i.id, b.id)));
+  const entries = [];
+  if (hero) entries.push({ key: 'hook', dur: hookDur() });
+  if (lib.titleBuiltin) entries.push({ key: 'open', dur: titleDur(), title: true });
+  imgs.forEach((im, i) => { if (isHeroId(im.id)) return; if (routeOk && i === routeAt) entries.push({ key: null, dur: ROUTE_DUR }); entries.push({ key: idKey.get(im.id) || null, bkey: idBeat.get(im.id) || null, dur: durs[i].dur }); });
   if (routeOk && routeAt >= imgs.length) entries.push({ key: null, dur: ROUTE_DUR });
   if (lib.closeBuiltin) entries.push({ key: 'close', dur: closeDur(), close: true });
   const starts = {}, sceneAt = {}; let acc = 0;
-  entries.forEach(e => { if (e.key && starts[e.key] == null) starts[e.key] = acc; if (e.title) sceneAt.title = acc; if (e.close) sceneAt.close = acc; acc += e.dur; });
-  return { starts, sceneAt, total: acc + STYLE.fade };
+  entries.forEach(e => { if (e.key && starts[e.key] == null) starts[e.key] = acc; if (e.bkey && starts[e.bkey] == null) starts[e.bkey] = acc; if (e.title) sceneAt.title = acc; if (e.close) sceneAt.close = acc; acc += e.dur; });
+  return { imgs, pre, hero, durs, entries, starts, sceneAt, routeOk, routeAt, total: acc + STYLE.fade };
 }
+function computeTimeline() { const P = makePlan(); return { starts: P.starts, sceneAt: P.sceneAt, total: P.total }; }
 async function buildMix(starts, total, sceneAt) {
   const A = state.audio, sr = MIX_SR, n = Math.ceil(total * sr), voice = new Float32Array(n), ctx = new (audioCtxClass())(1, n, sr);
   let any = false, hasVoice = false;
@@ -1234,7 +1341,7 @@ async function buildMix(starts, total, sceneAt) {
     if (al) { const buf = await decodeBlob(A.single.blob); al.forEach(x => { const st = starts[x.key]; if (st != null) put(buf, x.a0, x.a1, st); }); }
   } else {
     const chunks = ttsChunks();
-    for (let i = 0; i < chunks.length; i++) { const a = A.chunks[i + 1]; if (!a) continue; const st = starts[chunks[i].keys[0]]; if (st == null) continue; put(await decodeBlob(a.blob), 0, a.dur, st); }
+    for (let i = 0; i < chunks.length; i++) { const a = audStore()[audKey(i, chunks[i])]; if (!a) continue; const st = starts[chunks[i].keys[0]]; if (st == null) continue; put(await decodeBlob(a.blob), 0, a.dur, st); }
   }
   if (hasVoice) { const vb = ctx.createBuffer(1, n, sr); vb.copyToChannel(voice, 0); const src = ctx.createBufferSource(); src.buffer = vb; src.connect(ctx.destination); src.start(0); any = true; }
   if (A.music && A.musicVol > 0) {
@@ -1277,6 +1384,9 @@ async function viewMascot() {
     <label class="sw"><input type="checkbox" id="mpres" ${M.presenter ? 'checked' : ''}> แสดงมาสคอตนำเสนอระหว่างเล่าเรื่อง</label>
     <label class="sw"><input type="checkbox" id="mfid" ${M.fidget !== false ? 'checked' : ''}> ให้มาสคอตดุกดิก (หายใจ โยกตัว ตัวเด้งตามเสียงพูด สั่นตัว กระโดดเล็ก เอียงหัว ทั้งตอนยืน เดิน นั่ง นอน)</label>
     <label class="sw"><input type="checkbox" id="mrnd" ${M.random !== false ? 'checked' : ''}> สุ่มอิริยาบถ (เรนเดอร์แต่ละครั้งได้ลำดับท่า ท่านั่ง นอน พิงขอบ ไม่เหมือนกัน)</label>
+    <div class="seg"><b>🎭 จังหวะการโผล่ของมาสคอต</b>
+      <label class="sw"><input type="radio" name="mcad" value="smart" ${M.cadence !== 'always' ? 'checked' : ''}> ฉลาด (แนะนำ): เด่นตอนทักทาย (ฉากไตเติล) · โผล่ใหญ่ตอนชี้จุดขาย (หน้าบ้าน สระ สวน) · ช่วงชมห้องต่างๆ โผล่แวบสั้นๆ แล้วหายไป ให้ภาพบ้านเป็นหลัก · เด่นตอนปิดคลิป (ฉากเครดิต)</label>
+      <label class="sw"><input type="radio" name="mcad" value="always" ${M.cadence === 'always' ? 'checked' : ''}> โผล่ตลอดทุกท่อน (แบบเดิม)</label></div>
     <label class="sw"><input type="checkbox" id="mmove" ${M.move !== false ? 'checked' : ''}> ให้มาสคอตเคลื่อนไหว (เดินข้ามจอบ้าง นั่งยอง นอน เดินกลับ สลับไปแต่ละท่อน)</label>
     <div class="seg"><div class="tgt"><label class="fl" style="flex:1"><span>ขนาด</span><select class="ct" id="msize"><option value="0.2" ${M.size === 0.2 ? 'selected' : ''}>เล็ก</option><option value="0.28" ${M.size === 0.28 ? 'selected' : ''}>กลาง</option><option value="0.36" ${M.size === 0.36 ? 'selected' : ''}>ใหญ่</option></select></label>
       <label class="fl" style="flex:1"><span>ตำแหน่ง</span><select class="ct" id="mside"><option value="left" ${M.side === 'left' ? 'selected' : ''}>มุมซ้ายล่าง</option><option value="right" ${M.side === 'right' ? 'selected' : ''}>มุมขวาล่าง</option></select></label></div></div>
@@ -1284,7 +1394,7 @@ async function viewMascot() {
     ${MY_POSES.map(d => { const has = !!(lib.myPoses || {})[d.id]; return `<div class="seg"><div class="seg-h"><b>${d.label}</b></div><div class="mrow"><canvas class="mth myth" data-my="${d.id}" width="90" height="130"></canvas><div style="flex:1"><div class="hint" style="margin:0 0 6px">${has ? '✅ ใส่รูปแล้ว' : 'ยังไม่มีรูป'} · ${d.hint}</div><div class="tools"><label class="ib wide" style="cursor:pointer">📷 ${has ? 'เปลี่ยนรูป' : 'เลือกรูป'}<input type="file" accept="image/*" data-up="${d.id}" hidden></label><button class="ib wide" data-cp="${d.id}">📋 คัดลอกคำสั่งสร้างรูป</button>${has ? `<button class="ib wide" data-rm="${d.id}">🗑 ลบ</button>` : ''}</div></div></div></div>`; }).join('')}
     <p class="hint">วิธีสร้างรูป: กด "คัดลอกคำสั่งสร้างรูป" → เปิดแอป AI สร้างรูปที่ใช้อยู่ (เช่น Gemini หรือ ChatGPT) → แนบรูปมาสคอตเดิม 1 รูปเป็นต้นแบบ → วางคำสั่ง → โหลดรูปที่ได้ แล้วกด "เลือกรูป" ที่นี่ แอปจะลบพื้นหลังเรียบๆ (สีขาว) ให้เอง</p>
     <p class="hint"><b>ท่าของแต่ละท่อน</b> (แอปเลือกให้ตามเนื้อหา แตะเพื่อเลือกจากรูป)</p>
-    ${segs.map(g => { const cur = poseForSeg(g.key); return `<div class="seg"><div class="seg-h"><b>${String(g.no).padStart(2, '0')} · ${g.label}</b></div><div class="mrow"><canvas class="mth" data-pk="${g.key}" width="90" height="130"></canvas><button class="btn alt pickp" data-pose="${g.key}">${POSES[cur].label} ▾<small>แตะเพื่อเลือกจากรูป</small></button></div></div>`; }).join('') || '<div class="soon">ยังไม่มีท่อนเล่าเรื่อง</div>'}
+    ${segs.map(g => { const cur = poseForSeg(g.key); return `<div class="seg"><div class="seg-h"><b>${String(g.no).padStart(2, '0')} · ${g.label}</b></div><div class="mrow"><canvas class="mth" data-pk="${g.key}" width="90" height="130"></canvas><button class="btn alt pickp" data-pose="${g.key}">${POSES[cur].label} ▾<small>แตะเพื่อเลือกจากรูป</small></button></div><label class="fl" style="margin-top:6px"><span>การโผล่ในท่อนนี้</span><select class="ct" data-role="${g.key}">${[['', 'อัตโนมัติ (' + (MASCOT_SELL.includes(g.key) ? 'เด่น ชี้จุดขาย' : 'แวบสั้นๆ') + ')'], ['sell', 'เด่น (ชี้จุดขาย ~7 วิ)'], ['tour', 'แวบสั้นๆ (~3 วิ)'], ['hide', 'ไม่โผล่ (ภาพบ้านล้วน)']].map(([v, t]) => `<option value="${v}" ${((state.script.mrole || {})[g.key] || '') === v ? 'selected' : ''}>${t}</option>`).join('')}</select></label></div>`; }).join('') || '<div class="soon">ยังไม่มีท่อนเล่าเรื่อง</div>'}
     <p class="hint">ปากขยับตามความดังของเสียงพากย์จริง ตอนเรนเดอร์ (ถ้ายังไม่ใส่เสียง ปากจะปิด) · มาสคอตกระโดดเข้าจอทุกครั้งที่เริ่มท่อนใหม่ · มาสคอตเดินข้ามจอ นั่ง นอน สลับไปในแต่ละท่อน</p>
     <button class="btn" id="nx">ถัดไป: 7 เรนเดอร์ →</button><button class="btn alt" id="bk">← ย้อนกลับ</button>`;
   const thumb = (cv, pose) => { const x = cv.getContext('2d'), img = MASCOT_IMG[pose]; x.clearRect(0, 0, cv.width, cv.height); if (!img) return; const cw = cv.width, ch = cv.height; if (POSES[pose] && POSES[pose].custom) { const s = Math.min(124 * (typeof ARTF !== 'undefined' && ARTF[pose] || 1) / img.height, (cw - 4) / img.width); x.drawImage(img, (cw - img.width * s) / 2, ch - 3 - img.height * s, img.width * s, img.height * s); } else drawMascotTalking(x, pose, cw / 2, ch - 3, ch - 6, { mouth: 0.45, wf: 1, blink: 0 }); };
@@ -1313,6 +1423,8 @@ async function viewMascot() {
   document.querySelectorAll('[data-cp]').forEach(b => b.onclick = async () => { const d = MY_POSES.find(x => x.id === b.dataset.cp); try { await navigator.clipboard.writeText(d.prompt); b.textContent = '✅ คัดลอกแล้ว'; } catch (e) { prompt('คัดลอกคำสั่งนี้เอง', d.prompt); } });
   $('#mpres').onchange = e => { M.presenter = e.target.checked; save(); };
   $('#mmove').onchange = e => { M.move = e.target.checked; save(); };
+  document.querySelectorAll('input[name=mcad]').forEach(r => r.onchange = () => { M.cadence = r.value; save(); });
+  document.querySelectorAll('[data-role]').forEach(s => s.onchange = () => { state.script.mrole = state.script.mrole || {}; if (s.value) state.script.mrole[s.dataset.role] = s.value; else delete state.script.mrole[s.dataset.role]; save(); });
   $('#mrnd').onchange = e => { M.random = e.target.checked; save(); };
   $('#mfid').onchange = e => { M.fidget = e.target.checked; save(); };
   $('#msize').onchange = e => { M.size = +e.target.value; save(); }; $('#mside').onchange = e => { M.side = e.target.value; save(); };
