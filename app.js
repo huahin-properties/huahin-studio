@@ -165,17 +165,13 @@ function viewSlots() {
     // แยกเป็น "ยังไม่เรียบร้อย" (ขึ้นบน) กับ "เรียบร้อยแล้ว" (ลงล่าง) ภายในแต่ละส่วนเรียงตามลำดับในคลิป
     const todo = [], done = [];
     SLOTS.forEach(sl => {
-      const st = slotStatus(sl), icon = { miss: '❌', warn: '⚠️' };
-      if (sl.kind === 'contact') {
+            if (sl.kind === 'contact') {
         const ok = slotCount(sl);
-        (ok ? done : todo).push(`<div class="gsec ${ok ? '' : 'gmiss'}" data-sec="${sl.id}"><div class="gh"><b>${sl.ico} ${sl.short}</b><button class="ib sm" data-open="${sl.id}">${ok ? 'แก้ไข' : '+ เพิ่ม'}</button></div><p class="hint">${ok ? slotInfo(sl, ok) : '❌ ' + slotInfo(sl, 0)}</p></div>`);
+        if (ok) done.push(`<div class="gsec" data-sec="${sl.id}"><div class="gh"><b>${sl.ico} ${sl.short}</b><button class="ib sm" data-open="${sl.id}">แก้ไข</button></div><p class="hint">${slotInfo(sl, ok)}</p></div>`);
         return;
       }
       const items = slotItems(sl);
-      if (!items.length) {
-        if (icon[st]) todo.push(`<div class="gsec gmiss" data-sec="${sl.id}"><div class="gh"><b>${sl.ico} ${sl.label.replace(/ \(.*\)/, '')}</b><button class="ib sm" data-open="${sl.id}">+ เพิ่ม</button></div><p class="hint">${icon[st]} ${slotInfo(sl, 0)} · แตะ + เพิ่ม</p></div>`);
-        return;
-      }
+      if (!items.length) return;
       const sc = getSlotScript(sl), noScript = sc !== null && secOf(sc) === 0;
       (noScript ? todo : done).push(`<div class="gsec${noScript ? ' gmiss' : ''}" data-sec="${sl.id}"><div class="gh"><b>${sl.ico} ${sl.label.replace(/ \(.*\)/, '')} · ${items.length}</b><button class="ib sm" data-open="${sl.id}">+ เพิ่ม</button></div>
         ${scriptBarHtml(sl)}
@@ -195,7 +191,7 @@ function viewSlots() {
   };
   const renderDone = () => {
     const miss = sbBlockers(), el = $('#doneBar'); if (!el) return;
-    el.innerHTML = `${miss.length ? `<p class="hint" style="color:#9b1c1c">❌ ยังขาด: ${miss.map(m => m.label.replace(/ \(.*\)/, '')).join(', ')}</p>` : '<p class="hint" style="color:#1e6b3a">✅ เช็กลิสต์ของจำเป็นครบแล้ว</p>'}
+    el.innerHTML = `${miss.length ? '' : '<p class="hint" style="color:#1e6b3a">✅ เช็กลิสต์ของจำเป็นครบแล้ว</p>'}
       <button class="btn" id="toColor" ${miss.length ? 'disabled' : ''}>ถัดไป: 3 สี →</button>`;
     $('#toColor').onclick = () => go(2);
   };
