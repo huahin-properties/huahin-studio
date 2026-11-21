@@ -76,3 +76,6 @@ canvas#pv{width:100%;max-height:60vh;object-fit:contain;background:#000;border-r
 .sct{width:100%;border:1px solid var(--line);border-radius:8px;padding:8px;font:inherit;font-size:16px;background:#fff;resize:vertical;margin-bottom:4px}
 #slotSheet .sgrid{margin:8px 0}
 .btn:disabled{opacity:.4}
+.sbar{height:7px;border-radius:4px;background:#e3eee6;overflow:hidden;margin:2px 0 2px}.sbar i{display:block;height:100%;border-radius:4px;background:#2e7d4f}
+.sbar.no{background:#e08a00}.sbar.no i{background:#e08a00}
+.sbl{display:block;font-size:12px;margin-bottom:6px}.sbl.ok{color:#1e6b3a}.sbl.no{color:#8a5a00}
