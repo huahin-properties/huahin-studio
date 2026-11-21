@@ -105,3 +105,5 @@ canvas#pv{width:100%;max-height:60vh;object-fit:contain;background:#000;border-r
 .alrow{display:flex;align-items:center;gap:6px;padding:6px 0;border-top:1px solid var(--line)}.alt{flex:1;min-width:0}.alt b{display:block;font-size:14px}.alt small{color:var(--mute);font-size:12px}.alb{display:flex;gap:4px}
 .mrow{display:flex;gap:10px;align-items:center}.mth{width:60px;height:86px;background:#fff3e6;border-radius:10px;flex:0 0 auto}.mrow .ct{margin:0;flex:1}
 .ckrow{display:flex;gap:8px;padding:6px 0;border-top:1px solid var(--line);align-items:flex-start}.ckrow b{display:block;font-size:14px}.ckrow small{color:var(--mute);font-size:12px;display:block}
+.trk{border:1px solid var(--line);border-radius:12px;padding:8px;margin:8px 0;background:#fff}.trk.on{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent)}
+.trk .alt b{display:inline}.trk .tools{justify-content:space-between}.trk audio{margin:6px 0}

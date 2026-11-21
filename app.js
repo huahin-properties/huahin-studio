@@ -981,6 +981,20 @@ function bindStyleCard(root) {
   cp.onclick = async () => { const o = cp.dataset.o || cp.textContent; cp.dataset.o = o; const ok = await copyText(lib.voiceStyle); cp.textContent = ok ? '✓ คัดลอกสไตล์แล้ว' : 'คัดลอกไม่ได้'; setTimeout(() => { cp.textContent = o; }, 1500); };
 }
 
+// ---- เพลงสำเร็จรูป (CC0 จาก OpenGameArt.org · รายละเอียดใบอนุญาต: assets/music/LICENSES.md) ----
+const MUSIC_CATALOG = [
+  { id: 'bossa-shop', name: 'Bossa Shop Theme', style: 'บอสซาโนวา เบาสบาย เสียงแผ่นเสียงวินเทจ', dur: 96, src: 'https://opengameart.org/content/bossa-shop-theme-in-low-fi-and-hd' },
+  { id: 'bossa-town', name: 'Bossa Town', style: 'บอสซาโนวา บรรยากาศชายหาด อบอุ่น', dur: 100, src: 'https://opengameart.org/content/bossa-town' },
+  { id: 'buy-something', name: 'Buy Something!', style: 'บอสซาโนวา/แจสเบาๆ แบบเพลงในห้างหรู', dur: 88, src: 'https://opengameart.org/content/shop-theme' },
+  { id: 'ladada-guitar', name: 'LaDaDa Guitar', style: 'แจสกีตาร์ สงบ', dur: 154, src: 'https://opengameart.org/content/ladada-guitar' },
+  { id: 'just-you-and-me', name: 'Just You and Me', style: 'กีตาร์แจสป๊อป อบอุ่น', dur: 99, src: 'https://opengameart.org/content/just-you-and-me-guitar' },
+  { id: 'jazz-slower', name: 'Jazz Slower', style: 'แจสบรรเลง จังหวะช้า', dur: 177, src: 'https://opengameart.org/content/jazz-slower' },
+  { id: 'taken-lightly', name: 'Taken Lightly', style: 'แจสเบาๆ ผ่อนคลาย', dur: 145, src: 'https://opengameart.org/content/taken-lightly' },
+  { id: 'jazz-relaxing', name: 'Relaxing Jazz', style: 'แจสรีแลกซ์ สบายๆ', dur: 133, src: 'https://opengameart.org/content/jazz-aug-4-2021' },
+  { id: 'slow-stride', name: 'Slow Stride', style: 'เปียโนช้า นุ่ม ชิลล์', dur: 131, src: 'https://opengameart.org/content/slow-stride' },
+  { id: 'calm-piano', name: 'Calm Piano', style: 'เปียโนสงบ ผสมแพดนุ่มๆ', dur: 165, src: 'https://opengameart.org/content/calm-piano-1-vaporware' },
+];
+
 // ---- ขั้น 5: เสียง ----
 const audioCtxClass = () => window.OfflineAudioContext || window.webkitOfflineAudioContext;
 async function decodeBlob(blob, sr = 44100) { const ctx = new (audioCtxClass())(1, 1, sr); return ctx.decodeAudioData(await blob.arrayBuffer()); }
@@ -997,7 +1011,7 @@ function viewAudio() {
   const urlFor = (k, blob) => { if (!urls[k] || urls[k].blob !== blob) { if (urls[k]) URL.revokeObjectURL(urls[k].url); urls[k] = { blob, url: URL.createObjectURL(blob) }; } return urls[k].url; };
   const have = chunks.filter((c, i) => A.chunks[i + 1]).length;
   const totalVoice = chunks.reduce((a, c, i) => a + ((A.chunks[i + 1] || {}).dur || 0), 0);
-  const segsAll = scriptSegmentsAll().filter(g => g.text.trim()), align = single ? singleAlign() : null;
+  const segsAll = scriptSegmentsAll().filter(g => g.text.trim()), align = single ? singleAlign() : null, clipLen = (() => { try { return computeTimeline().total; } catch (e) { return 180; } })();
   const label = g => g.edge ? (g.key === 'open' ? 'เปิดคลิป' : 'ปิดท้าย/ติดต่อ') : `ท่อน ${String(g.no).padStart(2, '0')} ${g.label}`;
   const singleHtml = () => {
     const S = A.single;
@@ -1026,15 +1040,20 @@ function viewAudio() {
     <label class="sw"><input type="radio" name="amode" value="single" ${single ? 'checked' : ''}> ไฟล์เดียวทั้งคลิป (แนะนำ เสียงเป็นเนื้อเดียวกัน)</label>
     <label class="sw"><input type="radio" name="amode" value="chunks" ${single ? '' : 'checked'}> แยกเป็นหลายช่วง</label>
     ${single ? singleHtml() : chunkHtml()}
-    <div class="seg"><b>🎵 เพลงประกอบ (mp3)</b>
-      ${A.music ? `<p class="hint">📄 ${A.music.name.replace(/</g, '&lt;')} · ${fmtSec(A.music.dur || 0)}</p><audio id="musicAud" controls preload="none" src="${urlFor('m', A.music.blob)}" style="width:100%"></audio><p class="hint">เครื่องเล่นนี้เล่นไฟล์เพลงดิบ (แถบเลื่อนด้านล่างปรับเสียงตัวอย่างนี้ได้บนบางเครื่อง) · ต้องการฟังเสียงที่จะออกจริง กด <b>🎧 ฟังตัวอย่างเสียงผสม</b></p>` : '<p class="hint">ยังไม่มีเพลง (ไม่ใส่ก็ได้)</p>'}
-      <div class="tools"><button class="ib wide" id="pickMusic">${A.music ? '↻ เปลี่ยนเพลง' : '+ เลือกไฟล์เพลง'}</button>${A.music ? '<button class="ib" id="rmMusic" aria-label="ลบ">🗑️</button>' : ''}</div>
+    <div class="seg"><b>🎵 เพลงประกอบ</b>
+      <p class="hint">เลือกเพลงสำเร็จรูป (ฟรี ใบอนุญาต CC0 ไม่ต้องใส่เครดิต) แล้วกดฟังก่อนเลือก หรือใช้ไฟล์ของคุณเอง · เพลงสั้นกว่าคลิป แอปต่อวนให้จนจบคลิปอัตโนมัติ (ต่อเนียนด้วยครอสเฟด) · เพลงยาวกว่าคลิป แอปตัดที่จบคลิป · ท้ายคลิปเพลงค่อยๆ เฟดเอาต์เสมอ · ความยาวคลิปตอนนี้ <b>${fmtSec(clipLen)}</b></p>
+      <div id="catalog">${MUSIC_CATALOG.map(t => { const on = A.music && A.music.cat === t.id, fit = t.dur >= clipLen ? `ตัดที่จบคลิป + เฟดเอาต์` : `ต่อวน ${Math.ceil((clipLen - 2.5) / (t.dur - 2.5))} รอบ + เฟดเอาต์`;
+        return `<div class="trk${on ? ' on' : ''}"><div class="alt"><b>${t.name}</b> <span class="badge">${fmtSec(t.dur)}</span><small>${t.style} · CC0 · ในคลิปนี้: ${fit}</small></div>
+          <audio controls preload="none" src="assets/music/${t.id}.mp3" style="width:100%"></audio>
+          <div class="tools"><a class="lnk" href="${t.src}" target="_blank" rel="noopener">หน้าต้นทาง/ใบอนุญาต</a><button class="ib wide" data-use="${t.id}">${on ? '✅ ใช้อยู่' : '✓ ใช้เพลงนี้'}</button></div></div>`; }).join('')}</div>
+      <p class="hint" id="catMsg"></p>
+      ${A.music && !A.music.cat ? `<p class="hint">📄 ไฟล์ของคุณ: ${A.music.name.replace(/</g, '&lt;')} · ${fmtSec(A.music.dur || 0)}</p><audio id="musicAud" controls preload="none" src="${urlFor('m', A.music.blob)}" style="width:100%"></audio>` : ''}
+      <div class="tools"><button class="ib wide" id="pickMusic">+ ใช้ไฟล์เพลงของฉัน</button>${A.music ? '<button class="ib" id="rmMusic" aria-label="ไม่ใช้เพลง">🗑️</button>' : ''}</div>
       <label class="sl"><span>ความดังเพลง ตอนมีเสียงพูด <b id="mvTxt">${A.musicVol}%</b> (เสียงพากย์ = 100%)</span><input type="range" id="mv" min="0" max="50" step="1" value="${A.musicVol}"></label>
       <label class="sw"><input type="checkbox" id="duck" ${A.duck ? 'checked' : ''}> 🎚️ ให้เพลงดังขึ้นเองตอนเสียงพูดเงียบ (เหมือนดีเจ)</label>
       <label class="fl"><span>เพลงดังขึ้นมากแค่ไหนตอนเงียบ</span><select class="ct" id="duckBoost"><option value="1.6" ${A.duckBoost == 1.6 ? 'selected' : ''}>เล็กน้อย (×1.6)</option><option value="2.5" ${A.duckBoost == 2.5 ? 'selected' : ''}>ปานกลาง (×2.5)</option><option value="4" ${A.duckBoost == 4 ? 'selected' : ''}>มาก (×4)</option></select></label>
       <div class="tools"><button class="ib wide" id="mixPrev">🎧 ฟังตัวอย่างเสียงผสม</button></div>
-      <p class="hint" id="mixMsg"></p><audio id="mixAud" controls style="width:100%;display:none"></audio>
-      <p class="hint">เพลงเบาลงก่อนเริ่มพูดเล็กน้อย และค่อยๆ ดังกลับหลังพูดจบ · ค่อยๆ ดังขึ้นตอนต้นคลิป และค่อยๆ เบาลงตอนจบ · เพลงยาวกว่าคลิปจะถูกตัด สั้นกว่าจะเล่นวน</p></div>
+      <p class="hint" id="mixMsg"></p><audio id="mixAud" controls style="width:100%;display:none"></audio></div>
     <label class="sw"><input type="checkbox" id="sfx" ${A.sfx ? 'checked' : ''}> เสียงเอฟเฟกต์ที่แอปสร้างให้ (ตอนมาสคอตกระโดดลงมาและตอนดีใจ ในไตเติลและเครดิต)</label>
     <button class="btn" id="nx">ถัดไป: 6 มาสคอต →</button><button class="btn alt" id="bk">← ย้อนกลับ</button>`;
   bindStyleCard($('#view'));
@@ -1062,6 +1081,11 @@ function viewAudio() {
   };
   document.querySelectorAll('[data-pick]').forEach(b => b.onclick = async () => { const [f] = await pickFiles(AUD, false); if (!f) return; try { await setChunkAudio(+b.dataset.pick, f); await save(); } catch (e) { alert('อ่านไฟล์เสียงไม่ได้ ลองไฟล์ mp3 หรือ wav'); } rerender(); });
   document.querySelectorAll('[data-rm]').forEach(b => b.onclick = async () => { if (!confirm('ลบไฟล์เสียงช่วงนี้?')) return; delete A.chunks[+b.dataset.rm]; await save(); rerender(); });
+  document.querySelectorAll('[data-use]').forEach(b => b.onclick = async () => {
+    const t = MUSIC_CATALOG.find(x => x.id === b.dataset.use), m = $('#catMsg'); b.disabled = true; m.textContent = `กำลังโหลดเพลง ${t.name}... (ต้องต่อเน็ตครั้งแรก)`;
+    try { const r = await fetch(`assets/music/${t.id}.mp3`); if (!r.ok) throw new Error('โหลดไม่ได้ (' + r.status + ')'); const blob = await r.blob(); const buf = await decodeBlob(blob); A.music = { blob, name: t.name + '.mp3', dur: buf.duration, cat: t.id }; await save(); rerender(); }
+    catch (e) { m.textContent = '❌ ' + (e.message || e) + ' · ตรวจอินเทอร์เน็ตแล้วลองใหม่'; b.disabled = false; }
+  });
   $('#pickMusic').onclick = async () => { const [f] = await pickFiles('audio/*,.mp3,.wav,.m4a', false); if (!f) return; try { const buf = await decodeBlob(f); A.music = { blob: f, name: f.name, dur: buf.duration }; await save(); } catch (e) { alert('อ่านไฟล์เพลงไม่ได้ ลองไฟล์ mp3'); } rerender(); };
   if ($('#rmMusic')) $('#rmMusic').onclick = async () => { A.music = null; await save(); rerender(); };
   const mAud = $('#musicAud'); if (mAud) mAud.volume = Math.min(1, A.musicVol / 50);
@@ -1096,6 +1120,29 @@ const fullSig = () => chunkSig({ texts: scriptSegmentsAll().filter(g => g.text.t
 
 // ---- ผสมเสียงทั้งคลิป (เสียงพากย์ + เพลง + เอฟเฟกต์) เป็นแทร็กเดียว และเก็บแทร็กเสียงพากย์ล้วนไว้คำนวณการขยับปาก ----
 const MIX_SR = 44100;
+// เตรียมเพลงให้ยาวเท่าคลิป: ตัดความเงียบต้น-ท้าย → ถ้าสั้นกว่า ต่อวนด้วยครอสเฟด (equal-power) · ถ้ายาวกว่า ตัดที่จบคลิป
+function fitMusic(buf, seconds, sr) {
+  const ch = []; for (let c = 0; c < buf.numberOfChannels; c++) ch.push(buf.getChannelData(c));
+  const len0 = buf.length, mono = new Float32Array(len0); let peak = 0;
+  for (let i = 0; i < len0; i++) { let v = 0; for (let c = 0; c < ch.length; c++) v += ch[c][i]; mono[i] = v / ch.length; const a = Math.abs(mono[i]); if (a > peak) peak = a; }
+  // ตัดความเงียบต้นเพลง และ "ท้ายเพลงที่กำลังเบาลง" (เฟดเอาต์เดิมของเพลง) ทิ้ง เพื่อให้รอยต่อตอนวนเพลงไม่เงียบ
+  const w = Math.floor(sr * 0.1), nw = Math.floor(len0 / w), env = new Float32Array(nw);
+  for (let k = 0; k < nw; k++) { let q = 0; for (let i = k * w; i < (k + 1) * w; i += 2) q += mono[i] * mono[i]; env[k] = Math.sqrt(q / (w / 2)); }
+  const mid = Array.from(env.subarray(Math.floor(nw * 0.1), Math.max(Math.floor(nw * 0.1) + 1, Math.floor(nw * 0.9)))).sort((x, y) => x - y), med = mid[Math.floor(mid.length / 2)] || peak;
+  let k0 = 0, k1 = nw - 1; while (k0 < nw && env[k0] < med * 0.2) k0++; while (k1 > k0 && env[k1] < med * 0.55) k1--;
+  const a0 = Math.max(0, k0 * w), a1 = Math.min(len0 - 1, (k1 + 1) * w - 1);
+  const seg = mono.subarray(a0, a1 + 1), L = seg.length, n = Math.ceil(seconds * sr), out = new Float32Array(n);
+  if (L >= n) { out.set(seg.subarray(0, n)); return { data: out, loops: 0, L, X: 0 }; }
+  const X = Math.min(Math.floor(sr * 2.5), Math.floor(L * 0.25)); let pos = 0, loops = 0;
+  while (pos < n) {
+    for (let i = 0; i < L && pos + i < n; i++) {
+      let g = 1; if (pos > 0 && i < X) g = Math.sin(Math.PI / 2 * i / X); if (i > L - X) g *= Math.cos(Math.PI / 2 * (i - (L - X)) / X);
+      out[pos + i] += seg[i] * g;
+    }
+    loops++; pos += L - X;
+  }
+  return { data: out, loops, L, X };
+}
 function wavBlob(data, sr) {
   const n = data.length, buf = new ArrayBuffer(44 + n * 2), v = new DataView(buf), w = (o, t) => { for (let i = 0; i < t.length; i++) v.setUint8(o + i, t.charCodeAt(i)); };
   w(0, 'RIFF'); v.setUint32(4, 36 + n * 2, true); w(8, 'WAVE'); w(12, 'fmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true); v.setUint32(24, sr, true); v.setUint32(28, sr * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true); w(36, 'data'); v.setUint32(40, n * 2, true);
@@ -1137,7 +1184,8 @@ async function buildMix(starts, total, sceneAt) {
   }
   if (hasVoice) { const vb = ctx.createBuffer(1, n, sr); vb.copyToChannel(voice, 0); const src = ctx.createBufferSource(); src.buffer = vb; src.connect(ctx.destination); src.start(0); any = true; }
   if (A.music && A.musicVol > 0) {
-    const src = ctx.createBufferSource(); src.buffer = await ctx.decodeAudioData(await A.music.blob.arrayBuffer()); src.loop = true;
+    const mdec = await ctx.decodeAudioData(await A.music.blob.arrayBuffer()), fit = fitMusic(mdec, total, sr), mb = ctx.createBuffer(1, fit.data.length, sr); mb.copyToChannel(fit.data, 0);
+    const src = ctx.createBufferSource(); src.buffer = mb;
     const v = A.musicVol / 100, boost = A.duck && hasVoice ? (A.duckBoost || 2.5) : 1, hopS = 0.05, hop = Math.floor(sr * hopS), m = Math.ceil(n / hop) + 1;
     // ตรวจว่าตอนไหนมีคนพูด (เสียงพากย์) → หรี่เพลงก่อนเริ่มพูด 0.15 วิ และค่อยๆ ดันกลับหลังพูดจบ (~0.7 วิ)
     const act = new Float32Array(m);
