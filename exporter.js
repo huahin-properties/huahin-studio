@@ -19,7 +19,7 @@ async function pickCodec(W, H) {
   return null;
 }
 
-async function renderMp4(blobs, W, H, onProgress, luts, sceneOpt, durs) {
+async function renderMp4(blobs, W, H, onProgress, luts, sceneOpt, durs, audio) {
   if (!('VideoEncoder' in window)) throw new Error('เบราว์เซอร์นี้ยังไม่รองรับการเรนเดอร์ ให้ใช้ Chrome บนมือถือ Android');
   const cfg = await pickCodec(W, H);
   if (!cfg) throw new Error('มือถือเครื่องนี้ไม่รองรับการเข้ารหัสวิดีโอขนาดนี้ ลองเลือกขนาดเล็กลง');
@@ -34,7 +34,16 @@ async function renderMp4(blobs, W, H, onProgress, luts, sceneOpt, durs) {
     starts.push(out.length); images.length = 0; out.forEach(o => images.push(o));
   }
   if (sceneOpt && sceneOpt.length) sceneOpt.forEach(o => images.splice(starts ? starts[Math.min(o.at, starts.length - 1)] : Math.min(o.at, images.length), 0, o.scene)); // เรียงจากท้ายไปต้น ดัชนีจึงไม่เลื่อน
-  const muxer = new Mp4Muxer.Muxer({ target: new Mp4Muxer.ArrayBufferTarget(), video: { codec: 'avc', width: W, height: H }, fastStart: 'in-memory' });
+  let acfg = null, acodec = null;
+  if (audio) {
+    if (!('AudioEncoder' in window)) throw new Error('เบราว์เซอร์นี้ยังเข้ารหัสเสียงไม่ได้ ให้ใช้ Chrome บนมือถือ Android');
+    for (const [c, mc] of [['mp4a.40.2', 'aac'], ['opus', 'opus']]) {
+      const cfg = { codec: c, sampleRate: audio.sampleRate, numberOfChannels: 1, bitrate: 96000 };
+      try { if ((await AudioEncoder.isConfigSupported(cfg)).supported) { acfg = cfg; acodec = mc; break; } } catch (e) {}
+    }
+    if (!acfg) throw new Error('มือถือเครื่องนี้เข้ารหัสเสียงไม่ได้ ลองปิดเสียงแล้วเรนเดอร์ หรือใช้ Chrome เวอร์ชันล่าสุด');
+  }
+  const muxer = new Mp4Muxer.Muxer({ target: new Mp4Muxer.ArrayBufferTarget(), video: { codec: 'avc', width: W, height: H }, ...(audio ? { audio: { codec: acodec, numberOfChannels: 1, sampleRate: audio.sampleRate } } : {}), fastStart: 'in-memory' });
   let encErr = null;
   const enc = new VideoEncoder({ output: (c, m) => muxer.addVideoChunk(c, m), error: e => { encErr = e; } });
   enc.configure(cfg);
@@ -51,7 +60,22 @@ async function renderMp4(blobs, W, H, onProgress, luts, sceneOpt, durs) {
     while (enc.encodeQueueSize > 4) await sleep0();
     if (f % 5 === 0) { onProgress(0.1 + 0.9 * f / frames, 'กำลังเรนเดอร์'); await sleep0(); }
   }
-  await enc.flush(); enc.close(); muxer.finalize();
+  await enc.flush(); enc.close();
+  if (audio) {
+    onProgress(0.97, 'กำลังใส่เสียง');
+    let aerr = null; const aenc = new AudioEncoder({ output: (c, m) => muxer.addAudioChunk(c, m), error: e => { aerr = e; } });
+    aenc.configure(acfg);
+    const N = 4096, data = audio.data;
+    for (let o = 0; o < data.length; o += N) {
+      if (aerr) throw aerr;
+      const n = Math.min(N, data.length - o), ad = new AudioData({ format: 'f32-planar', sampleRate: audio.sampleRate, numberOfFrames: n, numberOfChannels: 1, timestamp: Math.round(o * 1e6 / audio.sampleRate), data: data.subarray(o, o + n) });
+      aenc.encode(ad); ad.close();
+      while (aenc.encodeQueueSize > 8) await sleep0();
+      if ((o / N) % 40 === 0) await sleep0();
+    }
+    await aenc.flush(); aenc.close();
+  }
+  muxer.finalize();
   images.forEach(b => b.close && b.close());
   onProgress(1, 'เสร็จแล้ว');
   return new Blob([muxer.target.buffer], { type: 'video/mp4' });

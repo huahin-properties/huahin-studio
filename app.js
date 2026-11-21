@@ -9,7 +9,7 @@ const SIZES = [
 const ROOMS = [AREA_ROOM, MAP_ROOM, 'หน้าบ้าน/ภายนอก','ที่จอดรถ','ห้องนั่งเล่น','ห้องทานอาหาร','ครัว','ห้องนอนใหญ่','ห้องนอน','ห้องน้ำ','สระว่ายน้ำ','สวน/ระเบียง','วิวรอบๆ','อื่นๆ'];
 const STEPS = ['1 ขนาด','2 ใส่รูป/คลิป','3 สี','4 สคริปต์','5 เสียง','6 มาสคอต','7 เรนเดอร์'];
 
-const state = { stretch: true, clipSec: 180, routeData: null, skipMap: false, facts: { name: '', beds: '', baths: '', usable: '', land: '', price: '', travel: '', coord: '', routeStart: '', routeLabel: '', highlights: '' }, slot: 'title', step: 0, size: '4:5', items: [], color: { ...COLOR_DEFAULT }, useArea: true, contact: { mode: 'std', custom: { name: '', phone: '', line: '' } }, script: { area: '', rooms: {}, en: {}, enSrc: {} } };
+const state = { audio: { chunks: {}, music: null, musicVol: 15, sfx: true }, stretch: true, clipSec: 180, routeData: null, skipMap: false, facts: { name: '', beds: '', baths: '', usable: '', land: '', price: '', travel: '', coord: '', routeStart: '', routeLabel: '', highlights: '' }, slot: 'title', step: 0, size: '4:5', items: [], color: { ...COLOR_DEFAULT }, useArea: true, contact: { mode: 'std', custom: { name: '', phone: '', line: '' } }, script: { area: '', rooms: {}, en: {}, enSrc: {} } };
 let nextId = 1;
 
 // ---- เก็บงานไว้ในเครื่อง (IndexedDB) ปิดแอปแล้วงานไม่หาย ----
@@ -22,10 +22,10 @@ const DB = {
   async get(k) { const db = await this.open(); return new Promise(res => { const q = db.transaction('kv').objectStore('kv').get(k); q.onsuccess = () => res(q.result); }); },
   async set(k, v) { const db = await this.open(); return new Promise(res => { const tx = db.transaction('kv', 'readwrite'); tx.objectStore('kv').put(v, k); tx.oncomplete = res; }); },
 };
-const save = () => (typeof updateSb === 'function' && updateSb(), DB.set('project', { v: 2, stretch: state.stretch, clipSec: state.clipSec, routeData: state.routeData, skipMap: state.skipMap, facts: state.facts, useArea: state.useArea, contact: state.contact, size: state.size, color: state.color, script: state.script, items: state.items.map(({ id, blob, type, room, name }) => ({ id, blob, type, room, name })) }));
+const save = () => (typeof updateSb === 'function' && updateSb(), DB.set('project', { v: 2, audio: state.audio, stretch: state.stretch, clipSec: state.clipSec, routeData: state.routeData, skipMap: state.skipMap, facts: state.facts, useArea: state.useArea, contact: state.contact, size: state.size, color: state.color, script: state.script, items: state.items.map(({ id, blob, type, room, name }) => ({ id, blob, type, room, name })) }));
 async function load() {
   await loadLib(); const p = await DB.get('project');
-  if (p) { if (!p.v) p.items.forEach(i => { if (i.room === 'หน้าบ้าน/ภายนอก') i.room = ''; }); state.size = p.size; state.color = { ...COLOR_DEFAULT, ...(p.color || {}) }; state.script = { area: '', rooms: {}, en: {}, enSrc: {}, ...(p.script || {}) }; state.skipMap = !!p.skipMap; state.clipSec = p.clipSec || 180; state.stretch = p.stretch !== false; state.routeData = p.routeData || null; state.facts = { ...state.facts, ...(p.facts || {}) }; state.useArea = true; state.contact = { mode: 'std', ...(p.contact || {}), custom: { name: '', phone: '', line: '', ...((p.contact || {}).custom || {}) } }; state.items = p.items; nextId = Math.max(0, ...p.items.map(i => i.id)) + 1; }
+  if (p) { if (!p.v) p.items.forEach(i => { if (i.room === 'หน้าบ้าน/ภายนอก') i.room = ''; }); state.size = p.size; state.color = { ...COLOR_DEFAULT, ...(p.color || {}) }; state.script = { area: '', rooms: {}, en: {}, enSrc: {}, ...(p.script || {}) }; state.skipMap = !!p.skipMap; state.clipSec = p.clipSec || 180; state.audio = { chunks: {}, music: null, musicVol: 15, sfx: true, ...(p.audio || {}) }; state.stretch = p.stretch !== false; state.routeData = p.routeData || null; state.facts = { ...state.facts, ...(p.facts || {}) }; state.useArea = true; state.contact = { mode: 'std', ...(p.contact || {}), custom: { name: '', phone: '', line: '', ...((p.contact || {}).custom || {}) } }; state.items = p.items; nextId = Math.max(0, ...p.items.map(i => i.id)) + 1; }
 }
 
 const $ = s => document.querySelector(s);
@@ -417,7 +417,6 @@ function viewSlots() {
 function go(n) { selMode = false; picked.clear(); state.step = n; render(); window.scrollTo(0, 0); }
 
 const COMING = {
-  4: ['เสียงพากย์และเพลงประกอบ', 'อัปโหลดไฟล์เสียงพากย์ทีละไฟล์ (01, 02, ...) และเพลง mp3'],
   5: ['มาสคอต', 'ปากขยับตามเสียงพูด กะพริบตา โบกมือ กระโดด เดินสั้นๆ'],
 };
 function viewComing() {
@@ -462,9 +461,26 @@ function scriptSegmentsAll() {
   if (lib.closeBuiltin) out.push({ no: mid.length + 1, key: 'close', label: 'ปิดท้าย + ติดต่อ (ฉากเครดิต)', text: state.script.close != null ? state.script.close : closeDefault(), edge: true });
   return out;
 }
+// แบ่งสคริปต์เป็นช่วงสำหรับสร้างเสียง: ท่อนเปิด/ปิดแยกเป็นช่วงของตัวเอง ท่อนกลางรวมกันไม่เกิน ~700 ตัวอักษร (ลำดับช่วง = ชื่อไฟล์เสียง 01, 02, ...)
+function ttsChunks() {
+  const chunks = []; let cur = null;
+  scriptSegmentsAll().filter(g => g.text.trim()).forEach(g => {
+    const t = g.text.trim();
+    if (g.edge || !cur || cur.edge || cur.len + t.length > 700) { cur = { keys: [], nos: [], texts: [], len: 0, edge: !!g.edge }; chunks.push(cur); }
+    cur.keys.push(g.key); cur.nos.push(g.edge ? (g.key === 'open' ? 'เปิด' : 'ปิด') : String(g.no).padStart(2, '0')); cur.texts.push(t); cur.len += t.length;
+  });
+  return chunks;
+}
+const chunkSig = c => { let h = 0; const t = c.texts.join('|'); for (let i = 0; i < t.length; i++) h = (h * 31 + t.charCodeAt(i)) | 0; return h; };
+// ความยาวเสียงจริงของแต่ละท่อน (แบ่งตามสัดส่วนความยาวข้อความในช่วงเดียวกัน)
+function segAudioSec() {
+  const out = {}, A = (state.audio && state.audio.chunks) || {};
+  ttsChunks().forEach((c, i) => { const a = A[i + 1]; if (!a || !a.dur) return; c.keys.forEach((k, j) => { out[k] = a.dur * c.texts[j].length / c.len; }); });
+  return out;
+}
 // ความยาวฉากเปิด/ปิด ปรับตามความยาวเสียงพูด (อย่างน้อยเท่าค่ามาตรฐาน)
-const titleDur = () => { const g = scriptSegmentsAll().find(x => x.key === 'open'); return g ? Math.max(TITLE_DUR, secOf(g.text) + 1.5) : TITLE_DUR; };
-const closeDur = () => { const g = scriptSegmentsAll().find(x => x.key === 'close'); return g ? Math.max(CLOSE_DUR, secOf(g.text) + 2) : CLOSE_DUR; };
+const titleDur = () => { const au = segAudioSec().open; if (au != null) return Math.max(TITLE_DUR, au + 0.3); const g = scriptSegmentsAll().find(x => x.key === 'open'); return g ? Math.max(TITLE_DUR, secOf(g.text) + 1.5) : TITLE_DUR; };
+const closeDur = () => { const au = segAudioSec().close; if (au != null) return Math.max(CLOSE_DUR, au + 1.5); const g = scriptSegmentsAll().find(x => x.key === 'close'); return g ? Math.max(CLOSE_DUR, secOf(g.text) + 2) : CLOSE_DUR; };
 
 async function copyText(t) {
   try { await navigator.clipboard.writeText(t); return true; } catch (_) {}
@@ -584,9 +600,7 @@ function viewScript() {
   $('#aiCopy').onclick = async e => { const btn = e.currentTarget, ok = await copyText(buildAiPrompt()); flash(btn, ok); openLink(lib.links.chat); };
   // แบ่งสคริปต์เป็นช่วง (ไม่เกิน ~700 ตัวอักษรต่อช่วง) แสดงต้นข้อความ ให้คัดลอกทีละช่วงและตรวจก่อนวาง
   $('#ttsOpen').onclick = () => {
-    const segs = scriptSegmentsAll().filter(g => g.text.trim()); if (!segs.length) { alert('ยังไม่มีสคริปต์ให้คัดลอก'); return; }
-    const chunks = []; let cur = null;
-    segs.forEach(g => { const t = g.text.trim(); if (!cur || cur.len + t.length > 700) { cur = { nos: [], texts: [], len: 0 }; chunks.push(cur); } cur.nos.push(g.edge ? (g.key === 'open' ? 'เปิด' : 'ปิด') : String(g.no).padStart(2, '0')); cur.texts.push(t); cur.len += t.length; });
+    const chunks = ttsChunks(); if (!chunks.length) { alert('ยังไม่มีสคริปต์ให้คัดลอก'); return; }
     const d = document.createElement('div'); d.className = 'sheet tall'; d.id = 'ttsSheet';
     d.innerHTML = `<div class="sh-head"><b>🔊 สร้างเสียง (ทีละช่วง)</b><button class="ib" data-a="x" aria-label="ปิด">✕</button></div>
       <p class="hint">ทำทีละช่วงตามลำดับ: กด <b>คัดลอก</b> → กด <b>เปิดหน้าสร้างเสียง</b> → ในช่องข้อความ <b>ลบของเก่าให้ว่างก่อน</b> แล้ววาง → ตรวจว่าบรรทัดแรกตรงกับ "ขึ้นต้นว่า" ด้านล่าง → สร้างเสียง → ตั้งชื่อไฟล์ตามเลขช่วง (เช่น ช่วง 1 = <b>01</b>) แล้วทำช่วงต่อไป</p>
@@ -725,10 +739,10 @@ async function viewColor() {
 const MAXSHOT = 8;
 function segKeyOfSlot(sl) { return sl.cat === 'lifestyle' ? 'life' : sl.cat ? 'area' : 'room:' + sl.room; }
 function segPlan() {
-  const segs = scriptSegments(), T = segTargets(), plan = {};
+  const segs = scriptSegments(), T = segTargets(), plan = {}, AUD = segAudioSec();
   segs.forEach(g => {
     const list = g.key === 'life' ? lifeItems() : g.key === 'area' ? areaItems() : state.items.filter(i => i.room === g.room);
-    plan[g.key] = { sec: Math.max(secOf(g.text), T[g.key] || 0), imgs: list.filter(i => i.type === 'image') };
+    plan[g.key] = { sec: AUD[g.key] != null ? AUD[g.key] + 0.25 : Math.max(secOf(g.text), T[g.key] || 0), imgs: list.filter(i => i.type === 'image') };
   });
   return plan;
 }
@@ -791,7 +805,19 @@ function viewRender() {
       if (lib.closeBuiltin) sceneList.push({ at: imgs.length, scene: await closeScene() });
       if (routeOk) sceneList.push({ at: routeAt, scene: await routeScene(state.routeData) });
       if (lib.titleBuiltin) sceneList.push({ at: 0, scene: await titleScene() });
-      const blob = await renderMp4(imgs.map(i => i.blob), s.w, s.h, (p, msg) => { $('#prog').textContent = `${msg} ${Math.round(p * 100)}%`; }, luts, sceneList, imageDurations(imgs));
+      // แผนเวลา (ต้องตรงกับที่ตัวเรนเดอร์ประกอบ): ฉากไตเติล → รูป (ฉากรถวิ่งแทรกตามตำแหน่ง) → ฉากเครดิต
+      const durs = imageDurations(imgs), idKey = new Map(); Object.entries(segPlan()).forEach(([k, P]) => P.imgs.forEach(i => idKey.set(i.id, k)));
+      const entries = []; if (lib.titleBuiltin) entries.push({ key: 'open', dur: titleDur(), title: true });
+      imgs.forEach((im, i) => { if (routeOk && i === routeAt) entries.push({ key: null, dur: ROUTE_DUR }); entries.push({ key: idKey.get(im.id) || null, dur: durs[i].dur }); });
+      if (routeOk && routeAt >= imgs.length) entries.push({ key: null, dur: ROUTE_DUR });
+      if (lib.closeBuiltin) entries.push({ key: 'close', dur: closeDur(), close: true });
+      const starts = {}, sceneAt = {}; let acc = 0;
+      entries.forEach(e => { if (e.key && starts[e.key] == null) starts[e.key] = acc; if (e.title) sceneAt.title = acc; if (e.close) sceneAt.close = acc; acc += e.dur; });
+      const total = acc + STYLE.fade;
+      const hasAudio = Object.keys(state.audio.chunks).length || state.audio.music || state.audio.sfx;
+      let audioMix = null;
+      if (hasAudio) { $('#prog').textContent = 'กำลังผสมเสียง...'; audioMix = await buildMix(starts, total, sceneAt); }
+      const blob = await renderMp4(imgs.map(i => i.blob), s.w, s.h, (p, msg) => { $('#prog').textContent = `${msg} ${Math.round(p * 100)}%`; }, luts, sceneList, durs, audioMix);
       const url = URL.createObjectURL(blob);
       $('#prog').textContent = `เสร็จใน ${((performance.now() - t0) / 1000).toFixed(0)} วินาที · ขนาดไฟล์ ${(blob.size / 1048576).toFixed(1)} MB`;
       $('#out').innerHTML = `<video src="${url}" controls playsinline style="width:100%;max-height:60vh;background:#000;border-radius:12px"></video><a class="btn" download="huahin-clip.mp4" href="${url}" style="text-decoration:none;text-align:center">⬇ บันทึกไฟล์ MP4</a>`;
@@ -876,10 +902,90 @@ async function startPreview() {
   previewTimer = setInterval(tick, 1000 / 30);
 }
 
+// ---- ขั้น 5: เสียง ----
+const audioCtxClass = () => window.OfflineAudioContext || window.webkitOfflineAudioContext;
+async function decodeBlob(blob, sr = 44100) { const ctx = new (audioCtxClass())(1, 1, sr); return ctx.decodeAudioData(await blob.arrayBuffer()); }
+const fmtSec = n => `${Math.floor(n / 60)}:${String(Math.round(n % 60)).padStart(2, '0')}`;
+async function setChunkAudio(idx, file) {
+  const ch = ttsChunks()[idx - 1]; if (!ch) return false;
+  const buf = await decodeBlob(file);
+  state.audio.chunks[idx] = { blob: file, name: file.name, dur: buf.duration, sig: chunkSig(ch) };
+  return true;
+}
+function viewAudio() {
+  const A = state.audio, chunks = ttsChunks();
+  const urls = viewAudio._u || (viewAudio._u = {});
+  const urlFor = (k, blob) => { if (!urls[k] || urls[k].blob !== blob) { if (urls[k]) URL.revokeObjectURL(urls[k].url); urls[k] = { blob, url: URL.createObjectURL(blob) }; } return urls[k].url; };
+  const have = chunks.filter((c, i) => A.chunks[i + 1]).length;
+  const totalVoice = chunks.reduce((a, c, i) => a + ((A.chunks[i + 1] || {}).dur || 0), 0);
+  $('#view').innerHTML = `
+    <h2>5 เสียง: เสียงพากย์และเพลง</h2>
+    <p class="hint">นำไฟล์เสียงที่สร้างจากหน้า Google AI Studio มาใส่ตามช่วง (ช่วง 01 = ไฟล์ 01) แอปจะวัดความยาวเสียงจริง แล้วปรับเวลาแสดงรูปของแต่ละห้องให้พอดีกับเสียง และใส่เสียงเข้าไฟล์ MP4 ตอนเรนเดอร์ · ยังไม่มีสคริปต์หรือยังไม่ได้ทำเสียง กลับไป <button class="lnk" id="goScript">ขั้น 4 สคริปต์</button></p>
+    ${chunks.length ? `<button class="btn" id="multi">📂 เลือกไฟล์เสียงหลายไฟล์พร้อมกัน (จับคู่ตามเลขในชื่อไฟล์)</button>
+    <p class="hint" id="audMsg">${have}/${chunks.length} ช่วงมีไฟล์เสียงแล้ว${have ? ` · เสียงพากย์รวม ${fmtSec(totalVoice)}` : ''}</p>
+    ${chunks.map((c, i) => { const a = A.chunks[i + 1], est = secOf(c.texts.join('')), bad = a && a.sig !== chunkSig(c), off = a && Math.abs(a.dur - est) > Math.max(6, est * 0.5);
+      return `<div class="seg" data-ci="${i + 1}"><div class="seg-h"><b>ช่วง ${String(i + 1).padStart(2, '0')} · ท่อน ${c.nos[0]}${c.nos.length > 1 ? '–' + c.nos[c.nos.length - 1] : ''}</b><span class="badge">${a ? '✅ ' + fmtSec(a.dur) : 'ยังไม่มีไฟล์ · ประมาณ ' + est + ' วิ'}</span></div>
+      <p class="hint">ขึ้นต้นว่า: "${c.texts[0].slice(0, 30).replace(/</g, '&lt;')}…"</p>
+      ${a ? `<p class="hint">📄 ${a.name.replace(/</g, '&lt;')}</p><audio controls preload="none" src="${urlFor('c' + i, a.blob)}" style="width:100%"></audio>${bad ? '<p class="stale">⚠️ สคริปต์ช่วงนี้ถูกแก้หลังอัปโหลดเสียง เสียงอาจไม่ตรงข้อความ</p>' : ''}${off ? `<p class="stale">⚠️ ความยาวเสียง (${fmtSec(a.dur)}) ต่างจากที่คาดไว้ (~${est} วิ) มาก ตรวจว่าไฟล์ตรงกับช่วงนี้</p>` : ''}` : ''}
+      <div class="tools"><button class="ib wide" data-pick="${i + 1}">${a ? '↻ เปลี่ยนไฟล์' : '+ เลือกไฟล์เสียง'}</button>${a ? `<button class="ib" data-rm="${i + 1}" aria-label="ลบ">🗑️</button>` : ''}</div></div>`; }).join('')}` : '<div class="soon">ยังไม่มีสคริปต์ กลับไปขั้น 4 ก่อน</div>'}
+    <div class="seg"><b>🎵 เพลงประกอบ (mp3)</b>
+      ${A.music ? `<p class="hint">📄 ${A.music.name.replace(/</g, '&lt;')} · ${fmtSec(A.music.dur || 0)}</p><audio controls preload="none" src="${urlFor('m', A.music.blob)}" style="width:100%"></audio>` : '<p class="hint">ยังไม่มีเพลง (ไม่ใส่ก็ได้)</p>'}
+      <div class="tools"><button class="ib wide" id="pickMusic">${A.music ? '↻ เปลี่ยนเพลง' : '+ เลือกไฟล์เพลง'}</button>${A.music ? '<button class="ib" id="rmMusic" aria-label="ลบ">🗑️</button>' : ''}</div>
+      <label class="sl"><span>ความดังเพลง <b id="mvTxt">${A.musicVol}%</b> (เสียงพากย์ = 100%)</span><input type="range" id="mv" min="0" max="50" step="1" value="${A.musicVol}"></label>
+      <p class="hint">เพลงเล่นตลอดคลิป ค่อยๆ ดังขึ้นตอนต้น และค่อยๆ เบาลงตอนจบ · เพลงยาวกว่าคลิปจะถูกตัด สั้นกว่าจะเล่นวน</p></div>
+    <label class="sw"><input type="checkbox" id="sfx" ${A.sfx ? 'checked' : ''}> เสียงเอฟเฟกต์ที่แอปสร้างให้ (ตอนมาสคอตกระโดดลงมาและตอนดีใจ ในไตเติลและเครดิต)</label>
+    <button class="btn" id="nx">ถัดไป: 6 มาสคอต →</button><button class="btn alt" id="bk">← ย้อนกลับ</button>`;
+  const rerender = () => viewAudio();
+  const msg = t => { const m = $('#audMsg'); if (m) m.textContent = t; };
+  const pickNum = f => { const m = f.name.replace(/\.[^.]+$/, '').match(/(\d{1,2})/); return m ? +m[1] : null; };
+  if ($('#multi')) $('#multi').onclick = async () => {
+    const fs = await pickFiles('audio/*,.mp3,.wav,.m4a,.aac,.ogg', true); if (!fs.length) return;
+    const used = new Set(), todo = []; const sorted = fs.slice().sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+    sorted.forEach(f => { const n = pickNum(f); if (n && n <= chunks.length && !used.has(n)) { used.add(n); todo.push([n, f]); } else todo.push([null, f]); });
+    let next = 1; todo.forEach(t => { if (t[0] == null) { while (used.has(next)) next++; if (next <= chunks.length) { t[0] = next; used.add(next); } } });
+    let ok = 0, skip = [];
+    for (const [n, f] of todo) { if (n == null) { skip.push(f.name); continue; } msg(`กำลังอ่านไฟล์ ${f.name}...`); try { if (await setChunkAudio(n, f)) ok++; } catch (e) { skip.push(f.name + ' (อ่านไม่ได้)'); } }
+    await save(); if (skip.length) alert('ใส่เสียงให้ ' + ok + ' ช่วง\nข้ามไฟล์: ' + skip.join(', ')); rerender();
+  };
+  document.querySelectorAll('[data-pick]').forEach(b => b.onclick = async () => { const [f] = await pickFiles('audio/*,.mp3,.wav,.m4a,.aac,.ogg', false); if (!f) return; try { await setChunkAudio(+b.dataset.pick, f); await save(); } catch (e) { alert('อ่านไฟล์เสียงไม่ได้ ลองไฟล์ mp3 หรือ wav'); } rerender(); });
+  document.querySelectorAll('[data-rm]').forEach(b => b.onclick = async () => { if (!confirm('ลบไฟล์เสียงช่วงนี้?')) return; delete A.chunks[+b.dataset.rm]; await save(); rerender(); });
+  $('#pickMusic').onclick = async () => { const [f] = await pickFiles('audio/*,.mp3,.wav,.m4a', false); if (!f) return; try { const buf = await decodeBlob(f); A.music = { blob: f, name: f.name, dur: buf.duration }; await save(); } catch (e) { alert('อ่านไฟล์เพลงไม่ได้ ลองไฟล์ mp3'); } rerender(); };
+  if ($('#rmMusic')) $('#rmMusic').onclick = async () => { A.music = null; await save(); rerender(); };
+  $('#mv').oninput = e => { A.musicVol = +e.target.value; $('#mvTxt').textContent = A.musicVol + '%'; save(); };
+  $('#sfx').onchange = e => { A.sfx = e.target.checked; save(); };
+  $('#goScript').onclick = () => go(3); $('#nx').onclick = () => go(5); $('#bk').onclick = () => go(3);
+}
+
+// ---- ผสมเสียงทั้งคลิป (เสียงพากย์ + เพลง + เอฟเฟกต์) เป็นแทร็กเดียว ----
+const MIX_SR = 44100;
+async function buildMix(starts, total, sceneAt) {
+  const A = state.audio, ctx = new (audioCtxClass())(1, Math.ceil(total * MIX_SR), MIX_SR);
+  const chunks = ttsChunks(); let any = false;
+  for (let i = 0; i < chunks.length; i++) {
+    const a = A.chunks[i + 1]; if (!a) continue;
+    const st = starts[chunks[i].keys[0]]; if (st == null) continue;
+    const src = ctx.createBufferSource(); src.buffer = await ctx.decodeAudioData(await a.blob.arrayBuffer()); src.connect(ctx.destination); src.start(Math.max(0, st)); any = true;
+  }
+  if (A.music && A.musicVol > 0) {
+    const src = ctx.createBufferSource(); src.buffer = await ctx.decodeAudioData(await A.music.blob.arrayBuffer()); src.loop = true;
+    const g = ctx.createGain(), v = A.musicVol / 100; g.gain.setValueAtTime(0, 0); g.gain.linearRampToValueAtTime(v, Math.min(1.5, total)); g.gain.setValueAtTime(v, Math.max(1.5, total - 3)); g.gain.linearRampToValueAtTime(0, total);
+    src.connect(g).connect(ctx.destination); src.start(0); any = true;
+  }
+  if (A.sfx) {
+    const pop = t => { const o = ctx.createOscillator(), g = ctx.createGain(); o.type = 'sine'; o.frequency.setValueAtTime(520, t); o.frequency.exponentialRampToValueAtTime(140, t + 0.2); g.gain.setValueAtTime(0.35, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.25); o.connect(g).connect(ctx.destination); o.start(t); o.stop(t + 0.3); };
+    const chime = t => [1568, 2093, 2637].forEach((f, i) => { const o = ctx.createOscillator(), g = ctx.createGain(); o.type = 'sine'; o.frequency.value = f; g.gain.setValueAtTime(0.0001, t + i * 0.09); g.gain.linearRampToValueAtTime(0.16, t + i * 0.09 + 0.02); g.gain.exponentialRampToValueAtTime(0.001, t + i * 0.09 + 1.1); o.connect(g).connect(ctx.destination); o.start(t + i * 0.09); o.stop(t + i * 0.09 + 1.2); });
+    if (sceneAt.title != null) { pop(sceneAt.title + 0.9); chime(sceneAt.title + 4.2); }
+    if (sceneAt.close != null) pop(sceneAt.close + 0.8);
+    any = true;
+  }
+  if (!any) return null;
+  const buf = await ctx.startRendering(); return { data: buf.getChannelData(0), sampleRate: MIX_SR };
+}
+
 function render() {
   clearInterval(previewTimer);
   renderSteps();
-  if (state.step === 0) viewSize(); else if (state.step === 6) viewRender(); else if (state.step === 1) viewSlots(); else if (state.step === 2) viewColor(); else if (state.step === 3) viewScript(); else viewComing();
+  if (state.step === 0) viewSize(); else if (state.step === 6) viewRender(); else if (state.step === 1) viewSlots(); else if (state.step === 2) viewColor(); else if (state.step === 3) viewScript(); else if (state.step === 4) viewAudio(); else viewComing();
 }
 
 (async () => {
