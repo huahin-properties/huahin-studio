@@ -60,10 +60,10 @@ async function viewHome() {
   const card = m => {
     const s = sz(m.size), url = m.thumb ? URL.createObjectURL(m.thumb) : ''; if (url) PROJ.urls.push(url);
     const r = m.rendered, title = m.name || m.fname || 'คลิปยังไม่มีชื่อ';
-    const st = !r ? '📝 ร่าง · ยังไม่ได้เรนเดอร์' : `🎬 เรนเดอร์แล้ว · ${fmtDate(r.at)}<br>${r.saved ? '💾 เก็บไว้ในแอป ' + mb(r.size) : '⚠️ ไม่ได้เก็บไฟล์ไว้ในแอป'} · ${r.downloaded ? '✅ ดาวน์โหลดแล้ว' : '⬇ ยังไม่ได้ดาวน์โหลด'}`;
+    const st = !r ? '📝 ร่าง · ยังไม่ได้เรนเดอร์' : `🎬 ${r.saved ? '💾 ' + mb(r.size) : '⚠️ ไม่ได้เก็บไฟล์'} · ${r.downloaded ? '✅ โหลดแล้ว' : '⬇ ยังไม่โหลด'}`;
     return `<div class="pcard" data-id="${m.id}">
-      <div class="pthumb" style="aspect-ratio:${s.w}/${s.h}">${url ? `<img src="${url}" alt="">` : '<span>🎬</span>'}<em class="pbadge ${r ? 'ok' : ''}">${r ? 'เรนเดอร์แล้ว' : 'ร่าง'}</em></div>
-      <div class="pinfo"><b>${title.replace(/</g, '&lt;')}</b><small>${s.name} · ${m.n || 0} รูป · แก้ไข ${fmtDate(m.updated)}</small><small class="pst">${st}</small></div>
+      <div class="pthumb" style="aspect-ratio:${s.w}/${s.h}">${url ? `<img src="${url}" alt="">` : '<span>🎬</span>'}<em class="pbadge ${r ? 'ok' : ''}">${r ? '🎬' : 'ร่าง'}</em></div>
+      <div class="pinfo"><b>${title.replace(/</g, '&lt;')}</b><small>${s.id} · ${m.n || 0} รูป · ${fmtDate(m.updated)}</small><small class="pst">${st}</small></div>
       <div class="pact ${r && r.saved ? 'n6' : 'n4'}"><button class="ib wide" data-a="edit">✏️ แก้ไข</button>${r && r.saved ? '<button class="ib wide" data-a="view">▶ ดู</button><button class="ib wide" data-a="dl">⬇ โหลด</button>' : ''}<button class="ib wide" data-a="ren">✎ ชื่อ</button><button class="ib wide" data-a="dup">⧉ สำเนา</button><button class="ib wide danger" data-a="del">🗑 ลบ</button></div></div>`;
   };
   $('#view').innerHTML = `<h2>คลิปของฉัน</h2>

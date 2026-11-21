@@ -152,3 +152,14 @@ header{display:flex;align-items:center;gap:8px;flex-wrap:wrap}header small{font-
 @media(min-width:900px){.pcards{grid-template-columns:1fr 1fr!important}}
 
 .pcard .pact.n4{flex-wrap:nowrap}.pcard .pact.n4 .ib.wide{flex:1 1 0;min-width:0;padding:8px 4px}
+
+/* การ์ดคลิปแบบแคบ (ลดความสูงลงครึ่งหนึ่ง): รูปเล็กซ้าย ข้อมูล 3 บรรทัดสั้นๆ ปุ่มแถวเดียว */
+.pcard{grid-template-columns:72px 1fr!important;border-radius:12px}
+.pcard .pthumb{width:72px!important;min-height:72px!important}.pcard .pthumb span{font-size:28px}
+.pcard .pbadge{top:4px;left:4px;font-size:10px;padding:1px 6px}
+.pcard .pinfo{padding:6px 10px 4px!important;gap:1px}
+.pcard .pinfo b{font-size:15px!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pcard .pinfo small{font-size:12px!important;line-height:1.35;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pcard .pact,.pcard .pact.n4,.pcard .pact.n6{flex-wrap:nowrap!important;padding:5px 8px 7px!important;gap:4px!important}
+.pcard .pact .ib.wide,.pcard .pact.n4 .ib.wide{flex:1 1 0!important;min-width:0;padding:6px 2px!important;font-size:12px!important;border-radius:10px}
+.pcards{gap:8px!important}
