@@ -36,3 +36,4 @@ canvas#pv{width:100%;max-height:60vh;object-fit:contain;background:#000;border-r
 .ba{display:flex;gap:8px;margin:8px 0}.ba div{flex:1;text-align:center}.ba canvas{width:100%;border-radius:10px;background:#000}.ba small{color:var(--mute)}
 .thumbs{display:flex;gap:6px;flex-wrap:wrap}.thumbs canvas{width:calc(33.3% - 4px);border-radius:8px;border:3px solid transparent;background:#000}.thumbs canvas.on{border-color:var(--accent)}
 .row2{display:flex;gap:8px}.row2 .btn{margin:6px 0}
+.thumbs canvas{touch-action:pan-y;-webkit-touch-callout:none;user-select:none}.thumbs canvas.dragging{position:relative;z-index:9;box-shadow:0 8px 24px rgba(0,0,0,.4)}

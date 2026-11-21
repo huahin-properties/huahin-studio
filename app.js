@@ -92,7 +92,11 @@ function viewMedia() {
     await save(); viewMedia();
   };
   if ($('#toNext')) $('#toNext').onclick = () => go(2);
-  enableDrag($('.items'));
+  enableDrag($('.items'), { itemSel: '.item', grid: false, onEnd: async els => {
+    const order = els.map(c => +c.dataset.id);
+    state.items = order.map(id => state.items.find(x => x.id === id));
+    await save(); viewMedia();
+  } });
   if ($('#pv')) { startPreview(); $('#play').onclick = startPreview; }
 }
 
@@ -115,7 +119,7 @@ function viewComing() {
 }
 
 // ---- ขั้น 3: ปรับสี ----
-const smallCache = new Map(), statCache = new Map();
+const smallCache = new Map(), statCache = new Map(); let colorSel = 0;
 async function getSmall(it) {
   if (!smallCache.has(it.id)) smallCache.set(it.id, await smallBitmap(it.blob, 480));
   return smallCache.get(it.id);
@@ -126,7 +130,7 @@ async function viewColor() {
     $('#view').innerHTML = `<h2>3 สี: ปรับสีให้เข้ากัน</h2><div class="soon">ยังไม่มีรูป กลับไปขั้น 2 เพื่อใส่รูปก่อน</div><button class="btn" id="b2">← กลับไปใส่รูป</button>`;
     $('#b2').onclick = () => go(1); return;
   }
-  const c = state.color; let sel = 0;
+  const c = state.color; let sel = Math.min(colorSel, imgs.length - 1); colorSel = 0;
   $('#view').innerHTML = `<h2>3 สี: ปรับสีให้เข้ากัน</h2><p class="hint">กำลังอ่านรูป...</p>`;
   const smalls = [];
   for (const it of imgs) { smalls.push(await getSmall(it)); if (!statCache.has(it.id)) statCache.set(it.id, imageStats(smalls.at(-1))); }
@@ -142,8 +146,8 @@ async function viewColor() {
     <p class="hint" id="cap"></p>
     <input type="file" id="file3" accept="image/*,video/*" multiple hidden>
     <div class="row2"><button class="btn alt" id="del3">🗑️ ลบรูปนี้</button><button class="btn alt" id="add3">+ เพิ่มรูป</button></div>
-    <p class="hint">แตะรูปเล็กเพื่อเลือกรูปที่จะดูเทียบ ก่อน/หลัง</p>
-    <div class="thumbs" id="th">${imgs.map((_, i) => `<canvas data-i="${i}"></canvas>`).join('')}</div>
+    <p class="hint">แตะรูปเล็กเพื่อเลือกดูเทียบ ก่อน/หลัง · กดค้างแล้วลากเพื่อสลับตำแหน่ง</p>
+    <div class="thumbs" id="th">${imgs.map((_, i) => `<canvas data-i="${i}" data-id="${imgs[i].id}"></canvas>`).join('')}</div>
     <button class="btn" id="nx">ถัดไป: 4 สคริปต์ →</button>
     <button class="btn alt" id="bk">← ย้อนกลับ</button>`;
   const draw = () => {
@@ -158,6 +162,14 @@ async function viewColor() {
   $('#auto').onchange = e => { c.auto = e.target.checked; save(); redraw(); };
   document.querySelectorAll('input[type=range]').forEach(r => r.oninput = () => { c[r.dataset.k] = +r.value; $('#v_' + r.dataset.k).textContent = r.value; save(); redraw(); });
   $('#reset').onclick = () => { Object.assign(c, COLOR_DEFAULT); save(); viewColor(); };
+  enableDrag($('#th'), { itemSel: 'canvas', grid: true, onEnd: async (els, moved) => {
+    const ids = els.map(c => +c.dataset.id), slots = [];
+    state.items.forEach((x, k) => { if (x.type === 'image') slots.push(k); });
+    const byId = new Map(state.items.map(x => [x.id, x])), next = state.items.slice();
+    slots.forEach((k, n) => { next[k] = byId.get(ids[n]); });
+    state.items = next; colorSel = ids.indexOf(+moved.dataset.id);
+    await save(); viewColor();
+  } });
   $('#th').onclick = e => { const cv = e.target.closest('canvas'); if (cv) { sel = +cv.dataset.i; redraw(); } };
   $('#del3').onclick = async () => { if (!confirm('ลบรูปที่ ' + (sel + 1) + ' ใช่ไหม?')) return; removeItem(imgs[sel].id); await save(); viewColor(); };
   $('#add3').onclick = () => $('#file3').click();
@@ -196,45 +208,58 @@ function viewRender() {
   };
 }
 
-// กดค้างที่การ์ด ~0.35 วินาที แล้วลากขึ้น/ลงเพื่อสลับลำดับ
-function enableDrag(box) {
-  let timer = null, item = null, grab = 0, lastY = 0, scroller = null;
+// กดค้าง ~0.35 วินาที แล้วลากเพื่อสลับลำดับ (ใช้ได้ทั้งรายการแนวตั้งและตารางรูปเล็ก)
+function enableDrag(box, opt) {
+  const { itemSel, grid, onEnd } = opt;
+  let timer = null, item = null, gx = 0, gy = 0, lx = 0, ly = 0, scroller = null;
   const down = e => {
-    const el = e.target.closest('.item');
+    const el = e.target.closest(itemSel);
     if (!el || e.target.closest('select,button')) return;
-    const x0 = e.clientX, y0 = e.clientY; lastY = y0;
+    const x0 = e.clientX, y0 = e.clientY;
+    const clear = () => { clearTimeout(timer); document.removeEventListener('pointermove', cancel); document.removeEventListener('pointerup', clear); };
     const cancel = ev => { if (Math.hypot(ev.clientX - x0, ev.clientY - y0) > 10) clear(); };
-    const clear = () => { clearTimeout(timer); document.removeEventListener('pointermove', cancel); };
-    document.addEventListener('pointermove', cancel);
+    document.addEventListener('pointermove', cancel); document.addEventListener('pointerup', clear);
     timer = setTimeout(() => { clear(); begin(el, e); }, 350);
-    const upEarly = () => { clear(); document.removeEventListener('pointerup', upEarly); };
-    document.addEventListener('pointerup', upEarly);
   };
   const place = () => {
     item.style.transform = '';
-    const natural = item.getBoundingClientRect().top;
-    item.style.transform = `translateY(${lastY - grab - natural}px)`;
+    const r = item.getBoundingClientRect();
+    item.style.transform = `translate(${grid ? lx - gx - r.left : 0}px, ${ly - gy - r.top}px)`;
   };
   const begin = (el, e) => {
     item = el; item.classList.add('dragging');
-    grab = e.clientY - item.getBoundingClientRect().top; lastY = e.clientY;
+    const r = item.getBoundingClientRect(); gx = e.clientX - r.left; gy = e.clientY - r.top; lx = e.clientX; ly = e.clientY;
     if (navigator.vibrate) navigator.vibrate(30);
-    try { item.setPointerCapture(e.pointerId); } catch (_) {}
-    item.addEventListener('pointermove', move); item.addEventListener('pointerup', end); item.addEventListener('pointercancel', end);
-    scroller = setInterval(() => { if (lastY < 130) scrollBy(0, -12); else if (lastY > innerHeight - 130) scrollBy(0, 12); place(); }, 16);
+    document.addEventListener('pointermove', move); document.addEventListener('pointerup', end); document.addEventListener('pointercancel', end);
+    scroller = setInterval(() => { if (ly < 130) scrollBy(0, -12); else if (ly > innerHeight - 130) scrollBy(0, 12); place(); }, 16);
   };
   const move = e => {
-    lastY = e.clientY;
+    lx = e.clientX; ly = e.clientY;
+    item.style.transform = '';
+    const own = item.getBoundingClientRect();
+    if (lx >= own.left && lx <= own.right && ly >= own.top && ly <= own.bottom) { place(); return; }
     const others = [...box.children].filter(c => c !== item);
-    const after = others.find(c => { const r = c.getBoundingClientRect(); return lastY < r.top + r.height / 2; });
-    if (after) { if (item.nextSibling !== after) box.insertBefore(item, after); } else if (box.lastChild !== item) box.appendChild(item);
+    let before = null;
+    if (grid) {
+      let best = Infinity, tgt = null, tb = true;
+      for (const c of others) {
+        const r = c.getBoundingClientRect(), cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+        const inside = lx >= r.left && lx <= r.right && ly >= r.top && ly <= r.bottom;
+        const d = inside ? -1 : Math.hypot(lx - cx, ly - cy);
+        if (d < best) { best = d; tgt = c; tb = (inside || Math.abs(ly - cy) < r.height / 2) ? lx < cx : ly < cy; }
+      }
+      if (tgt) before = tb ? tgt : tgt.nextElementSibling === item ? tgt.nextElementSibling.nextElementSibling : tgt.nextElementSibling;
+    } else {
+      before = others.find(c => { const r = c.getBoundingClientRect(); return ly < r.top + r.height / 2; }) || null;
+    }
+    if (before !== item && item.nextElementSibling !== before) box.insertBefore(item, before);
     place();
   };
   const end = async () => {
     clearInterval(scroller);
-    const order = [...box.children].map(c => +c.dataset.id);
-    state.items = order.map(id => state.items.find(x => x.id === id));
-    item = null; await save(); viewMedia();
+    document.removeEventListener('pointermove', move); document.removeEventListener('pointerup', end); document.removeEventListener('pointercancel', end);
+    const els = [...box.children]; const moved = item; item = null;
+    await onEnd(els, moved);
   };
   box.addEventListener('pointerdown', down);
   box.addEventListener('contextmenu', e => e.preventDefault());
