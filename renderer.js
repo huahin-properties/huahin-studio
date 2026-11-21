@@ -31,3 +31,17 @@ function drawFrame(ctx, W, H, images, t) {
   });
   ctx.globalAlpha = 1;
 }
+
+// ช็อตซูม/แพนจากรูปเดียว (ใช้เมื่อรูปน้อยแต่ต้องแสดงนาน: ภาพเดียวกันแต่เปลี่ยนมุมกล้องทุกช็อต)
+const KB_VARIANTS = [[1, 1.12, 0, 0], [1.15, 1.15, -1, 0], [1.16, 1.0, 0, 0], [1.15, 1.15, 1, 0], [1.0, 1.14, 0, -1], [1.14, 1.14, 0, 1]];
+function kbShot(bmp, dur, j) {
+  const [z0, z1, px, py] = KB_VARIANTS[j % KB_VARIANTS.length];
+  return {
+    dur, close() { if (bmp.close) bmp.close(); },
+    draw(ctx, W, H, t) {
+      const k = Math.min(1, t / dur), z = z0 + (z1 - z0) * k, iw = bmp.naturalWidth || bmp.width, ih = bmp.naturalHeight || bmp.height;
+      const base = Math.max(W / iw, H / ih) * z, w = iw * base, h = ih * base, ox = (w - W) / 2, oy = (h - H) / 2, m = (k * 2 - 1) * 0.9;
+      ctx.drawImage(bmp, (W - w) / 2 + px * m * ox, (H - h) / 2 + py * m * oy, w, h);
+    },
+  };
+}

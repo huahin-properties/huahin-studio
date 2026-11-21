@@ -13,7 +13,7 @@ async function loadScaled(blob, W, H) {
 
 async function pickCodec(W, H) {
   for (const codec of ['avc1.64002A', 'avc1.4D002A', 'avc1.42002A']) {
-    const cfg = { codec, width: W, height: H, bitrate: 8_000_000, framerate: FPS };
+    const cfg = { codec, width: W, height: H, bitrate: 5_000_000, framerate: FPS };
     try { const r = await VideoEncoder.isConfigSupported(cfg); if (r.supported) return cfg; } catch (e) {}
   }
   return null;
@@ -27,8 +27,13 @@ async function renderMp4(blobs, W, H, onProgress, luts, sceneOpt, durs) {
   const images = [];
   for (let i = 0; i < blobs.length; i++) { { const bmp = await loadScaled(blobs[i], W, H); images.push(luts ? gradeToCanvas(bmp, luts[i]) : bmp); if (luts) bmp.close(); } onProgress(0.1 * (i + 1) / blobs.length, 'กำลังเตรียมรูป'); }
 
-  if (durs) images.forEach((im, i) => { im.dur = durs[i]; });
-  if (sceneOpt && sceneOpt.length) sceneOpt.forEach(o => images.splice(Math.min(o.at, images.length), 0, o.scene)); // เรียงจากท้ายไปต้น ดัชนีจึงไม่เลื่อน
+  let starts = null;
+  if (durs) { // durs[i] = { dur, shots } · รูปที่ต้องแสดงนานจะถูกแตกเป็นหลายช็อตคนละมุมกล้อง
+    const out = []; starts = [];
+    images.forEach((im, i) => { starts.push(out.length); const pl = durs[i]; if (pl.shots > 1) for (let j = 0; j < pl.shots; j++) out.push(kbShot(im, pl.dur / pl.shots, j + (i % 2))); else { im.dur = pl.dur; out.push(im); } });
+    starts.push(out.length); images.length = 0; out.forEach(o => images.push(o));
+  }
+  if (sceneOpt && sceneOpt.length) sceneOpt.forEach(o => images.splice(starts ? starts[Math.min(o.at, starts.length - 1)] : Math.min(o.at, images.length), 0, o.scene)); // เรียงจากท้ายไปต้น ดัชนีจึงไม่เลื่อน
   const muxer = new Mp4Muxer.Muxer({ target: new Mp4Muxer.ArrayBufferTarget(), video: { codec: 'avc', width: W, height: H }, fastStart: 'in-memory' });
   let encErr = null;
   const enc = new VideoEncoder({ output: (c, m) => muxer.addVideoChunk(c, m), error: e => { encErr = e; } });

@@ -9,7 +9,7 @@ const SIZES = [
 const ROOMS = [AREA_ROOM, MAP_ROOM, 'หน้าบ้าน/ภายนอก','ที่จอดรถ','ห้องนั่งเล่น','ห้องทานอาหาร','ครัว','ห้องนอนใหญ่','ห้องนอน','ห้องน้ำ','สระว่ายน้ำ','สวน/ระเบียง','วิวรอบๆ','อื่นๆ'];
 const STEPS = ['1 ขนาด','2 ใส่รูป/คลิป','3 สี','4 สคริปต์','5 เสียง','6 มาสคอต','7 เรนเดอร์'];
 
-const state = { stretch: true, targetSec: 150, routeData: null, skipMap: false, facts: { name: '', beds: '', baths: '', usable: '', land: '', price: '', travel: '', coord: '', routeStart: '', routeLabel: '', highlights: '' }, slot: 'title', step: 0, size: '4:5', items: [], color: { ...COLOR_DEFAULT }, useArea: true, contact: { mode: 'std', custom: { name: '', phone: '', line: '' } }, script: { area: '', rooms: {}, en: {}, enSrc: {} } };
+const state = { stretch: true, clipSec: 180, routeData: null, skipMap: false, facts: { name: '', beds: '', baths: '', usable: '', land: '', price: '', travel: '', coord: '', routeStart: '', routeLabel: '', highlights: '' }, slot: 'title', step: 0, size: '4:5', items: [], color: { ...COLOR_DEFAULT }, useArea: true, contact: { mode: 'std', custom: { name: '', phone: '', line: '' } }, script: { area: '', rooms: {}, en: {}, enSrc: {} } };
 let nextId = 1;
 
 // ---- เก็บงานไว้ในเครื่อง (IndexedDB) ปิดแอปแล้วงานไม่หาย ----
@@ -22,10 +22,10 @@ const DB = {
   async get(k) { const db = await this.open(); return new Promise(res => { const q = db.transaction('kv').objectStore('kv').get(k); q.onsuccess = () => res(q.result); }); },
   async set(k, v) { const db = await this.open(); return new Promise(res => { const tx = db.transaction('kv', 'readwrite'); tx.objectStore('kv').put(v, k); tx.oncomplete = res; }); },
 };
-const save = () => (typeof updateSb === 'function' && updateSb(), DB.set('project', { v: 2, stretch: state.stretch, targetSec: state.targetSec, routeData: state.routeData, skipMap: state.skipMap, facts: state.facts, useArea: state.useArea, contact: state.contact, size: state.size, color: state.color, script: state.script, items: state.items.map(({ id, blob, type, room, name }) => ({ id, blob, type, room, name })) }));
+const save = () => (typeof updateSb === 'function' && updateSb(), DB.set('project', { v: 2, stretch: state.stretch, clipSec: state.clipSec, routeData: state.routeData, skipMap: state.skipMap, facts: state.facts, useArea: state.useArea, contact: state.contact, size: state.size, color: state.color, script: state.script, items: state.items.map(({ id, blob, type, room, name }) => ({ id, blob, type, room, name })) }));
 async function load() {
   await loadLib(); const p = await DB.get('project');
-  if (p) { if (!p.v) p.items.forEach(i => { if (i.room === 'หน้าบ้าน/ภายนอก') i.room = ''; }); state.size = p.size; state.color = { ...COLOR_DEFAULT, ...(p.color || {}) }; state.script = { area: '', rooms: {}, en: {}, enSrc: {}, ...(p.script || {}) }; state.skipMap = !!p.skipMap; state.targetSec = p.targetSec || 150; state.stretch = p.stretch !== false; state.routeData = p.routeData || null; state.facts = { ...state.facts, ...(p.facts || {}) }; state.useArea = true; state.contact = { mode: 'std', ...(p.contact || {}), custom: { name: '', phone: '', line: '', ...((p.contact || {}).custom || {}) } }; state.items = p.items; nextId = Math.max(0, ...p.items.map(i => i.id)) + 1; }
+  if (p) { if (!p.v) p.items.forEach(i => { if (i.room === 'หน้าบ้าน/ภายนอก') i.room = ''; }); state.size = p.size; state.color = { ...COLOR_DEFAULT, ...(p.color || {}) }; state.script = { area: '', rooms: {}, en: {}, enSrc: {}, ...(p.script || {}) }; state.skipMap = !!p.skipMap; state.clipSec = p.clipSec || 180; state.stretch = p.stretch !== false; state.routeData = p.routeData || null; state.facts = { ...state.facts, ...(p.facts || {}) }; state.useArea = true; state.contact = { mode: 'std', ...(p.contact || {}), custom: { name: '', phone: '', line: '', ...((p.contact || {}).custom || {}) } }; state.items = p.items; nextId = Math.max(0, ...p.items.map(i => i.id)) + 1; }
 }
 
 const $ = s => document.querySelector(s);
@@ -147,6 +147,10 @@ function bankFor(id) {
   const key = id === 'cat-lifestyle' ? 'life' : id.startsWith('cat-') ? 'cat' : id;
   return (B[key] || []).filter(Boolean);
 }
+// ความยาวคลิปรวม (ค่าเริ่มต้น 3:00) − ฉากคงที่ (ไตเติล/เครดิต/รถวิ่ง) = เวลาที่ช่วงเล่าเรื่องต้องมี
+const routeOkNow = () => !!(state.routeData && state.routeData.size === state.size);
+const fixedSec = () => (lib.titleBuiltin ? TITLE_DUR : 0) + (lib.closeBuiltin ? CLOSE_DUR : 0) + (routeOkNow() ? ROUTE_DUR : 0) + STYLE.fade;
+const narrTarget = () => Math.max(30, state.clipSec - fixedSec());
 const SEG_WEIGHT = { 'cat-city': 14, map: 7, ext: 12, park: 3, liv: 9, dine: 4, kit: 10, bed: 10, bath: 5, pool: 9, garden: 4, 'cat-lifestyle': 9 };
 function segSlot(g) {
   if (g.key === 'life') return SLOTS.find(x => x.cat === 'lifestyle');
@@ -156,7 +160,7 @@ function segSlot(g) {
 // เวลาเป้าหมาย (วินาที) ของแต่ละท่อน แบ่งตามน้ำหนักของช่วง
 function segTargets() {
   const segs = scriptSegments(), w = g => (SEG_WEIGHT[(segSlot(g) || {}).id] || 6), sum = segs.reduce((a, g) => a + w(g), 0) || 1;
-  const m = {}; segs.forEach(g => { m[g.key] = Math.round(state.targetSec * w(g) / sum); }); return m;
+  const m = {}; segs.forEach(g => { m[g.key] = Math.round(narrTarget() * w(g) / sum); }); return m;
 }
 // เติมประโยคจากคลังให้ถึงเป้า (ไม่ลบ/ทับข้อความที่มีอยู่)
 function expandAll() {
@@ -176,7 +180,7 @@ function expandAll() {
 const draftAll = expandAll;
 const totalSecNow = () => scriptSegments().reduce((a, g) => a + secOf(g.text), 0);
 function expandMsg(n) {
-  const tot = totalSecNow(), tgt = state.targetSec, short = tot < tgt * 0.9;
+  const tot = totalSecNow(), tgt = narrTarget(), short = tot < tgt * 0.9;
   return (n ? `เติมสคริปต์ให้ ${n} ช่วง · รวมตอนนี้ ~${mmss(tot)} จากเป้า ${mmss(tgt)}` : `ไม่มีช่วงที่เติมได้เพิ่ม · รวมตอนนี้ ~${mmss(tot)} จากเป้า ${mmss(tgt)}`)
     + (short ? '\n\nยังไม่ถึงเป้า วิธีเพิ่มเนื้อหา: (1) ใส่รูปห้องเพิ่มและกรอก 🏠 ข้อมูลบ้านให้ครบ (2) เขียนเพิ่มเอง (3) กด 🤖 คัดลอกคำสั่งให้ AI ใน Google AI Studio เขียนให้ยาวและละเอียดขึ้น แล้วกด 📥 วางสคริปต์จาก AI' : '');
 }
@@ -191,7 +195,7 @@ function buildAiPrompt() {
 ข้อมูลบ้าน (ใช้เฉพาะข้อมูลนี้ ห้ามแต่งตัวเลข ราคา หรือสิ่งอำนวยความสะดวกที่ไม่ได้ให้ไว้):
 ${lines.join('\n') || '- (ไม่มีข้อมูลเพิ่มเติม)'}
 
-ให้เขียนสคริปต์พากย์ทีละท่อนตามรายการนี้ ความยาวรวมประมาณ ${state.targetSec} วินาที โดยแต่ละท่อนให้ยาวตามเป้าหมายที่ระบุ:
+ให้เขียนสคริปต์พากย์ทีละท่อนตามรายการนี้ ความยาวรวมประมาณ ${narrTarget()} วินาที โดยแต่ละท่อนให้ยาวตามเป้าหมายที่ระบุ:
 ${segs.join('\n')}
 
 กติกาการตอบ:
@@ -330,6 +334,7 @@ function viewSlots() {
       const sc = getSlotScript(sl), noScript = sc !== null && secOf(sc) === 0;
       (noScript ? todo : done).push(`<div class="gsec${noScript ? ' gmiss' : ''}" data-sec="${sl.id}"><div class="gh"><b>${sl.ico} ${sl.label.replace(/ \(.*\)/, '')} · ${items.length}</b><button class="ib sm" data-open="${sl.id}">+ เพิ่ม</button></div>
         ${scriptBarHtml(sl)}
+        ${fitMeterHtml(sl)}
         <div class="sgrid" data-grid="${sl.id}">${items.map(it => thumbHtml(it, true)).join('')}</div></div>`);
     });
     { const orp = orphanItems(); if (orp.length) {
@@ -354,6 +359,7 @@ function viewSlots() {
     const miss = sbBlockers(), el = $('#doneBar'); if (!el) return;
     const hidden = miss.filter(m => m.id === 'un');
     el.innerHTML = `${hidden.length ? `<p class="hint" style="color:#9b1c1c">❌ ปุ่มยังกดไม่ได้: ${hidden[0].info} (ดูการ์ด ⚠️ ด้านบน)</p>` : miss.length ? '' : '<p class="hint" style="color:#1e6b3a">✅ เช็กลิสต์ของจำเป็นครบแล้ว</p>'}
+      <p class="hint">⏱ ความยาวคลิปโดยประมาณ <b>${mmss(Math.round(predictedTotal()))}</b> จากเป้า ${mmss(state.clipSec)}${state.stretch ? '' : ' · (ปิดการยืดเวลา)'}</p>
       <button class="btn" id="toColor" ${miss.length ? 'disabled' : ''}>ถัดไป: 3 สี →</button>`;
     $('#toColor').onclick = () => go(2);
   };
@@ -453,8 +459,8 @@ function viewScript() {
   };
   $('#view').innerHTML = `
     <h2>4 สคริปต์: เรื่องราว</h2>
-    <div class="seg"><b>🎯 เป้าหมายเสียงพากย์ทั้งคลิป</b>
-      <div class="tgt"><input class="ct" id="tgt" type="number" inputmode="numeric" min="30" max="600" value="${state.targetSec}"><span>วินาที (<b id="tgtTxt">${mmss(state.targetSec)}</b>) · ไตเติล/เครดิตปิดแยกต่างหาก</span></div>
+    <div class="seg"><b>🎯 ความยาวคลิปทั้งหมด</b>
+      <div class="tgt"><input class="ct" id="tgt" type="number" inputmode="numeric" min="60" max="900" value="${state.clipSec}"><span>วินาที (<b id="tgtTxt">${mmss(state.clipSec)}</b>) · เสียงพากย์ที่ต้องมี ~<b id="narrTxt">${narrTarget()}</b> วิ (หักไตเติล/เครดิต/รถวิ่งแล้ว)</span></div>
       <div class="sbar ok" id="totBar" style="height:10px"><i style="width:0%"></i></div><small class="sbl" id="totTxt"></small>
       <div class="tools"><button class="ib wide danger" id="s4Draft">✨ เติมให้ครบเวลา</button><button class="ib wide" id="s4Facts">🏠 ข้อมูลบ้าน</button></div>
       <div class="tools"><button class="ib wide" id="aiCopy">🤖 คัดลอกคำสั่งให้ AI เขียน</button><button class="ib wide" id="aiPaste">📥 วางสคริปต์จาก AI</button></div></div>
@@ -475,7 +481,7 @@ function viewScript() {
     if (empty.length) msgs.push('ท่อนที่ยังว่าง: ' + empty.join(', '));
     $('#warn').innerHTML = msgs.join('<br>');
   };
-  const updTot = () => { const tot = totalSecNow(), pct = Math.min(100, Math.round(tot / state.targetSec * 100)); const bar = $('#totBar'); bar.querySelector('i').style.width = pct + '%'; bar.className = 'sbar ' + (tot >= state.targetSec * 0.9 ? 'ok' : 'no'); $('#totTxt').textContent = `รวมตอนนี้ ~${mmss(tot)} จากเป้า ${mmss(state.targetSec)} (${pct}%)${tot < state.targetSec * 0.9 ? ' · ยังสั้นกว่าเป้า' : ' · ถึงเป้าแล้ว'}`; $('#totTxt').className = 'sbl ' + (tot >= state.targetSec * 0.9 ? 'ok' : 'no'); };
+  const updTot = () => { const nt = narrTarget(), tot = totalSecNow(), pct = Math.min(100, Math.round(tot / nt * 100)); const bar = $('#totBar'); bar.querySelector('i').style.width = pct + '%'; bar.className = 'sbar ' + (tot >= nt * 0.9 ? 'ok' : 'no'); $('#totTxt').textContent = `สคริปต์ตอนนี้ ~${mmss(tot)} จากเป้าเสียงพากย์ ${mmss(nt)} (${pct}%)${tot < nt * 0.9 ? ' · สั้นกว่าเป้า (ตอนเรนเดอร์ระบบยืดเวลาช่วงนั้นให้ครบ แต่ควรเขียนเพิ่ม)' : ' · ถึงเป้าแล้ว'}`; $('#totTxt').className = 'sbl ' + (tot >= nt * 0.9 ? 'ok' : 'no'); };
   updTot(); warn();
   const stamp = () => { const d = new Date(); $('#saved').textContent = `💾 บันทึกแล้ว ${d.toLocaleTimeString('th-TH')}`; };
   $('#segs').oninput = e => {
@@ -514,7 +520,7 @@ function viewScript() {
   });
   $('#nx').onclick = () => go(4); $('#bk').onclick = () => go(2);
   $('#s4Facts').onclick = () => openFacts(() => viewScript());
-  $('#tgt').oninput = e => { const v = Math.max(30, Math.min(600, +e.target.value || 150)); state.targetSec = v; $('#tgtTxt').textContent = mmss(v); save(); segT = segTargets(); document.querySelectorAll('[data-t]').forEach(b => { const g = scriptSegments().find(x => x.key === b.dataset.t); if (g) b.textContent = `~${secOf(g.text)} / เป้า ${segT[g.key]} วิ`; }); updTot(); };
+  $('#tgt').oninput = e => { const v = Math.max(60, Math.min(900, +e.target.value || 180)); state.clipSec = v; $('#tgtTxt').textContent = mmss(v); $('#narrTxt').textContent = narrTarget(); save(); segT = segTargets(); document.querySelectorAll('[data-t]').forEach(b => { const g = scriptSegments().find(x => x.key === b.dataset.t); if (g) b.textContent = `~${secOf(g.text)} / เป้า ${segT[g.key]} วิ`; }); updTot(); };
   $('#s4Draft').onclick = () => { const n = draftAll(); alert(expandMsg(n)); viewScript(); };
   $('#aiCopy').onclick = async e => { flash(e.currentTarget, await copyText(buildAiPrompt())); };
   $('#aiPaste').onclick = () => {
@@ -630,29 +636,55 @@ async function viewColor() {
   $('#nx').onclick = () => go(3); $('#bk').onclick = () => go(1);
 }
 
-// เวลาแสดงรูปแต่ละรูป: ยืดให้พอดีกับความยาวสคริปต์ของช่วงนั้น (รูปละไม่เกิน 9 วินาที · อย่างน้อย 2 วินาที)
+// ---- แผนเวลา: แต่ละช่วง = max(ความยาวสคริปต์, เวลาที่ได้ตามเป้า) แบ่งให้รูปของช่วงนั้น (รูปละ ≥2 วิ)
+// ถ้ารูปละนานเกิน 8 วิ แตกเป็นหลายช็อตซูม/แพนคนละมุม · ผลรวมทั้งคลิป ≥ ความยาวเป้าหมาย (3:00) เสมอ
+const MAXSHOT = 8;
+function segKeyOfSlot(sl) { return sl.cat === 'lifestyle' ? 'life' : sl.cat ? 'area' : 'room:' + sl.room; }
+function segPlan() {
+  const segs = scriptSegments(), T = segTargets(), plan = {};
+  segs.forEach(g => {
+    const list = g.key === 'life' ? lifeItems() : g.key === 'area' ? areaItems() : state.items.filter(i => i.room === g.room);
+    plan[g.key] = { sec: Math.max(secOf(g.text), T[g.key] || 0), imgs: list.filter(i => i.type === 'image') };
+  });
+  return plan;
+}
 function imageDurations(imgs) {
-  const segs = scriptSegments(), idToKey = new Map(), sec = {}, count = {};
-  segs.forEach(g => { sec[g.key] = secOf(g.text); (g.key === 'life' ? lifeItems() : g.key === 'area' ? areaItems() : state.items.filter(i => i.room === g.room)).forEach(i => idToKey.set(i.id, g.key)); });
-  imgs.forEach(i => { const k = idToKey.get(i.id); if (k) count[k] = (count[k] || 0) + 1; });
-  return imgs.map(i => { const k = idToKey.get(i.id); if (!k || !state.stretch) return STYLE.secPerImage; const d = sec[k] / count[k]; return d > STYLE.secPerImage ? Math.min(9, d) : STYLE.secPerImage; });
+  const plan = segPlan(), idToKey = new Map();
+  Object.entries(plan).forEach(([k, P]) => P.imgs.forEach(i => idToKey.set(i.id, k)));
+  return imgs.map(i => {
+    const k = idToKey.get(i.id); if (!k || !state.stretch) return { dur: STYLE.secPerImage, shots: 1 };
+    const P = plan[k], d = Math.max(STYLE.secPerImage, P.sec / P.imgs.length);
+    return { dur: d, shots: d > MAXSHOT ? Math.ceil(d / MAXSHOT) : 1 };
+  });
+}
+function timelineImages() {
+  const titleImg = (!lib.titleBuiltin && lib.title && lib.title.type === 'image') ? lib.title : null, closeImg = (!lib.closeBuiltin && lib.close && lib.close.type === 'image') ? lib.close : null;
+  const pre = titleImg ? [titleImg] : [], post = closeImg ? [closeImg] : [];
+  return { pre, imgs: [...pre, ...areaLibOrdered().filter(i => i.type === 'image'), ...state.items.filter(i => i.type === 'image'), ...lifeItems().filter(i => i.type === 'image'), ...post] };
+}
+const predictedTotal = () => imageDurations(timelineImages().imgs).reduce((a, p) => a + p.dur, 0) + fixedSec();
+// ขีดวัด: จำนวนรูปเทียบกับเวลาของช่วงนั้น (ส้ม=น้อยไป เขียว=พอดี แดง=เยอะไป)
+function fitMeterHtml(sl) {
+  if (!state.stretch || getSlotScript(sl) === null) return '';
+  const k = segKeyOfSlot(sl), P = segPlan()[k]; if (!P || !P.sec) return '';
+  const n = P.imgs.length, sec = Math.round(P.sec), lo = Math.max(1, Math.ceil(sec / MAXSHOT)), hi = Math.max(lo, Math.floor(sec / 2.5)), S = hi + Math.max(2, Math.round(hi * 0.4));
+  const pos = Math.min(S, n) / S * 100, o = (lo - 0.5) / S * 100, g = (hi - lo + 1) / S * 100;
+  const bad = n < lo || n > hi, verdict = n < lo ? `⚠️ น้อยไป ภาพจะซูมหลายมุมซ้ำ แนะนำเพิ่มอีก ${lo - n} รูป` : n > hi ? `⚠️ เยอะไป เกินเวลาช่วงนี้ ลดเหลือไม่เกิน ${hi} รูป หรือเพิ่มสคริปต์` : '✅ จำนวนรูปพอดีกับเวลา';
+  return `<div class="fit"><b style="width:${o}%"></b><b class="g" style="width:${g}%"></b><b class="r"></b><i style="left:${pos}%"></i></div><small class="fitl ${bad ? 'w' : 'ok'}">🎞️ ช่วงนี้ ~${sec} วิ · รูปที่เหมาะ ${lo}–${hi} รูป · ตอนนี้ ${n} รูป${k === 'area' ? ' (รวมทั้งทำเล)' : ''} — ${verdict}</small>`;
 }
 
 function viewRender() {
   organizeItems(); save();
-  const titleImg = (!lib.titleBuiltin && lib.title && lib.title.type === 'image') ? lib.title : null, closeImg = (!lib.closeBuiltin && lib.close && lib.close.type === 'image') ? lib.close : null;
-  const pre = titleImg ? [titleImg] : [], post = closeImg ? [closeImg] : [];
-  const imgs = [...pre, ...areaLibOrdered().filter(i => i.type === 'image'), ...state.items.filter(i => i.type === 'image'), ...lifeItems().filter(i => i.type === 'image'), ...post], s = sizeInfo();
+  const { pre, imgs } = timelineImages(), s = sizeInfo();
   const blockers = sbBlockers();
   const skipped = state.items.length - imgs.length;
   const routeOk = !!(state.routeData && state.routeData.size === state.size);
   const routeAt = pre.length + areaLibOrdered().filter(i => i.type === 'image').length + state.items.filter(i => i.type === 'image' && (i.room === AREA_ROOM || i.room === MAP_ROOM)).length;
   $('#view').innerHTML = `
     <h2>เรนเดอร์เป็น MP4</h2>
-    <p class="hint">ขนาด ${s.name} (${s.w}×${s.h}) · ${imgs.length} รูป · ยาวประมาณ ${(imageDurations(imgs).reduce((a, b) => a + b, 0) + STYLE.fade + (routeOk ? ROUTE_DUR : 0) + (lib.titleBuiltin ? TITLE_DUR : 0) + (lib.closeBuiltin ? CLOSE_DUR : 0)).toFixed(1)} วินาที (รวมฉากมาสคอต/คลิปรถวิ่งที่เปิดใช้)${skipped ? ` · คลิปสั้น ${skipped} ไฟล์ยังไม่ถูกใช้ (รอบหน้า)` : ''}</p>
+    <p class="hint">ขนาด ${s.name} (${s.w}×${s.h}) · ${imgs.length} รูป · ยาวประมาณ ${predictedTotal().toFixed(1)} วินาที (รวมฉากมาสคอต/คลิปรถวิ่งที่เปิดใช้)${skipped ? ` · คลิปสั้น ${skipped} ไฟล์ยังไม่ถูกใช้ (รอบหน้า)` : ''}</p>
     ${blockers.length ? `<div class="soon" style="border-color:#b00020;color:#b00020;text-align:left">❌ ยังเรนเดอร์ไม่ได้ เพราะผังเรื่องยังขาด:<br>${blockers.map(b => '• ' + b.label.replace(/^\d+\. /, '') + ' — ' + b.info).join('<br>')}<br><br><button class="btn alt" id="openSb">📋 เปิดผังเรื่อง</button></div>` : ''}
-    <p class="hint">หมายเหตุ: ไตเติลและหน้าปิดจากคลังกลางจะถูกต่อเข้าไฟล์ MP4 ในรอบถัดไป (ตอนนี้เรนเดอร์ภาพทำเลและรูปบ้าน)</p>
-    <label class="sw"><input type="checkbox" id="stretch" ${state.stretch ? 'checked' : ''}> ยืดเวลาแสดงรูปตามความยาวสคริปต์ (คลิปยาวขึ้นให้ใกล้เป้าหมายเสียงพากย์ · ปิด = รูปละ 2 วินาทีตามสไตล์เดิม)</label>
+    <label class="sw"><input type="checkbox" id="stretch" ${state.stretch ? 'checked' : ''}> ยืดเวลาให้ครบความยาวเป้าหมาย (ช่วงที่มีรูปน้อยจะซูม/แพนหลายมุม · ปิด = รูปละ 2 วินาทีตามสไตล์เดิม)</label>
     <p class="hint">ปรับสี: ${isNeutral(state.color) ? 'ปิด' : (state.color.auto ? 'อัตโนมัติ' : 'ตั้งเอง')}</p>
     <p class="hint">ระหว่างเรนเดอร์ ให้เปิดหน้าจอค้างไว้ อย่าสลับแอป</p>
     <button class="btn" id="go" ${imgs.length && !blockers.length ? '' : 'disabled'}>🎬 เริ่มเรนเดอร์</button>

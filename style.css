@@ -99,3 +99,6 @@ canvas#pv{width:100%;max-height:60vh;object-fit:contain;background:#000;border-r
 .tools{flex-wrap:wrap}
 .tgt{display:flex;align-items:center;gap:8px;margin:4px 0}.tgt .ct{width:90px;margin:0}.tgt span{font-size:13px;color:var(--mute)}
 .sprev{width:46%;border-radius:10px;background:#000;display:block;margin:4px 0 8px}
+.fit{display:flex;position:relative;height:9px;border-radius:5px;overflow:visible;margin:8px 0 2px}.fit b{display:block;height:100%;background:#e08a00}.fit b:first-child{border-radius:5px 0 0 5px}.fit b.g{background:#2e7d4f}.fit b.r{flex:1;background:#c0392b;border-radius:0 5px 5px 0}
+.fit i{position:absolute;top:-4px;width:4px;height:17px;background:#2e2220;border-radius:2px;transform:translateX(-2px);box-shadow:0 0 0 2px #fff}
+.fitl{display:block;font-size:12px;margin-bottom:6px}.fitl.ok{color:#1e6b3a}.fitl.w{color:#8a5a00}
