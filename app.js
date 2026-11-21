@@ -383,7 +383,7 @@ function openSlot(id) {
     ${sl.id === 'title' || sl.id === 'close' ? sceneModeHtml(sl) : ''}
     ${sl.cat ? `<button class="btn alt" data-a="places">📍 จัดการสถานที่ (ชื่อ + พิกัด + รูป)</button>${stockPanelHtml()}` : ''}
     ${sl.kind === 'contact' ? contactCardHtml() : ((sl.id === 'title' || sl.id === 'close') && lib[sl.id + 'Builtin']) ? '' : `<button class="btn" data-a="add">${sl.max1 && items.length ? '↻ เปลี่ยนไฟล์' : '+ เพิ่มรูป / คลิป'}</button>
-      ${items.length ? `${sl.kind !== 'contact' && !sl.max1 ? '<p class="hint">✏️ พิมพ์ชื่อใต้รูปได้ (ชื่อจะขึ้นเป็นป้ายบนภาพในคลิป และ AI ใช้ตอนเขียนสคริปต์/โพสต์)</p>' : ''}<div class="sgrid" id="pgrid">${items.map(it => sl.max1 ? thumbHtml(it, true) : `<div class="thn">${thumbHtml(it, true)}<input class="ct nm" data-nm="${it.id}" maxlength="60" placeholder="${(sl.ph || 'ตั้งชื่อรูป').replace(/"/g, '')}" value="${esc(it.title || '')}"></div>`).join('')}</div>` : ''}`}
+      ${items.length ? `${sl.kind !== 'contact' && !sl.max1 ? '<p class="hint">✏️ พิมพ์ชื่อใต้รูปได้ (ชื่อรูปทำเล/สถานที่ ใช้ดึงไปเขียนสคริปต์และพากย์เท่านั้น ไม่ขึ้นป้ายบนภาพ · ชื่อรูปของตัวบ้านขึ้นป้ายบนภาพได้)</p>' : ''}<div class="sgrid" id="pgrid">${items.map(it => sl.max1 ? thumbHtml(it, true) : `<div class="thn">${thumbHtml(it, true)}<input class="ct nm" data-nm="${it.id}" maxlength="60" placeholder="${(sl.ph || 'ตั้งชื่อรูป').replace(/"/g, '')}" value="${esc(it.title || '')}"></div>`).join('')}</div>` : ''}`}
     ${sc !== null ? `<label class="sl"><span>📝 สคริปต์ของช่วงนี้${sl.cat && sl.cat !== 'lifestyle' ? ' (ใช้ร่วมกันทั้ง 4 แท็บทำเล)' : ''}</span></label><textarea class="sct" id="slotScript" rows="3" placeholder="พิมพ์เรื่องเล่าของช่วงนี้ (ไม่ใส่ก็ได้ เขียนทีหลังได้ที่ขั้น 4)">${sc.replace(/</g, '&lt;')}</textarea>` : ''}
     <button class="btn" data-a="x">เสร็จ</button>`;
   d.onclick = async e => {
@@ -582,8 +582,8 @@ function beatAudioSec(id) { const A = state.audio, a = (A.beatAud || {})[id]; re
 function setSegText(key, v) { const sc = state.script; if (key === 'hook') sc.hook = v; else if (key === 'open') sc.open = v; else if (key === 'close') sc.close = v; else if (key === 'life') sc.life = v; else if (key === 'area') sc.area = v; else sc.rooms[key.slice(5)] = v; }
 function scriptSegmentsAll() {
   const mid = scriptSegments(), out = [];
-  if (heroItem()) out.push({ no: -1, key: 'hook', label: 'ภาพเด่น + จุดเด่น (ฮุกเปิดคลิป)', text: state.script.hook != null ? state.script.hook : hookDefault(), edge: true });
   if (lib.titleBuiltin) out.push({ no: 0, key: 'open', label: 'เปิดคลิป (ฉากไตเติล)', text: state.script.open != null ? state.script.open : openDefault(), edge: true });
+  if (heroItem()) out.push({ no: -1, key: 'hook', label: 'ภาพเด่น + จุดเด่น (ฮุกต่อจากไตเติล)', text: state.script.hook != null ? state.script.hook : hookDefault(), edge: true });
   out.push(...mid);
   if (lib.closeBuiltin) out.push({ no: mid.length + 1, key: 'close', label: 'ปิดท้าย + ติดต่อ (ฉากเครดิต)', text: state.script.close != null ? state.script.close : closeDefault(), edge: true });
   return out;
@@ -746,8 +746,8 @@ function viewScript() {
     <div class="soon" style="text-align:left">📋 <b>ปุ่มคัดลอกใช้ทำอะไร:</b> กด 📋 ไทย หรือ 📋 EN ที่ท่อนไหน แล้วนำไปวางใน <b>Google AI Studio</b> เพื่อสร้างเสียงพากย์ จากนั้นตั้งชื่อไฟล์เสียงตามเลขท่อน (01, 02, ...) แล้วนำมาอัปโหลดในขั้น 5 · ปุ่ม 📋 ไทยทั้งหมด / EN ทั้งหมด คัดลอกข้อความล้วนทุกท่อนต่อกัน (ไม่มี [01] [02]) เว้นบรรทัดระหว่างท่อน พร้อมวางสร้างเสียงทีเดียวได้<br>🌐 การแปลใช้บริการแปลฟรีออนไลน์ ต้องต่อเน็ต คุณภาพพื้นฐาน อ่านและแก้ก่อนใช้ทุกครั้ง</div>
     ${state.items.length ? '' : '<div class="soon">ยังไม่มีรูป กลับไปขั้น 2 เพื่อใส่รูปและติดแท็กห้องก่อน</div>'}
     ${(() => { const h = heroItem(), srcIt = h && state.items.find(i => i.id === h.srcId), hasI = state.items.some(i => i.type === 'image');
-      return `<div class="seg"><div class="seg-h"><b>🌟 ฮุกเปิดคลิป: ภาพบ้านเด่นที่สุด + จุดเด่นใน 5–10 วินาทีแรก</b><span class="badge">${h ? '~' + Math.round(hookDur()) + ' วิ' : 'ปิดอยู่'}</span></div>
-      <p class="hint">คลิปจะเปิดด้วย <b>ภาพบ้านที่เด่นที่สุด</b> พร้อมเสียงบอกจุดเด่นทันที (ข้อความแก้ได้ที่ท่อน "ฮุก" ด้านล่าง) แล้วจึงตามด้วยไตเติลมาสคอตทักทาย → ทำเล → รายละเอียดห้องต่างๆ</p>
+      return `<div class="seg"><div class="seg-h"><b>🌟 ฮุกหลังไตเติล: ภาพบ้านเด่นที่สุด + เสียงบอกจุดเด่นทันที</b><span class="badge">${h ? '~' + Math.round(hookDur()) + ' วิ' : 'ปิดอยู่'}</span></div>
+      <p class="hint">คลิปเริ่มที่ <b>ไตเติลมาสคอตทักทาย</b> แล้วต่อด้วย <b>ภาพบ้านที่เด่นที่สุด</b> พร้อมเสียงบอกจุดเด่นทันที (ข้อความแก้ได้ที่ท่อน "ฮุก" ด้านล่าง) จากนั้นจึงพาไปดูทำเล → รายละเอียดห้องต่างๆ</p>
       ${srcIt ? `<div class="mini"><img src="${urlOf(srcIt)}" alt=""><small>ภาพเด่นที่ใช้: ${(srcIt.room || 'ยังไม่ตั้งห้อง')}${state.hero && state.hero.id === srcIt.id ? '' : ' (เลือกให้อัตโนมัติ)'}</small></div>` : ''}
       <div class="tools"><button class="ib wide" id="heroPick" ${hasI ? '' : 'disabled'}>🖼️ เปลี่ยนภาพเด่น</button><button class="ib wide" id="hookTog" ${hasI ? '' : 'disabled'}>${state.hookOn === false ? '▶ เปิดฮุก' : '⏹ ปิดฮุก'}</button></div></div>`; })()}
     <div id="segs">${segs.map(card).join('')}</div>
@@ -1010,7 +1010,7 @@ function viewRender() {
     <h2>เรนเดอร์เป็น MP4</h2>
     <p class="hint">ขนาด ${s.name} (${s.w}×${s.h}) · ${imgs.length} รูป/คลิป · ยาวประมาณ ${predictedTotal().toFixed(1)} วินาที (รวมฉากมาสคอต/คลิปรถวิ่งที่เปิดใช้)${skipped ? ` · คลิปสั้น ${skipped} ไฟล์ยังไม่ถูกใช้ (รอบหน้า)` : ''}</p>
     ${blockers.length ? `<div class="soon" style="border-color:#b00020;color:#b00020;text-align:left">❌ ยังเรนเดอร์ไม่ได้ เพราะผังเรื่องยังขาด:<br>${blockers.map(b => '• ' + b.label.replace(/^\d+\. /, '') + ' — ' + b.info).join('<br>')}<br><br><button class="btn alt" id="openSb">📋 เปิดผังเรื่อง</button></div>` : ''}
- <label class="sw"><input type="checkbox" id="capOn" ${state.capOn !== false ? 'checked' : ''}> ป้ายชื่อสถานที่/ชื่อรูป บนภาพ (ชื่อที่คุณตั้งให้รูป เช่น "โรงพยาบาลหัวหิน")</label>
+ <label class="sw"><input type="checkbox" id="capOn" ${state.capOn !== false ? 'checked' : ''}> ป้ายชื่อรูปของตัวบ้าน บนภาพ (เฉพาะรูปห้อง/ตัวบ้านที่คุณตั้งชื่อ · ชื่อสถานที่ทำเลไม่ขึ้นป้าย ใช้พากย์อย่างเดียว)</label>
     <label class="sw"><input type="checkbox" id="ovl" ${state.overlay ? 'checked' : ''}> ป้ายข้อความระหว่างคลิป เช่น "3 ห้องนอน" "พื้นที่ใช้สอย ..." โผล่เป็นระยะ (ใช้ข้อมูลบ้านที่กรอกไว้)</label>
     <label class="sw">การเปลี่ยนภาพ: <select id="trs"><option value="auto" ${state.trans === 'auto' ? 'selected' : ''}>หลากหลายอัตโนมัติ (สไลด์ ซูม เปิดวงกลม แฟลช)</option><option value="fade" ${state.trans === 'fade' ? 'selected' : ''}>เฟดนุ่มๆ อย่างเดียว</option></select></label>
     <label class="sw"><input type="checkbox" id="stretch" ${state.stretch ? 'checked' : ''}> ยืดเวลาให้ครบความยาวเป้าหมาย (ช่วงที่มีรูปน้อยจะซูม/แพนหลายมุม · ปิด = รูปละ 2 วินาทีตามสไตล์เดิม)</label>
@@ -1044,7 +1044,7 @@ function viewRender() {
       const sceneList = [];
       if (lib.closeBuiltin) sceneList.push({ at: gimgs.length, scene: await closeScene() });
       if (PL.routeOk) sceneList.push({ at: PL.routeAt, scene: await routeScene(state.routeData) });
-      if (lib.titleBuiltin) sceneList.push({ at: PL.hero ? 1 : 0, scene: await titleScene() });
+      if (lib.titleBuiltin) sceneList.push({ at: 0, scene: await titleScene() });
       const hasAudio = (state.audio.mode === 'single' ? state.audio.single : Object.keys(audStore()).length) || state.audio.music || state.audio.sfx;
       let audioMix = null;
       if (hasAudio) { $('#prog').textContent = 'กำลังผสมเสียง...'; audioMix = await buildMix(starts, total, sceneAt); }
@@ -1368,9 +1368,9 @@ function makePlan() {
   Object.entries(segPlan()).forEach(([k, P]) => P.imgs.forEach(i => idKey.set(i.id, k)));
   if (state.audio.mode === 'beats') beatsList().forEach(b => b.imgs.forEach(i => idBeat.set(i.id, b.id)));
   const entries = [];
-  if (hero) entries.push({ key: 'hook', dur: hookDur(), cap: (hero.title || '').trim() || null, sub: catLabelOf(state.items.find(i => i.id === hero.srcId) || {}) });
   if (lib.titleBuiltin) entries.push({ key: 'open', dur: titleDur(), title: true });
-  imgs.forEach((im, i) => { if (isHeroId(im.id)) return; if (routeOk && i === routeAt) entries.push({ key: null, dur: ROUTE_DUR }); entries.push({ key: idKey.get(im.id) || null, bkey: idBeat.get(im.id) || null, dur: durs[i].dur, cap: (im.title || '').trim() || null, sub: placeSubOf(im) || catLabelOf(im) }); });
+  if (hero) entries.push({ key: 'hook', dur: hookDur(), cap: (hero.title || '').trim() || null, sub: catLabelOf(state.items.find(i => i.id === hero.srcId) || {}) });
+  imgs.forEach((im, i) => { if (isHeroId(im.id)) return; if (routeOk && i === routeAt) entries.push({ key: null, dur: ROUTE_DUR }); entries.push({ key: idKey.get(im.id) || null, bkey: idBeat.get(im.id) || null, dur: durs[i].dur, cap: (!im.cat && (im.title || '').trim()) || null, sub: catLabelOf(im) }); });
   if (routeOk && routeAt >= imgs.length) entries.push({ key: null, dur: ROUTE_DUR });
   if (lib.closeBuiltin) entries.push({ key: 'close', dur: closeDur(), close: true });
   const starts = {}, sceneAt = {}; let acc = 0;

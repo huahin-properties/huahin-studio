@@ -25,8 +25,7 @@ const ROOM_EN = { 'หน้าบ้าน/ภายนอก': 'EXTERIOR', '�
 function overlayLabels(key, f) {
   const n = v => String(v || '').trim(), num = v => /^[\d.,]+$/.test(n(v));
   const out = [];
-  if (key === 'area') { out.push({ l1: 'หัวหิน · ปราณบุรี · ชะอำ', l2: 'HUA HIN LIVING' }); if (n(f.travel)) out.push({ l1: n(f.travel), l2: 'LOCATION' }); return out; }
-  if (key === 'life') return [{ l1: 'ไลฟ์สไตล์ริมทะเล', l2: 'LIFESTYLE' }];
+  if (key === 'area' || key === 'life') return out; // ช่วงทำเล/ไลฟ์สไตล์ไม่ขึ้นป้าย (ภาพล้วน + เสียงพากย์) ป้ายใช้เฉพาะตัวบ้าน
   if (!key || !key.startsWith('room:')) return out;
   const room = key.slice(5), en = ROOM_EN[room] || '';
   if (room === 'ห้องนอน' || room === 'ห้องนอนใหญ่') { if (num(f.beds)) out.push({ l1: `${n(f.beds)} ห้องนอน`, l2: `${n(f.beds)} ${Number(n(f.beds)) === 1 ? 'BEDROOM' : 'BEDROOMS'}` }); }

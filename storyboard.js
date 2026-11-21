@@ -246,7 +246,7 @@ function openPlaces(after) {
   const orphanHtml = () => orphans().length ? `<div class="seg"><b>รูปเดิมที่ยังไม่ผูกกับสถานที่ (${orphans().length})</b><p class="hint">รูปที่เคยใส่ไว้ในหมวดโดยตรง ลบออกหรือเพิ่มสถานที่แล้วใส่รูปใหม่ได้</p><div class="pph">${orphans().map(x => `<div class="pphi">${x.type === 'video' ? `<video src="${urlOf(x)}#t=0.1" muted playsinline></video>` : `<img src="${urlOf(x)}" alt="">`}<button class="x" data-pdel="${x.id}" aria-label="ลบ">✕</button></div>`).join('')}</div></div>` : '';
   const draw = () => { const sc = d.scrollTop; d.querySelector('#prows').innerHTML = orphanHtml() + (lib.places.length ? lib.places.map(card).join('') : '<div class="soon">ยังไม่มีสถานที่ กด "+ เพิ่มสถานที่ใหม่"</div>'); d.scrollTop = sc; };
   d.innerHTML = `<div class="sh-head"><b>📍 สถานที่สำคัญ</b><button class="ib" data-a="x" aria-label="ปิด">✕</button></div>
-    <p class="hint">ใส่ <b>ชื่อ + พิกัด + รูป</b> ของแต่ละสถานที่ไว้ที่นี่ที่เดียว ใช้ซ้ำทุกคลิป · พิกัด: เปิด Google Maps กดค้างที่จุดนั้นแล้วแตะตัวเลขพิกัดด้านบนเพื่อคัดลอก · ที่ไม่ใส่พิกัดจะไม่ถูกใช้คำนวณระยะทาง · รูปที่ใส่ที่นี่จะเข้าสต็อกภาพทำเลตามหมวด และขึ้นป้ายชื่อ+ระยะทางบนภาพในคลิป</p>
+    <p class="hint">ใส่ <b>ชื่อ + พิกัด + รูป</b> ของแต่ละสถานที่ไว้ที่นี่ที่เดียว ใช้ซ้ำทุกคลิป · พิกัด: เปิด Google Maps กดค้างที่จุดนั้นแล้วแตะตัวเลขพิกัดด้านบนเพื่อคัดลอก · ที่ไม่ใส่พิกัดจะไม่ถูกใช้คำนวณระยะทาง · รูปที่ใส่ที่นี่จะเข้าสต็อกภาพทำเลตามหมวด ชื่อและระยะทางใช้ดึงไปเขียนสคริปต์/พากย์ <b>ไม่ขึ้นป้ายบนภาพ</b></p>
     <button class="btn alt" data-a="add">+ เพิ่มสถานที่ใหม่</button>
     <div id="prows"></div>
     <button class="btn alt" data-a="add">+ เพิ่มสถานที่ใหม่</button><button class="btn" data-a="x">เสร็จ</button>`;
