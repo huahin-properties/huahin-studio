@@ -104,7 +104,7 @@ function computeMouthEnv(voice, sr, fps = 30) {
 const _e = x => (x < 0 ? 0 : x > 1 ? 1 : x * x * (3 - 2 * x)), _r = (t, a, d) => _e((t - a) / d); // ค่าไล่ 0→1
 const MOVES = ['cross', 'sit', 'return', 'lie'];
 const PRESENTER = { on: false, spans: [], size: 0.28, side: 'left', move: true, prep() {
-  let cur = this.side === 'left' ? 0 : 1; // 0 = ซ้าย, 1 = ขวา
+  let cur = 0; // 0 = มุมบ้านเดิม, 1 = ปลายทางเดิน (ห่างจากมุมเดิม 70% ของความกว้างจอ)
   this.spans.forEach((sp, i) => { const L = sp.end - sp.start; sp.from = cur; sp.mv = L < 6 ? 'stand' : MOVES[i % MOVES.length]; if (sp.mv === 'cross' || (sp.mv === 'sit' && L > 9)) cur = 1 - cur; sp.to = cur; });
   this._prep = this.spans.length;
 },
@@ -112,24 +112,24 @@ draw(ctx, W, H, t) {
   const sp = this.spans.find(s => t >= s.start && t < s.end); if (!sp || !MASCOT_IMG[sp.pose]) return;
   if (this._prep !== this.spans.length) this.prep();
   const k = t - sp.start, L = sp.end - sp.start, h = H * this.size, img = MASCOT_IMG[sp.pose], w = img.width * h / img.height, mg = W * 0.015;
-  const xl = w * 0.55 + mg, xr = W - w * 0.55 - mg, X = f => xl + (xr - xl) * f;
+  const xl = w * 0.55 + mg, xr = W - w * 0.55 - mg, TRAVEL = 0.7, X = f => (this.side === 'left' ? xl + (xr - xl) * TRAVEL * f : xr - (xr - xl) * TRAVEL * f);
   let f = sp.from, walk = 0, dir = 0, sit = 0, lie = 0;
-  if (!this.move) { f = this.side === 'left' ? 0 : 1; }
+  if (!this.move) { f = 0; }
   else {
-    const WD = 2.4, go = (a, from, to) => { const p = _r(k, a, WD); if (p > 0 && p < 1) { walk = 1; dir = to > from ? 1 : -1; } return from + (to - from) * p; };
+    const WD = 2.4, go = (a, from, to) => { const p = _r(k, a, WD); if (p > 0 && p < 1) { walk = 1; dir = X(to) > X(from) ? 1 : -1; } return from + (to - from) * p; };
     if (sp.mv === 'cross') f = go(Math.min(2.2, L * 0.25), sp.from, sp.to);
     else if (sp.mv === 'return') { const a = Math.min(2, L * 0.2), b2 = L * 0.62, o = 1 - sp.from; f = k < b2 ? go(a, sp.from, o) : go(b2, o, sp.from); }
     else if (sp.mv === 'sit') { const a = L * 0.18, b2 = L - (sp.to !== sp.from ? WD + 0.6 : 1.2); sit = _r(k, a, 0.8) * (1 - _r(k, b2 - 0.8, 0.8)); if (sp.to !== sp.from) f = go(b2 + 0.4, sp.from, sp.to); }
     else if (sp.mv === 'lie') { const a = L * 0.3, b2 = a + Math.min(4.5, L * 0.35); lie = _r(k, a, 0.9) * (1 - _r(k, b2, 0.9)); }
   }
   let cx = X(f), step = walk ? Math.abs(Math.sin(k * Math.PI * 2.3)) : 0, hop = k < 0.4 ? (1 - k / 0.4) * H * 0.07 : 0;
-  const bob = Math.sin(t * 2.6) * H * 0.004 * (1 - lie), flip = f > 0.5 && !walk ? 1 : walk && dir < 0 ? 1 : 0;
-  let yoff = -hop - step * H * 0.022 + bob + sit * h * 0.34 - lie * w * 0.46, rot = walk ? Math.sin(k * Math.PI * 2.3) * 0.06 : sit ? Math.sin(t * 2) * 0.02 * sit : 0;
+  const bob = Math.sin(t * 2.6) * H * 0.004 * (1 - lie), flip = walk ? (dir < 0 ? 1 : 0) : (cx > W / 2 ? 1 : 0);
+  let yoff = -hop - step * H * 0.022 + bob - lie * w * 0.46, rot = walk ? Math.sin(k * Math.PI * 2.3) * 0.06 : sit ? Math.sin(t * 2) * 0.02 * sit : 0;
   if (lie) { rot = -lie * 1.5; cx = Math.max(cx, h * 0.98 + mg); cx = Math.min(cx, W - mg - w * 0.1); }
   const mo = mouthAt(t), bottom = H - H * 0.015;
   ctx.save();
   if (flip && !lie) { ctx.translate(cx, 0); ctx.scale(-1, 1); ctx.translate(-cx, 0); }
-  if (sit > 0) { ctx.beginPath(); ctx.rect(0, 0, W, bottom + H * 0.015 - 1); ctx.clip(); } // ขาห้อยพ้นขอบจอ = นั่งที่ขอบ
+  if (sit > 0) { ctx.translate(cx, bottom); ctx.scale(1 + 0.07 * sit, 1 - 0.17 * sit); ctx.translate(-cx, -bottom); } // นั่งยอง: ตัวเตี้ยลง แต่ยังอยู่ในจอครบตัว
   drawMascotTalking(ctx, sp.pose, cx, bottom, h, { mouth: mo.m, wf: mo.wf, blink: lie > 0.6 ? 1 : blinkAt(t, sp.seed || 0), yoff, rot });
   ctx.restore();
   if (lie > 0.85) { ctx.save(); ctx.fillStyle = 'rgba(255,255,255,.9)'; ctx.strokeStyle = 'rgba(90,24,32,.8)'; ctx.lineWidth = H * 0.003; ctx.textAlign = 'left'; ['z', 'Z', 'Z'].forEach((c, i) => { const q = ((t * 0.6 + i * 0.33) % 1), fs = H * (0.022 + i * 0.01); ctx.globalAlpha = Math.sin(Math.PI * q) * lie; ctx.font = `700 ${fs}px sans-serif`; const px = cx - h * 1.0 + q * H * 0.05 + i * H * 0.02, py = H - H * 0.015 - w * 0.9 - q * H * 0.07; ctx.strokeText(c, px, py); ctx.fillText(c, px, py); }); ctx.restore(); }
