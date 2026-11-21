@@ -84,11 +84,11 @@ function kitMediaBlock() {
   const L = [], h = typeof heroItem === 'function' ? heroItem() : null, src = h && state.items.find(i => i.id === h.srcId);
   if (src) L.push(`- ภาพเด่นเปิดคลิป: ${src.name || 'ภาพ'} (ห้อง/มุม: ${src.room || 'ยังไม่ตั้งห้อง'})`);
   const cats = typeof AREA_CATS !== 'undefined' ? AREA_CATS.map(c => [c.label, libArea(c.id).length]).filter(x => x[1]) : [];
-  cats.forEach(([lb, c]) => L.push(`- ภาพทำเลหัวหิน (${lb}): ${c} ภาพ`));
+  cats.forEach(([lb, c]) => { const cid = AREA_CATS.find(z => z.label === lb).id, nm = libArea(cid).map(i => String(i.title || '').trim()).filter(Boolean); L.push(`- ภาพทำเลหัวหิน (${lb}): ${c} ภาพ${nm.length ? ' · ชื่อสถานที่ในภาพ: ' + nm.join(', ') : ''}`); });
   if (typeof lifeItems === 'function' && lifeItems().length) L.push(`- ภาพไลฟ์สไตล์: ${lifeItems().length} ภาพ`);
   const byRoom = {}; state.items.forEach(i => { const r = i.room || 'ยังไม่ตั้งห้อง'; (byRoom[r] = byRoom[r] || []).push(i); });
   const order = typeof ROOMS !== 'undefined' ? [...ROOMS, 'ยังไม่ตั้งห้อง'] : Object.keys(byRoom);
-  order.filter(r => byRoom[r]).forEach(r => { const its = byRoom[r], im = its.filter(i => i.type === 'image'), vd = its.length - im.length; L.push(`- ${r}: ${im.length} ภาพ${vd ? ` + ${vd} วิดีโอ` : ''} (ไฟล์: ${its.slice(0, 6).map(i => i.name).join(', ')}${its.length > 6 ? ' ...' : ''})`); });
+  order.filter(r => byRoom[r]).forEach(r => { const its = byRoom[r], im = its.filter(i => i.type === 'image'), vd = its.length - im.length; L.push(`- ${r}: ${im.length} ภาพ${vd ? ` + ${vd} วิดีโอ` : ''} (ไฟล์: ${its.slice(0, 6).map(i => (i.title || '').trim() ? i.name + ' = ' + i.title.trim() : i.name).join(', ')}${its.length > 6 ? ' ...' : ''})`); });
   if (state.routeData) L.push('- มีคลิปแผนที่เส้นทางขับรถเข้าโครงการ');
   if (!L.length) L.push(`- ${WAIT}`);
   L.push(`- ขนาดคลิปในแอปตอนนี้: ${(typeof SIZES !== 'undefined' && (SIZES.find(s => s.id === state.size) || {}).name) || state.size} (แม่แบบคำสั่งระบุวิดีโอแนวนอน ถ้าต้องการขนาดอื่นแจ้งเพิ่มได้)`);

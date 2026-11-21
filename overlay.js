@@ -38,14 +38,18 @@ function overlayLabels(key, f) {
   return out;
 }
 // entries = รายการเวลา [{key, dur}] ตามที่ตัวเรนเดอร์ประกอบ → ป้ายแรกโผล่ที่ 0.8 วิหลังเริ่มช่วง และซ้ำทุก ~9 วิถ้าช่วงยาว (ไม่เกิน 3 ป้ายต่อช่วง)
-function buildOverlayEvents(entries, f) {
-  const spans = []; let tt = 0, cur = null;
-  entries.forEach(e => { if (e.key && e.key !== 'open' && e.key !== 'close' && e.key !== 'hook') { if (cur && cur.key === e.key) cur.b = tt + e.dur; else { cur = { key: e.key, a: tt, b: tt + e.dur }; spans.push(cur); } } else cur = null; tt += e.dur; });
+function buildOverlayEvents(entries, f, opt = { labels: true, caps: true }) {
+  const spans = []; let tt = 0, cur = null; const caps = [];
+  entries.forEach(e => {
+    if (e.cap && e.dur >= 1.8) caps.push({ a: tt + (e.key === 'hook' ? 0.6 : 0.5), b: tt + Math.min(e.dur - 0.3, 4.6), l1: e.cap, l2: e.sub || '' });
+    if (e.key && e.key !== 'open' && e.key !== 'close' && e.key !== 'hook') { if (cur && cur.key === e.key) cur.b = tt + e.dur; else { cur = { key: e.key, a: tt, b: tt + e.dur }; spans.push(cur); } } else cur = null; tt += e.dur;
+  });
   const events = [];
-  spans.forEach(sp => {
+  if (opt.labels !== false) spans.forEach(sp => {
     const labs = overlayLabels(sp.key, f); if (!labs.length) return;
     const len = sp.b - sp.a; let t = sp.a + 0.8, i = 0;
     while (i < Math.min(3, Math.max(labs.length, 1)) && t + 2.4 <= sp.b) { const L = labs[i % labs.length]; events.push({ a: t, b: Math.min(t + 3.4, sp.b - 0.2), l1: L.l1, l2: L.l2 }); t += 9; i++; if (len < 12) break; }
   });
+  if (opt.caps !== false) caps.forEach(c => { if (c.b - c.a >= 1.2) { for (let k = events.length - 1; k >= 0; k--) if (events[k].a < c.b && events[k].b > c.a) events.splice(k, 1); events.push(c); } }); // ชื่อรูปมาก่อนป้ายห้อง ถ้าเวลาชนกัน
   return events.sort((x, y) => x.a - y.a);
 }
