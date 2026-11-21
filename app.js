@@ -644,7 +644,9 @@ function viewScript() {
   $('#ttsOpen').onclick = () => {
     const chunks = ttsChunks(); if (!chunks.length) { alert('ยังไม่มีสคริปต์ให้คัดลอก'); return; }
     const d = document.createElement('div'); d.className = 'sheet tall'; d.id = 'ttsSheet';
-    d.innerHTML = `<div class="sh-head"><b>🔊 สร้างเสียง (ทีละช่วง)</b><button class="ib" data-a="x" aria-label="ปิด">✕</button></div>
+    d.innerHTML = `<div class="sh-head"><b>🔊 สร้างเสียง</b><button class="ib" data-a="x" aria-label="ปิด">✕</button></div>
+      <p class="hint"><b>ลำดับที่ถูกต้อง:</b> ① คัดลอกสไตล์ → วางช่อง Style ② คัดลอกสคริปต์ → วางช่องข้อความ ③ เลือกผู้พูดคนเดียวตลอด ④ Run ⑤ ดาวน์โหลดไฟล์เสียง</p>
+      ${styleCardHtml()}
       <p class="hint"><b>หรือแยกทำทีละช่วง</b> ตามลำดับ: กด <b>คัดลอก</b> → กด <b>เปิดหน้าสร้างเสียง</b> → ในช่องข้อความ <b>ลบของเก่าให้ว่างก่อน</b> แล้ววาง → ตรวจว่าบรรทัดแรกตรงกับ "ขึ้นต้นว่า" ด้านล่าง → สร้างเสียง → ตั้งชื่อไฟล์ตามเลขช่วง (เช่น ช่วง 1 = <b>01</b>) แล้วทำช่วงต่อไป</p>
       ${chunks.map((c, i) => `<div class="seg"><div class="seg-h"><b>ช่วง ${String(i + 1).padStart(2, '0')} · ท่อน ${c.nos[0]}${c.nos.length > 1 ? '–' + c.nos[c.nos.length - 1] : ''}</b><span class="badge">${c.len} ตัวอักษร · ~${secOf(c.texts.join(''))} วิ</span></div>
         <p class="hint">ขึ้นต้นว่า: <b>"${c.texts[0].slice(0, 32).replace(/</g, '&lt;')}…"</b></p>
@@ -658,7 +660,7 @@ function viewScript() {
       const b = e.target.closest('[data-cc]'); if (!b) return;
       const ok = await copyText(chunks[+b.dataset.cc].texts.join('\n\n')); flash(b, ok);
     };
-    document.body.appendChild(d);
+    document.body.appendChild(d); bindStyleCard(d);
   };
   $('#linkEdit').onclick = async () => {
     const c = prompt('ลิงก์หน้าเขียนสคริปต์ (AI Studio แชต) · เว้นว่าง = ค่ามาตรฐาน', lib.links.chat); if (c === null) return;
@@ -952,6 +954,21 @@ async function startPreview() {
   previewTimer = setInterval(tick, 1000 / 30);
 }
 
+// ---- การ์ดสไตล์เสียง (ตั้งครั้งเดียว ใช้ทุกคลิป): คัดลอกไปวางในช่อง Style ของ AI Studio ----
+function styleCardHtml() {
+  return `<div class="seg"><b>🎬 สไตล์เสียง (วางในช่อง "Style" ของ AI Studio)</b>
+    <label class="fl"><span>เลือกแบบสำเร็จรูป</span><select class="ct" id="styPreset"><option value="">— แก้เอง —</option>${Object.entries(VOICE_STYLES).map(([k, v]) => `<option value="${k}" ${lib.voiceStyle === v.text ? 'selected' : ''}>${v.label}</option>`).join('')}</select></label>
+    <textarea class="sct" id="styText" rows="5">${lib.voiceStyle.replace(/</g, '&lt;')}</textarea>
+    <div class="tools"><button class="ib wide" id="styCopy">📋 คัดลอกสไตล์</button></div>
+    <p class="hint">วางในช่อง <b>Style</b> (ปุ่ม Style เหนือช่องข้อความในหน้าสร้างเสียง) <b>ไม่ใช่</b>ในช่องข้อความ ไม่เช่นนั้นเสียงอาจอ่านคำสั่งออกมา · แอปใส่ให้อัตโนมัติไม่ได้ เพราะเป็นเว็บของ Google · ตั้งไว้ครั้งเดียว ใช้กับทุกคลิป</p></div>`;
+}
+function bindStyleCard(root) {
+  const t = root.querySelector('#styText'), pr = root.querySelector('#styPreset'), cp = root.querySelector('#styCopy');
+  pr.onchange = () => { if (pr.value) { lib.voiceStyle = VOICE_STYLES[pr.value].text; t.value = lib.voiceStyle; saveLib(); } };
+  t.oninput = () => { lib.voiceStyle = t.value; const m = Object.entries(VOICE_STYLES).find(([, v]) => v.text === t.value); pr.value = m ? m[0] : ''; saveLib(); };
+  cp.onclick = async () => { const o = cp.dataset.o || cp.textContent; cp.dataset.o = o; const ok = await copyText(lib.voiceStyle); cp.textContent = ok ? '✓ คัดลอกสไตล์แล้ว' : 'คัดลอกไม่ได้'; setTimeout(() => { cp.textContent = o; }, 1500); };
+}
+
 // ---- ขั้น 5: เสียง ----
 const audioCtxClass = () => window.OfflineAudioContext || window.webkitOfflineAudioContext;
 async function decodeBlob(blob, sr = 44100) { const ctx = new (audioCtxClass())(1, 1, sr); return ctx.decodeAudioData(await blob.arrayBuffer()); }
@@ -991,6 +1008,8 @@ function viewAudio() {
       <div class="tools"><button class="ib wide" data-pick="${i + 1}">${a ? '↻ เปลี่ยนไฟล์' : '+ เลือกไฟล์เสียง'}</button>${a ? `<button class="ib" data-rm="${i + 1}" aria-label="ลบ">🗑️</button>` : ''}</div></div>`; }).join('')}` : '<div class="soon">ยังไม่มีสคริปต์ กลับไปขั้น 4 ก่อน</div>';
   $('#view').innerHTML = `
     <h2>5 เสียง: เสียงพากย์และเพลง</h2>
+    ${checklistHtml()}
+    ${styleCardHtml()}
     <p class="hint">ใส่เสียงที่สร้างจาก Google AI Studio แอปจะวัดความยาวเสียงจริง ปรับเวลาแสดงรูปของแต่ละท่อนให้ตรงกับเสียง ให้มาสคอตขยับปากตามความดังของเสียง และใส่เสียงเข้าไฟล์ MP4 · ยังไม่มีเสียง กลับไป <button class="lnk" id="goScript">ขั้น 4 สคริปต์</button></p>
     <label class="sw"><input type="radio" name="amode" value="single" ${single ? 'checked' : ''}> ไฟล์เดียวทั้งคลิป (แนะนำ เสียงเป็นเนื้อเดียวกัน)</label>
     <label class="sw"><input type="radio" name="amode" value="chunks" ${single ? '' : 'checked'}> แยกเป็นหลายช่วง</label>
@@ -1002,6 +1021,7 @@ function viewAudio() {
       <p class="hint">เพลงเล่นตลอดคลิป ค่อยๆ ดังขึ้นตอนต้น และค่อยๆ เบาลงตอนจบ · เพลงยาวกว่าคลิปจะถูกตัด สั้นกว่าจะเล่นวน</p></div>
     <label class="sw"><input type="checkbox" id="sfx" ${A.sfx ? 'checked' : ''}> เสียงเอฟเฟกต์ที่แอปสร้างให้ (ตอนมาสคอตกระโดดลงมาและตอนดีใจ ในไตเติลและเครดิต)</label>
     <button class="btn" id="nx">ถัดไป: 6 มาสคอต →</button><button class="btn alt" id="bk">← ย้อนกลับ</button>`;
+  bindStyleCard($('#view'));
   const rerender = () => viewAudio();
   const msg = t => { const m = $('#audMsg'); if (m) m.textContent = t; };
   const pickNum = f => { const m = f.name.replace(/\.[^.]+$/, '').match(/(\d{1,2})/); return m ? +m[1] : null; };
@@ -1031,6 +1051,19 @@ function viewAudio() {
   $('#mv').oninput = e => { A.musicVol = +e.target.value; $('#mvTxt').textContent = A.musicVol + '%'; save(); };
   $('#sfx').onchange = e => { A.sfx = e.target.checked; save(); };
   $('#goScript').onclick = () => go(3); $('#nx').onclick = () => go(5); $('#bk').onclick = () => go(3);
+}
+function checklistHtml() {
+  const A = state.audio, segs = scriptSegmentsAll(), withText = segs.filter(g => g.text.trim()), allText = segs.length > 0 && withText.length === segs.length;
+  const voice = A.mode === 'single' ? !!A.single : Object.keys(A.chunks).length > 0, al = A.mode === 'single' && A.single ? singleAlign() : null;
+  const seams = al ? al.slice(1) : [], found = seams.filter(x => x.found).length, stale = A.mode === 'single' && A.single && A.single.sig !== fullSig();
+  const row = (ok, t, sub) => `<div class="ckrow ${ok === true ? 'ok' : ok === false ? 'no' : ''}"><span>${ok === true ? '✅' : ok === false ? '⬜' : '➖'}</span><div><b>${t}</b>${sub ? `<small>${sub}</small>` : ''}</div></div>`;
+  return `<div class="seg"><b>📋 ขั้นตอนทำเสียงให้เรียบร้อย</b>
+    ${row(allText, '1) สคริปต์ครบทุกท่อน (เปิดคลิป → ห้องต่างๆ → ปิดท้าย) และตรวจข้อมูลแล้ว', allText ? '' : 'ยังมีท่อนว่าง กลับไปขั้น 4')}
+    ${row(null, '2) นอกแอป: คัดลอกสไตล์ → ช่อง Style · คัดลอกทั้งคลิป → ช่องข้อความ · เลือกผู้พูดคนเดียว → Run → ดาวน์โหลด', 'ขั้น 4 กด 🔊 สร้างเสียง')}
+    ${row(voice, '3) ใส่ไฟล์เสียงในแอป', voice ? '' : 'กดปุ่มด้านล่าง')}
+    ${row(A.mode === 'single' ? (al ? (found === seams.length && !stale) : false) : null, '4) รอยต่อแต่ละท่อนตรงกับเสียง', A.mode === 'single' ? (al ? `${found}/${seams.length} รอยต่อพบช่วงเงียบ${stale ? ' · สคริปต์ถูกแก้หลังอัปโหลดเสียง' : ''} · กด ▶ ฟังตรวจแต่ละรอยต่อ` : 'ยังไม่มีไฟล์เสียง') : 'โหมดแยกช่วง: เวลาในช่วงเดียวกันแบ่งตามความยาวข้อความ')}
+    ${row(false, '5) ขั้น 6 ตรวจท่ามาสคอต แล้ว ขั้น 7 เรนเดอร์', '')}
+  </div>`;
 }
 const fullSig = () => chunkSig({ texts: scriptSegmentsAll().filter(g => g.text.trim()).map(g => g.text.trim()) });
 
