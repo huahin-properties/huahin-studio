@@ -9,7 +9,7 @@ const SIZES = [
 const ROOMS = [AREA_ROOM, MAP_ROOM, 'หน้าบ้าน/ภายนอก','ที่จอดรถ','ห้องนั่งเล่น','ห้องทานอาหาร','ครัว','ห้องนอนใหญ่','ห้องนอน','ห้องน้ำ','สระว่ายน้ำ','สวน/ระเบียง','วิวรอบๆ','อื่นๆ'];
 const STEPS = ['1 ขนาด','2 ใส่รูป/คลิป','3 สี','4 สคริปต์','5 เสียง','6 มาสคอต','7 เรนเดอร์'];
 
-const state = { routeData: null, skipMap: false, facts: { name: '', beds: '', baths: '', usable: '', land: '', price: '', travel: '', coord: '', routeStart: '', routeLabel: '', highlights: '' }, slot: 'title', step: 0, size: '4:5', items: [], color: { ...COLOR_DEFAULT }, useArea: true, contact: { mode: 'std', custom: { name: '', phone: '', line: '' } }, script: { area: '', rooms: {}, en: {}, enSrc: {} } };
+const state = { targetSec: 150, routeData: null, skipMap: false, facts: { name: '', beds: '', baths: '', usable: '', land: '', price: '', travel: '', coord: '', routeStart: '', routeLabel: '', highlights: '' }, slot: 'title', step: 0, size: '4:5', items: [], color: { ...COLOR_DEFAULT }, useArea: true, contact: { mode: 'std', custom: { name: '', phone: '', line: '' } }, script: { area: '', rooms: {}, en: {}, enSrc: {} } };
 let nextId = 1;
 
 // ---- เก็บงานไว้ในเครื่อง (IndexedDB) ปิดแอปแล้วงานไม่หาย ----
@@ -22,10 +22,10 @@ const DB = {
   async get(k) { const db = await this.open(); return new Promise(res => { const q = db.transaction('kv').objectStore('kv').get(k); q.onsuccess = () => res(q.result); }); },
   async set(k, v) { const db = await this.open(); return new Promise(res => { const tx = db.transaction('kv', 'readwrite'); tx.objectStore('kv').put(v, k); tx.oncomplete = res; }); },
 };
-const save = () => (typeof updateSb === 'function' && updateSb(), DB.set('project', { v: 2, routeData: state.routeData, skipMap: state.skipMap, facts: state.facts, useArea: state.useArea, contact: state.contact, size: state.size, color: state.color, script: state.script, items: state.items.map(({ id, blob, type, room, name }) => ({ id, blob, type, room, name })) }));
+const save = () => (typeof updateSb === 'function' && updateSb(), DB.set('project', { v: 2, targetSec: state.targetSec, routeData: state.routeData, skipMap: state.skipMap, facts: state.facts, useArea: state.useArea, contact: state.contact, size: state.size, color: state.color, script: state.script, items: state.items.map(({ id, blob, type, room, name }) => ({ id, blob, type, room, name })) }));
 async function load() {
   await loadLib(); const p = await DB.get('project');
-  if (p) { if (!p.v) p.items.forEach(i => { if (i.room === 'หน้าบ้าน/ภายนอก') i.room = ''; }); state.size = p.size; state.color = { ...COLOR_DEFAULT, ...(p.color || {}) }; state.script = { area: '', rooms: {}, en: {}, enSrc: {}, ...(p.script || {}) }; state.skipMap = !!p.skipMap; state.routeData = p.routeData || null; state.facts = { ...state.facts, ...(p.facts || {}) }; state.useArea = true; state.contact = { mode: 'std', ...(p.contact || {}), custom: { name: '', phone: '', line: '', ...((p.contact || {}).custom || {}) } }; state.items = p.items; nextId = Math.max(0, ...p.items.map(i => i.id)) + 1; }
+  if (p) { if (!p.v) p.items.forEach(i => { if (i.room === 'หน้าบ้าน/ภายนอก') i.room = ''; }); state.size = p.size; state.color = { ...COLOR_DEFAULT, ...(p.color || {}) }; state.script = { area: '', rooms: {}, en: {}, enSrc: {}, ...(p.script || {}) }; state.skipMap = !!p.skipMap; state.targetSec = p.targetSec || 150; state.routeData = p.routeData || null; state.facts = { ...state.facts, ...(p.facts || {}) }; state.useArea = true; state.contact = { mode: 'std', ...(p.contact || {}), custom: { name: '', phone: '', line: '', ...((p.contact || {}).custom || {}) } }; state.items = p.items; nextId = Math.max(0, ...p.items.map(i => i.id)) + 1; }
 }
 
 const $ = s => document.querySelector(s);
@@ -110,41 +110,103 @@ function viewSize() {
 }
 
 // ---- ร่างสคริปต์อัตโนมัติ: ใช้ข้อความประจำห้อง + ข้อมูลบ้านที่กรอก (เติมเฉพาะท่อนที่ยังว่าง ไม่ทับของเดิม) ----
-function draftFor(sl) {
+// คลังประโยคประจำช่วง (ใช้ข้อมูลบ้านที่กรอก ไม่แต่งข้อมูลที่ไม่มี) · เรียงตามลำดับการเล่า
+function bankFor(id) {
   const f = state.facts, n = v => String(v || '').trim();
   const num = v => /^[\d.,]+$/.test(n(v));
   const area = v => (num(v) ? `${n(v)} ตารางเมตร` : n(v)), wah = v => (num(v) ? `${n(v)} ตารางวา` : n(v));
   const price = v => { if (!num(v)) return n(v); const x = Number(n(v).replace(/,/g, '')); return x < 1000 ? `${n(v)} ล้านบาท` : `${x.toLocaleString('th-TH')} บาท`; };
   const intro = n(f.name) ? `บ้านหลังนี้อยู่ใน ${n(f.name)}` : 'บ้านหลังนี้';
   const bits = [n(f.beds) && `${n(f.beds)} ห้องนอน`, n(f.baths) && `${n(f.baths)} ห้องน้ำ`, n(f.usable) && `พื้นที่ใช้สอย ${area(f.usable)}`, n(f.land) && `บนที่ดิน ${wah(f.land)}`].filter(Boolean);
-  const T = {
-    cat: 'หัวหินเมืองริมทะเลที่มีครบทุกอย่าง ทั้งชายหาดสวย ตลาดและร้านอาหารหลากหลาย ธรรมชาติภูเขาให้พักผ่อน เหมาะทั้งอยู่อาศัยจริงและลงทุน',
-    map: mapScriptText() || (n(f.travel) ? `เดินทางสะดวก ${n(f.travel)}` : 'เดินทางเข้าถึงสะดวก ใกล้ทุกความสะดวกสบายในเมืองหัวหิน'),
-    ext: `${intro} หน้าบ้านกว้างขวาง ดูโปร่งสบาย${bits.length ? ' ' + bits.join(' ') : ''}${n(f.highlights) ? ' จุดเด่นคือ ' + n(f.highlights) : ''}${n(f.price) ? ' ราคา ' + price(f.price) : ''}`,
-    park: 'มีที่จอดรถสะดวก จอดได้สบาย',
-    liv: 'ห้องนั่งเล่นโปร่งโล่ง รับแสงธรรมชาติ ตกแต่งอบอุ่น เหมาะกับการนั่งเล่นพักผ่อนกับครอบครัว',
-    dine: 'ห้องทานอาหารกว้างขวาง ทานข้าวด้วยกันได้ทั้งครอบครัว',
-    kit: 'ห้องครัวทันสมัย พื้นที่ใช้งานกว้าง เคาน์เตอร์และเครื่องใช้ครบครัน ทำอาหารได้สะดวก',
-    bed: `ห้องนอนสบาย เงียบสงบ ${n(f.beds) ? 'มีให้ ' + n(f.beds) + ' ห้องนอน ' : ''}พักผ่อนได้เต็มที่`,
-    bath: `ห้องน้ำสะอาดทันสมัย ${n(f.baths) ? 'มีทั้งหมด ' + n(f.baths) + ' ห้อง ' : ''}พร้อมใช้งาน`,
-    pool: 'สระว่ายน้ำส่วนตัว ผ่อนคลายได้ทุกวัน ไม่ต้องไปไหนไกล',
-    garden: 'พื้นที่สวนและระเบียงสำหรับนั่งพักผ่อน รับลมสบายๆ',
-    life: 'ใช้ชีวิตแบบที่คุณชอบ อยู่กับครอบครัว ออกกำลังกายตอนเช้า ไปตลาดใกล้บ้าน ทุกวันสะดวกสบาย',
+  const B = {
+    'cat': ['หัวหินคือเมืองริมทะเลที่ใครๆ ก็รัก ทั้งความสงบ ความสะดวก และบรรยากาศที่ผ่อนคลาย',
+      'ชายหาดทรายทอดยาว เหมาะกับการเดินเล่นยามเช้า และชมพระอาทิตย์ตกยามเย็น',
+      'ตลาดและร้านอาหารหลากหลาย ตั้งแต่อาหารทะเลสดๆ ไปจนถึงร้านคาเฟ่น่านั่ง',
+      'ชีวิตประจำวันสะดวกสบาย มีทั้งห้างสรรพสินค้า โรงพยาบาล และสถานที่ท่องเที่ยวให้เลือกมากมาย',
+      'ธรรมชาติรอบเมืองก็สวยงาม ทั้งภูเขา น้ำตก และทุ่งกว้าง ให้ได้พักใจอยู่ใกล้ๆ',
+      'จากกรุงเทพฯ เดินทางมาไม่ไกล จึงเหมาะทั้งเป็นบ้านพักผ่อนสุดสัปดาห์ และบ้านอยู่อาศัยจริง',
+      'นี่คือเหตุผลที่หัวหินเป็นเมืองที่น่าอยู่ และน่าลงทุนตลอดทั้งปี'],
+    'map': [mapScriptText(), 'ทำเลเข้าถึงสะดวก เส้นทางเข้าโครงการชัดเจน', 'ไม่ว่าจะมาจากกรุงเทพฯ หรือจากตัวเมืองหัวหิน ก็มาถึงได้ไม่ยาก', 'ใกล้ความเจริญ แต่ยังคงความเงียบสงบเป็นส่วนตัว'],
+    'ext': [`${intro} หน้าบ้านกว้างขวาง ดูโปร่งสบาย${bits.length ? ' ' + bits.join(' ') : ''}`,
+      'เมื่อมาถึง คุณจะสัมผัสได้ถึงความเป็นส่วนตัวตั้งแต่หน้าบ้าน',
+      'ดีไซน์ภายนอกทันสมัย ดูอบอุ่นและโปร่งสบาย',
+      'พื้นที่หน้าบ้านกว้างขวาง ต้อนรับทั้งครอบครัวและแขกที่มาเยือน',
+      n(f.highlights) ? `จุดเด่นของบ้านหลังนี้ คือ ${n(f.highlights)}` : '',
+      'บ้านที่ออกแบบมาเพื่อการอยู่อาศัยจริง ทั้งสวยงามและใช้งานได้สะดวก',
+      n(f.price) ? `ราคาเพียง ${price(f.price)}` : ''],
+    'park': ['ที่จอดรถสะดวก จอดได้สบาย', 'เข้าออกง่าย ไม่ต้องกังวลเรื่องที่จอดรถทั้งของครอบครัวและแขก', 'อยู่ในรั้วบ้านของคุณเอง อุ่นใจในทุกวัน'],
+    'liv': ['ก้าวเข้ามาในบ้าน จะพบกับห้องนั่งเล่นโปร่งโล่ง', 'แสงธรรมชาติส่องถึง ทำให้บรรยากาศอบอุ่นและน่าอยู่', 'เป็นพื้นที่ที่คุณจะได้ใช้เวลากับครอบครัว ดูหนัง พูดคุย และพักผ่อนหลังวันที่เหนื่อยล้า', 'วางเฟอร์นิเจอร์ได้ตามสไตล์ที่คุณชอบ เพื่อให้เป็นมุมโปรดของทุกคน'],
+    'dine': ['ใกล้กันคือพื้นที่ทานอาหาร กว้างขวาง', 'ทานข้าวด้วยกันได้ทั้งครอบครัว หรือเลี้ยงรับรองแขกได้สบายๆ', 'บรรยากาศเปิดโล่ง เชื่อมต่อกับพื้นที่ใช้สอยอื่นๆ ได้อย่างลงตัว'],
+    'kit': ['ห้องครัวทันสมัย พื้นที่ใช้งานกว้างขวาง', 'เคาน์เตอร์และพื้นที่เตรียมอาหารเพียงพอ ทำอาหารได้สะดวกทุกมื้อ', 'วางเครื่องใช้ไฟฟ้าได้ครบ ไม่อึดอัด', 'เป็นมุมโปรดของคนรักการทำอาหาร และเป็นศูนย์กลางของครอบครัว'],
+    'bed': ['มาถึงห้องนอน พื้นที่เงียบสงบ เหมาะกับการพักผ่อนอย่างแท้จริง', n(f.beds) ? `บ้านหลังนี้มี ${n(f.beds)} ห้องนอน เหมาะกับครอบครัวและแขกที่มาพัก` : '', 'แสงสว่างเพียงพอ ระบายอากาศดี หลับสบายทุกคืน', 'จัดวางเตียงและเฟอร์นิเจอร์ได้ตามต้องการ'],
+    'bath': ['ห้องน้ำสะอาด ทันสมัย', n(f.baths) ? `มีทั้งหมด ${n(f.baths)} ห้องน้ำ สะดวกสำหรับทุกคนในบ้าน` : '', 'พื้นที่ใช้งานสะดวกสบาย เหมาะกับทุกคนในครอบครัว'],
+    'pool': ['และไฮไลต์ของบ้านหลังนี้ คือสระว่ายน้ำส่วนตัว', 'ผ่อนคลายได้ทุกวัน ไม่ต้องไปไหนไกล', 'เหมาะกับการว่ายน้ำออกกำลังกายตอนเช้า หรือนั่งริมสระรับลมยามเย็น', 'เด็กๆ เล่นน้ำได้อย่างสนุก เป็นความสุขของทั้งครอบครัว'],
+    'garden': ['พื้นที่สวนและระเบียงสำหรับนั่งพักผ่อน รับลมสบายๆ', 'จิบกาแฟยามเช้า หรือจัดปาร์ตี้เล็กๆ กับคนที่คุณรัก', 'เติมความเขียวขจีให้บ้าน และช่วยให้ใจสงบ'],
+    'life': ['ใช้ชีวิตแบบที่คุณชอบ อยู่กับครอบครัว ออกกำลังกายตอนเช้า ไปตลาดใกล้บ้าน ทุกวันสะดวกสบาย', 'เช้าๆ ตื่นมาออกกำลังกาย รับอากาศดีๆ', 'บ่ายๆ พาครอบครัวไปทะเล', 'เย็นๆ ซื้อของสดจากตลาด กลับมาทำอาหารทานด้วยกันที่บ้าน', 'นี่คือชีวิตที่หัวหินมอบให้ และบ้านหลังนี้ คือจุดเริ่มต้น'],
   };
-  if (sl.cat === 'lifestyle') return T.life;
-  if (sl.cat) return T.cat;
-  return T[sl.id] || '';
+  const key = id === 'cat-lifestyle' ? 'life' : id.startsWith('cat-') ? 'cat' : id;
+  return (B[key] || []).filter(Boolean);
 }
-function draftAll() {
-  let n = 0, seen = new Set();
-  SLOTS.forEach(sl => {
-    const cur = getSlotScript(sl); if (cur === null || secOf(cur) > 0) return;
-    if (!slotItems(sl).length) return;
-    const key = JSON.stringify(slotScript(sl)); if (seen.has(key)) return; seen.add(key);
-    const t = draftFor(sl); if (t) { setSlotScript(sl, t); n++; }
+const SEG_WEIGHT = { 'cat-city': 14, map: 7, ext: 12, park: 3, liv: 9, dine: 4, kit: 10, bed: 10, bath: 5, pool: 9, garden: 4, 'cat-lifestyle': 9 };
+function segSlot(g) {
+  if (g.key === 'life') return SLOTS.find(x => x.cat === 'lifestyle');
+  if (g.key === 'area') return SLOTS.find(x => x.cat === 'city');
+  return SLOTS.find(x => x.kind === 'room' && x.rooms.includes(g.room));
+}
+// เวลาเป้าหมาย (วินาที) ของแต่ละท่อน แบ่งตามน้ำหนักของช่วง
+function segTargets() {
+  const segs = scriptSegments(), w = g => (SEG_WEIGHT[(segSlot(g) || {}).id] || 6), sum = segs.reduce((a, g) => a + w(g), 0) || 1;
+  const m = {}; segs.forEach(g => { m[g.key] = Math.round(state.targetSec * w(g) / sum); }); return m;
+}
+// เติมประโยคจากคลังให้ถึงเป้า (ไม่ลบ/ทับข้อความที่มีอยู่)
+function expandAll() {
+  const T = segTargets(); let changed = 0;
+  scriptSegments().forEach(g => {
+    const sl = segSlot(g); if (!sl) return;
+    let cur = (g.text || '').trim(), added = 0;
+    for (const sent of bankFor(sl.id)) {
+      if (secOf(cur) >= T[g.key]) break;
+      if (cur.includes(sent.slice(0, 20))) continue;
+      cur = cur ? cur + ' ' + sent : sent; added++;
+    }
+    if (added) { setSlotScript(sl, cur); changed++; }
   });
+  return changed;
+}
+const draftAll = expandAll;
+const totalSecNow = () => scriptSegments().reduce((a, g) => a + secOf(g.text), 0);
+function expandMsg(n) {
+  const tot = totalSecNow(), tgt = state.targetSec, short = tot < tgt * 0.9;
+  return (n ? `เติมสคริปต์ให้ ${n} ช่วง · รวมตอนนี้ ~${mmss(tot)} จากเป้า ${mmss(tgt)}` : `ไม่มีช่วงที่เติมได้เพิ่ม · รวมตอนนี้ ~${mmss(tot)} จากเป้า ${mmss(tgt)}`)
+    + (short ? '\n\nยังไม่ถึงเป้า วิธีเพิ่มเนื้อหา: (1) ใส่รูปห้องเพิ่มและกรอก 🏠 ข้อมูลบ้านให้ครบ (2) เขียนเพิ่มเอง (3) กด 🤖 คัดลอกคำสั่งให้ AI ใน Google AI Studio เขียนให้ยาวและละเอียดขึ้น แล้วกด 📥 วางสคริปต์จาก AI' : '');
+}
+// คำสั่งสำหรับ AI (Google AI Studio) เขียนสคริปต์ยาวตามเป้า
+function buildAiPrompt() {
+  const f = state.facts, T = segTargets(), lines = [];
+  [['ชื่อโครงการ', f.name], ['ห้องนอน', f.beds], ['ห้องน้ำ', f.baths], ['พื้นที่ใช้สอย (ตร.ม.)', f.usable], ['ที่ดิน (ตร.ว.)', f.land], ['ราคา (ล้านบาท)', f.price], ['จุดเด่น', f.highlights]].forEach(([k, v]) => { if (String(v || '').trim()) lines.push(`- ${k}: ${v}`); });
+  const near = typeof mapScriptText === 'function' ? mapScriptText(4) : ''; if (near) lines.push('- ระยะทาง (ประมาณการ): ' + near);
+  const segs = scriptSegments().map((g, i) => `[${String(g.no).padStart(2, '0')}] ${g.label} · เป้าหมาย ${T[g.key]} วินาที (ประมาณ ${T[g.key] * SPEAK_CPS} ตัวอักษร)${g.text.trim() ? ' · ร่างเดิม: ' + g.text.trim() : ''}`);
+  return `คุณคือผู้เขียนสคริปต์พากย์คลิปแนะนำบ้านพักตากอากาศระดับพรีเมียมที่หัวหิน สไตล์ luxury editorial อบอุ่น เป็นกันเอง เล่าเหมือนพาเดินชมบ้านจริง ใช้ภาษาไทยที่พูดแล้วลื่นไหลและน่าฟัง
+
+ข้อมูลบ้าน (ใช้เฉพาะข้อมูลนี้ ห้ามแต่งตัวเลข ราคา หรือสิ่งอำนวยความสะดวกที่ไม่ได้ให้ไว้):
+${lines.join('\n') || '- (ไม่มีข้อมูลเพิ่มเติม)'}
+
+ให้เขียนสคริปต์พากย์ทีละท่อนตามรายการนี้ ความยาวรวมประมาณ ${state.targetSec} วินาที โดยแต่ละท่อนให้ยาวตามเป้าหมายที่ระบุ:
+${segs.join('\n')}
+
+กติกาการตอบ:
+- ตอบเป็นภาษาไทย แต่ละท่อนขึ้นต้นด้วยเลขท่อนในวงเล็บเหลี่ยม เช่น [01] แล้วขึ้นบรรทัดใหม่ตามด้วยข้อความ เว้นบรรทัดระหว่างท่อน
+- ห้ามใส่หัวข้อ เครื่องหมาย markdown หรือคำอธิบายอื่นนอกจากเลขท่อนและข้อความพากย์
+- ไม่ต้องกล่าวสวัสดีหรือปิดท้าย เพราะมีคลิปไตเติลและเครดิตปิดแยกอยู่แล้ว`;
+}
+// วางสคริปต์จาก AI: แยกตาม [01] [02] ... แล้วใส่เข้าท่อนที่ตรงกัน
+function applyAiScript(text) {
+  const parts = [...text.matchAll(/\[(\d{1,2})\]\s*([\s\S]*?)(?=\n\s*\[\d{1,2}\]|$)/g)]; let n = 0;
+  const segs = scriptSegments();
+  parts.forEach(m => { const g = segs.find(x => x.no === +m[1]); const t = m[2].trim(); const sl = g && segSlot(g); if (g && sl && t) { setSlotScript(sl, t); n++; } });
   return n;
 }
+
 function openFacts(after) {
   document.querySelector('#factsSheet')?.remove();
   const f = state.facts, d = document.createElement('div'); d.className = 'sheet tall'; d.id = 'factsSheet';
@@ -165,7 +227,7 @@ function openFacts(after) {
     if (a === 'places') { openPlaces(prev); return; }
     if (a === 'dist') { const t = mapScriptText(); if (!t) { alert('ยังสร้างไม่ได้: ต้องวางพิกัดบ้าน และพิกัดสถานที่สำคัญอย่างน้อย 1 แห่ง'); return; } const cur = state.script.rooms[MAP_ROOM]; if (cur && cur.trim() && !confirm('มีสคริปต์ท่อนแผนที่อยู่แล้ว ต้องการแทนที่ใช่ไหม?')) return; state.script.rooms[MAP_ROOM] = t; save(); alert('สร้างสคริปต์ระยะทางแล้ว (ใช้กับท่อน แผนที่/การเดินทาง)\n\n' + t); return; }
     d.remove();
-    if (a === 'draft') { const n = draftAll(); alert(n ? `ร่างสคริปต์ให้ ${n} ช่วงแล้ว (เฉพาะที่ยังว่าง) ลองอ่านและแก้ได้เลย` : 'ทุกช่วงที่มีรูปมีสคริปต์อยู่แล้ว ไม่มีท่อนว่างให้ร่าง'); }
+    if (a === 'draft') { alert(expandMsg(draftAll())); }
     if (after) after();
   };
   document.body.appendChild(d);
@@ -297,7 +359,7 @@ function viewSlots() {
     if (confirm('ลบไฟล์นี้ใช่ไหม?')) { await removeFromSlot(sl, +x.dataset.del); updateSb(); refreshAll(); }
   };
   $('#btnFacts').onclick = () => openFacts(() => refreshAll());
-  $('#btnDraft').onclick = () => { const n = draftAll(); alert(n ? `ร่างสคริปต์ให้ ${n} ช่วงแล้ว (เฉพาะที่ยังว่าง) ถ้าอยากให้ใส่ราคา/ห้องนอน กดปุ่ม 🏠 ข้อมูลบ้าน แล้วร่างอีกครั้งได้` : 'ไม่มีท่อนว่างให้ร่าง (ท่อนที่ยังไม่มีรูปจะไม่ถูกร่าง)'); refreshAll(); };
+  $('#btnDraft').onclick = () => { alert(expandMsg(draftAll())); refreshAll(); };
   refreshAll();
 }
 
@@ -358,6 +420,7 @@ async function translateTh2En(text) {
 function viewScript() {
   organizeItems(); save();
   const segs = scriptSegments(), no2 = n => String(n).padStart(2, '0');
+  let segT = segTargets();
   const sc = state.script; sc.en = sc.en || {}; sc.enSrc = sc.enSrc || {};
   const setText = (seg, v) => { if (seg.key === 'life') sc.life = v; else if (seg.key === 'area') sc.area = v; else sc.rooms[seg.room] = v; };
   const total = () => scriptSegments().reduce((a, g) => a + secOf(g.text), 0);
@@ -366,7 +429,7 @@ function viewScript() {
   const card = g => {
     const its = g.key === 'life' ? lifeItems() : g.key === 'area' ? areaItems() : state.items.filter(i => i.room === g.room);
     return `<div class="seg" data-key="${g.key}">
-      <div class="seg-h"><b>${no2(g.no)} · ${g.label}</b><span class="badge" data-t="${g.key}">~${secOf(g.text)} วิ</span></div>
+      <div class="seg-h"><b>${no2(g.no)} · ${g.label}</b><span class="badge" data-t="${g.key}">~${secOf(g.text)} / เป้า ${segT[g.key]} วิ</span></div>
       ${its.length ? `<div class="mini">${its.slice(0, 4).map(i => i.type === 'image' ? `<img src="${urlOf(i)}" alt="">` : '<span>🎬</span>').join('')}<small>${its.length} รูป/คลิป</small></div>` : ''}
       <div class="lang"><span>🇹🇭 ไทย</span><button class="ib sm" data-cp="th:${g.key}">📋 ไทย</button></div>
       <textarea rows="3" data-k="${g.key}" placeholder="พิมพ์เรื่องเล่าของห้องนี้...">${g.text.replace(/</g, '&lt;')}</textarea>
@@ -377,7 +440,11 @@ function viewScript() {
   };
   $('#view').innerHTML = `
     <h2>4 สคริปต์: เรื่องราว</h2>
-    <div class="tools"><button class="ib wide" id="s4Facts">🏠 ข้อมูลบ้าน</button><button class="ib wide danger" id="s4Draft">✨ ร่างให้</button></div>
+    <div class="seg"><b>🎯 เป้าหมายเสียงพากย์ทั้งคลิป</b>
+      <div class="tgt"><input class="ct" id="tgt" type="number" inputmode="numeric" min="30" max="600" value="${state.targetSec}"><span>วินาที (<b id="tgtTxt">${mmss(state.targetSec)}</b>) · ไตเติล/เครดิตปิดแยกต่างหาก</span></div>
+      <div class="sbar ok" id="totBar" style="height:10px"><i style="width:0%"></i></div><small class="sbl" id="totTxt"></small>
+      <div class="tools"><button class="ib wide danger" id="s4Draft">✨ เติมให้ครบเวลา</button><button class="ib wide" id="s4Facts">🏠 ข้อมูลบ้าน</button></div>
+      <div class="tools"><button class="ib wide" id="aiCopy">🤖 คัดลอกคำสั่งให้ AI เขียน</button><button class="ib wide" id="aiPaste">📥 วางสคริปต์จาก AI</button></div></div>
     <div class="tools"><button class="ib wide" id="trAll">🌐 แปลทั้งหมด</button><button class="ib wide" data-all="th">📋 ไทยทั้งหมด</button><button class="ib wide" data-all="en">📋 EN ทั้งหมด</button></div>
     <p class="hint" id="saved">💾 บันทึกอัตโนมัติทุกครั้งที่พิมพ์</p>
     <p class="hint">เวลารวมโดยประมาณ <b id="tot">${mmss(total())}</b> (เป้าหมายประมาณ 3:00) · ไตเติลและหน้าปิดเป็นคลิปประจำ ไม่ต้องเขียนสคริปต์</p>
@@ -395,15 +462,16 @@ function viewScript() {
     if (empty.length) msgs.push('ท่อนที่ยังว่าง: ' + empty.join(', '));
     $('#warn').innerHTML = msgs.join('<br>');
   };
-  warn();
+  const updTot = () => { const tot = totalSecNow(), pct = Math.min(100, Math.round(tot / state.targetSec * 100)); const bar = $('#totBar'); bar.querySelector('i').style.width = pct + '%'; bar.className = 'sbar ' + (tot >= state.targetSec * 0.9 ? 'ok' : 'no'); $('#totTxt').textContent = `รวมตอนนี้ ~${mmss(tot)} จากเป้า ${mmss(state.targetSec)} (${pct}%)${tot < state.targetSec * 0.9 ? ' · ยังสั้นกว่าเป้า' : ' · ถึงเป้าแล้ว'}`; $('#totTxt').className = 'sbl ' + (tot >= state.targetSec * 0.9 ? 'ok' : 'no'); };
+  updTot(); warn();
   const stamp = () => { const d = new Date(); $('#saved').textContent = `💾 บันทึกแล้ว ${d.toLocaleTimeString('th-TH')}`; };
   $('#segs').oninput = e => {
     const ta = e.target.closest('textarea'); if (!ta) return;
     if (ta.dataset.e) { sc.en[ta.dataset.e] = ta.value; sc.enSrc[ta.dataset.e] = (scriptSegments().find(x => x.key === ta.dataset.e) || {}).text; save(); stamp(); return; }
     const g = scriptSegments().find(x => x.key === ta.dataset.k); setText(g, ta.value); save(); stamp();
-    document.querySelector(`[data-t="${CSS.escape(g.key)}"]`).textContent = `~${secOf(ta.value)} วิ`;
+    document.querySelector(`[data-t="${CSS.escape(g.key)}"]`).textContent = `~${secOf(ta.value)} / เป้า ${segT[g.key]} วิ`;
     document.querySelector(`[data-w="${CSS.escape(g.key)}"]`).textContent = staleTxt({ key: g.key, text: ta.value });
-    $('#tot').textContent = mmss(total()); warn();
+    $('#tot').textContent = mmss(total()); updTot(); warn();
   };
   const flash = (btn, ok) => { const o = btn.dataset.o || btn.textContent; btn.dataset.o = o; btn.textContent = ok ? '✓ คัดลอกแล้ว' : 'คัดลอกไม่ได้'; setTimeout(() => { btn.textContent = o; }, 1500); };
   const doTranslate = async g => {
@@ -433,7 +501,20 @@ function viewScript() {
   });
   $('#nx').onclick = () => go(4); $('#bk').onclick = () => go(2);
   $('#s4Facts').onclick = () => openFacts(() => viewScript());
-  $('#s4Draft').onclick = () => { const n = draftAll(); alert(n ? `ร่างสคริปต์ให้ ${n} ช่วงแล้ว (เฉพาะที่ยังว่าง)` : 'ไม่มีท่อนว่างให้ร่าง'); viewScript(); };
+  $('#tgt').oninput = e => { const v = Math.max(30, Math.min(600, +e.target.value || 150)); state.targetSec = v; $('#tgtTxt').textContent = mmss(v); save(); segT = segTargets(); document.querySelectorAll('[data-t]').forEach(b => { const g = scriptSegments().find(x => x.key === b.dataset.t); if (g) b.textContent = `~${secOf(g.text)} / เป้า ${segT[g.key]} วิ`; }); updTot(); };
+  $('#s4Draft').onclick = () => { const n = draftAll(); alert(expandMsg(n)); viewScript(); };
+  $('#aiCopy').onclick = async e => { flash(e.currentTarget, await copyText(buildAiPrompt())); };
+  $('#aiPaste').onclick = () => {
+    const d = document.createElement('div'); d.className = 'sheet tall'; d.id = 'pasteSheet';
+    d.innerHTML = `<div class="sh-head"><b>📥 วางสคริปต์จาก AI</b><button class="ib" data-a="x" aria-label="ปิด">✕</button></div>
+      <p class="hint">วางข้อความที่ AI เขียนให้ รูปแบบ [01] ข้อความ [02] ข้อความ ... ท่อนที่ตรงเลขจะถูกแทนที่ด้วยข้อความใหม่ (ไทย) · แปลอังกฤษใหม่ทีหลังได้</p>
+      <textarea class="sct" id="pasteBox" rows="10" placeholder="[01]\nข้อความท่อนที่ 1...\n\n[02]\nข้อความท่อนที่ 2..."></textarea>
+      <button class="btn" data-a="ok">✓ ใส่สคริปต์</button><button class="btn alt" data-a="x">ยกเลิก</button>`;
+    d.onclick = e => { const a = e.target.closest('[data-a]')?.dataset.a; if (!a) return;
+      if (a === 'ok') { const n = applyAiScript(d.querySelector('#pasteBox').value); if (!n) { alert('อ่านไม่ออก: ต้องมี [01] [02] ... นำหน้าแต่ละท่อน'); return; } d.remove(); alert(`ใส่สคริปต์ให้ ${n} ท่อนแล้ว`); viewScript(); return; }
+      d.remove(); };
+    document.body.appendChild(d);
+  };
 }
 
 // ---- ขั้น 3: ปรับสี ----
