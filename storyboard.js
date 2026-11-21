@@ -29,12 +29,12 @@ const SLOTS = [
   { id: 'close', ico: '🏁', short: 'เครดิตปิด', label: 'เครดิตปิดท้าย (คลิปประจำ)', kind: 'lib', min: 1, rec: 1, max1: true, hint: 'คลิปเครดิต/ข้อมูลติดต่อปิดท้าย · 1 ไฟล์ · ใส่ครั้งเดียวใช้ซ้ำทุกคลิป' },
 ];
 const DEFAULT_PLACES = ['หาดหัวหิน', 'ตลาดโต้รุ่งหัวหิน', 'สถานีรถไฟหัวหิน', 'สนามบินหัวหิน', 'เขาตะเกียบ', 'ซีคาด้า มาร์เก็ต', 'มาร์เก็ต วิลเลจ'];
-const lib = { titleBuiltin: true, closeBuiltin: true, title: null, close: null, area: [], contact: { name: '', phone: '', line: '' }, places: DEFAULT_PLACES.map((name, i) => ({ id: i + 1, name, coord: '' })) };
+const lib = { brand: { greeting: '', tagline: '', subtitle: '', thanks: '', invite: '' }, titleBuiltin: true, closeBuiltin: true, title: null, close: null, area: [], contact: { name: '', phone: '', line: '' }, places: DEFAULT_PLACES.map((name, i) => ({ id: i + 1, name, coord: '' })) };
 let libSeq = 1000000;
 const saveLib = () => DB.set('library', lib);
 async function loadLib() {
   const l = await DB.get('library'); if (!l) return;
-  lib.contact = { name: '', phone: '', line: '', ...(l.contact || {}) }; lib.titleBuiltin = l.titleBuiltin !== false; lib.closeBuiltin = l.closeBuiltin !== false; lib.title = l.title || null; lib.close = l.close || null; lib.area = l.area || []; if (l.places && l.places.length) lib.places = l.places;
+  lib.contact = { name: '', phone: '', line: '', ...(l.contact || {}) }; lib.brand = { ...lib.brand, ...(l.brand || {}) }; lib.titleBuiltin = l.titleBuiltin !== false; lib.closeBuiltin = l.closeBuiltin !== false; lib.title = l.title || null; lib.close = l.close || null; lib.area = l.area || []; if (l.places && l.places.length) lib.places = l.places;
   libSeq = Math.max(libSeq, ...lib.area.map(a => a.id || 0), (lib.title && lib.title.id) || 0, (lib.close && lib.close.id) || 0) + 1;
 }
 const libArea = cat => lib.area.filter(x => x.cat === cat);

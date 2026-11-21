@@ -1,5 +1,8 @@
 // ฉันไตเติลและเครดิตปิดของแอป: มาสคอตโผล่มาโบกมือ + ชื่อแบรนด์ + สโลแกน (วาดด้วยโค้ดชุดเดียวกับพรีวิวและเรนเดอร์ MP4)
 const TITLE_DUR = 6, CLOSE_DUR = 7;
+const BRAND_DEFAULT = { greeting: 'สวัสดีครับ', tagline: 'YOUR HOME IS OUR PRIORITY', subtitle: '', thanks: 'ขอบคุณที่รับชมครับ', invite: 'สนใจติดต่อ' };
+// ข้อความแบรนด์ตั้งครั้งเดียวในคลังกลาง (lib.brand) ใช้ซ้ำทุกคลิป · ช่องว่าง = ใช้ค่ามาตรฐาน
+const BR = () => { const b = (typeof lib !== 'undefined' && lib.brand) || {}, o = {}; for (const k in BRAND_DEFAULT) o[k] = (k === 'subtitle' ? (b[k] || '') : ((b[k] || '').trim() || BRAND_DEFAULT[k])); return o; };
 const BRAND_TAGLINE = 'YOUR HOME IS OUR PRIORITY';
 const MASCOT_FILES = ['wave', 'hello', 'celebrate', 'yourhome', 'greeting'];
 const mascotCache = {};
@@ -60,10 +63,10 @@ async function titleScene() {
       else { pose = M.celebrate; yoff = -Math.abs(Math.sin((t - 4.2) * 4)) * 40 * u; }
       drawMascot(ctx, pose, cx, bottom, mh, yoff, rot);
       if (t > 4.2) for (let i = 0; i < 6; i++) sparkle(ctx, cx + Math.cos(i * 1.1 + t) * mh * 0.42, bottom - mh * 0.55 + Math.sin(i * 1.7 + t * 2) * mh * 0.4, (14 + (i % 3) * 7) * u, (Math.sin(t * 6 + i) + 1) / 2);
-      const tx = land ? W * 0.68 : W / 2, mw = land ? W * 0.55 : W * 0.82, y0 = land ? H * 0.32 : H * 0.65, sub = (state.facts && state.facts.name || '').trim() || 'บ้านพักตากอากาศ หัวหิน';
-      drawText(ctx, 'สวัสดีครับ', tx, y0, { t, at: 1.0, size: 120 * u, color: '#7a1f2b', family: SANS, maxW: mw, shadow: true });
+      const tx = land ? W * 0.68 : W / 2, mw = land ? W * 0.55 : W * 0.82, y0 = land ? H * 0.32 : H * 0.65, B = BR(), sub = (B.subtitle || '').trim() || (state.facts && state.facts.name || '').trim() || 'บ้านพักตากอากาศ หัวหิน';
+      drawText(ctx, B.greeting, tx, y0, { t, at: 1.0, size: 120 * u, color: '#7a1f2b', family: SANS, maxW: mw, shadow: true });
       brandLine(ctx, tx, y0 + 120 * u, 78 * u, t, 1.7, mw);
-      drawText(ctx, BRAND_TAGLINE, tx, y0 + 195 * u, { t, at: 2.3, size: 32 * u, color: '#b8862d', family: SANS, maxW: mw, spacing: `${5 * u}px`, weight: '600' });
+      drawText(ctx, B.tagline, tx, y0 + 195 * u, { t, at: 2.3, size: 32 * u, color: '#b8862d', family: SANS, maxW: mw, spacing: `${5 * u}px`, weight: '600' });
       drawText(ctx, sub, tx, y0 + 270 * u, { t, at: 3.0, size: 46 * u, color: '#2e2220', family: SANS, maxW: mw, weight: '600' });
     },
   };
@@ -79,16 +82,16 @@ async function closeScene() {
       const pose = t < 1.0 ? M.greeting : (Math.floor((t - 1.0) / 1.2) % 2 ? M.greeting : M.yourhome);
       drawMascot(ctx, pose, cx, bottom, mh, yoff);
       const tx = land ? W * 0.68 : W / 2, mw = land ? W * 0.55 : W * 0.84, y0 = land ? H * 0.22 : H * 0.55;
-      drawText(ctx, 'ขอบคุณที่รับชมครับ', tx, y0, { t, at: 1.0, size: 78 * u, color: '#7a1f2b', family: SANS, maxW: mw });
+      drawText(ctx, BR().thanks, tx, y0, { t, at: 1.0, size: 78 * u, color: '#7a1f2b', family: SANS, maxW: mw });
       let y = y0 + 95 * u;
       if (ct && (ct.phone || '').trim()) {
-        drawText(ctx, 'สนใจติดต่อ', tx, y, { t, at: 1.6, size: 40 * u, color: '#2e2220', family: SANS, maxW: mw, weight: '600' }); y += 80 * u;
+        drawText(ctx, BR().invite, tx, y, { t, at: 1.6, size: 40 * u, color: '#2e2220', family: SANS, maxW: mw, weight: '600' }); y += 80 * u;
         if ((ct.name || '').trim()) { drawText(ctx, ct.name.trim(), tx, y, { t, at: 2.0, size: 52 * u, color: '#7a1f2b', family: SERIF, maxW: mw }); y += 82 * u; }
         drawText(ctx, '📞 ' + ct.phone.trim(), tx, y, { t, at: 2.4, size: 92 * u, color: '#2e2220', family: SANS, maxW: mw }); y += 100 * u;
         if ((ct.line || '').trim()) { drawText(ctx, 'LINE: ' + ct.line.trim(), tx, y, { t, at: 2.8, size: 58 * u, color: '#2e7d4f', family: SANS, maxW: mw }); y += 90 * u; }
       } else { drawText(ctx, 'ติดต่อสอบถามได้ที่', tx, y, { t, at: 1.6, size: 44 * u, color: '#2e2220', family: SANS, maxW: mw, weight: '600' }); y += 90 * u; }
       brandLine(ctx, tx, y + 10 * u, 74 * u, t, 3.2, mw);
-      drawText(ctx, BRAND_TAGLINE, tx, y + 85 * u, { t, at: 3.6, size: 30 * u, color: '#b8862d', family: SANS, maxW: mw, spacing: `${5 * u}px`, weight: '600' });
+      drawText(ctx, BR().tagline, tx, y + 85 * u, { t, at: 3.6, size: 30 * u, color: '#b8862d', family: SANS, maxW: mw, spacing: `${5 * u}px`, weight: '600' });
     },
   };
 }

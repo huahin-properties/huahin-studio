@@ -255,7 +255,10 @@ function scriptBarHtml(sl) {
 
 const sceneModeHtml = sl => `<label class="sw"><input type="radio" name="tmode" value="builtin" ${lib[sl.id + 'Builtin'] ? 'checked' : ''}> 🎬 ใช้${sl.id === 'title' ? 'ไตเติล' : 'เครดิตปิด'}ของแอป (มาสคอต Huahin Properties)</label>
   <label class="sw"><input type="radio" name="tmode" value="custom" ${lib[sl.id + 'Builtin'] ? '' : 'checked'}> ใช้ไฟล์ของฉันเอง</label>
-  ${lib[sl.id + 'Builtin'] ? `<canvas id="scenePrev" class="rprev"></canvas><p class="hint">${sl.id === 'title' ? 'มาสคอตโผล่มาโบกมือ พร้อมชื่อแบรนด์ สโลแกน และชื่อโครงการ (จาก 🏠 ข้อมูลบ้าน)' : 'มาสคอตส่งกุญแจบ้าน พร้อมเบอร์โทร/LINE ตามที่ตั้งในแท็บ ☎️ ติดต่อ'} · ต่อเข้า MP4 ให้อัตโนมัติ</p>` : '<p class="hint">ไฟล์รูปจะถูกต่อเข้า MP4 (คลิปวิดีโอยังไม่รองรับ)</p>'}`;
+  ${lib[sl.id + 'Builtin'] ? `<canvas id="scenePrev" class="rprev"></canvas><p class="hint">${sl.id === 'title' ? 'มาสคอตโผล่มาโบกมือ พร้อมชื่อแบรนด์ สโลแกน และชื่อโครงการ (จาก 🏠 ข้อมูลบ้าน)' : 'มาสคอตส่งกุญแจบ้าน พร้อมเบอร์โทร/LINE ตามที่ตั้งในแท็บ ☎️ ติดต่อ'} · ต่อเข้า MP4 ให้อัตโนมัติ</p>
+    <div class="seg"><b>✏️ แก้ข้อความ (ตั้งครั้งเดียว ใช้กับทุกคลิป)</b>
+      ${(sl.id === 'title' ? [['greeting', 'คำทักทาย', BRAND_DEFAULT.greeting], ['tagline', 'สโลแกน', BRAND_DEFAULT.tagline], ['subtitle', 'บรรทัดล่าง (เว้นว่าง = ใช้ชื่อโครงการของแต่ละบ้านอัตโนมัติ)', 'เช่น บ้านพักตากอากาศ หัวหิน']] : [['thanks', 'ข้อความขอบคุณ', BRAND_DEFAULT.thanks], ['invite', 'ข้อความเชิญติดต่อ', BRAND_DEFAULT.invite], ['tagline', 'สโลแกน', BRAND_DEFAULT.tagline]]).map(([k, lab, ph]) => `<label class="fl"><span>${lab}</span><input class="ct" data-b="${k}" placeholder="${ph}" value="${esc((lib.brand || {})[k] || '')}"></label>`).join('')}
+      <p class="hint">เว้นว่าง = ใช้ข้อความมาตรฐาน · เบอร์โทร/LINE ตั้งที่แท็บ ☎️ ติดต่อ (ตั้งครั้งเดียวเช่นกัน)</p></div>` : '<p class="hint">ไฟล์รูปจะถูกต่อเข้า MP4 (คลิปวิดีโอยังไม่รองรับ)</p>'}`;
 
 function openSlot(id) {
   document.querySelector('#slotSheet')?.remove();
@@ -282,7 +285,7 @@ function openSlot(id) {
     if (e.target.closest('[data-a=add]')) { const fs = await pickFiles('image/*,video/*', !sl.max1); if (fs.length) { await addToSlot(sl, fs); updateSb(); openSlot(id); } return; }
     const b = e.target.closest('[data-del]'); if (b && confirm('ลบไฟล์นี้ใช่ไหม?')) { await removeFromSlot(sl, +b.dataset.del); updateSb(); openSlot(id); }
   };
-  d.addEventListener('input', e => { if (e.target.id === 'slotScript') setSlotScript(sl, e.target.value); });
+  d.addEventListener('input', e => { if (e.target.id === 'slotScript') setSlotScript(sl, e.target.value); if (e.target.dataset.b) { lib.brand[e.target.dataset.b] = e.target.value; saveLib(); } });
   d.addEventListener('change', async e => { if (e.target.name === 'tmode') { lib[id + 'Builtin'] = e.target.value === 'builtin'; await saveLib(); updateSb(); openSlot(id); return; } if (e.target.id === 'skipMap') { state.skipMap = e.target.checked; save(); updateSb(); } });
   if (sl.kind === 'contact') bindContact(d, () => openSlot(id));
   document.body.appendChild(d);
