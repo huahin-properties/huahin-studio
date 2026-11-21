@@ -19,7 +19,7 @@ async function pickCodec(W, H) {
   return null;
 }
 
-async function renderMp4(blobs, W, H, onProgress, luts) {
+async function renderMp4(blobs, W, H, onProgress, luts, sceneOpt) {
   if (!('VideoEncoder' in window)) throw new Error('เบราว์เซอร์นี้ยังไม่รองรับการเรนเดอร์ ให้ใช้ Chrome บนมือถือ Android');
   const cfg = await pickCodec(W, H);
   if (!cfg) throw new Error('มือถือเครื่องนี้ไม่รองรับการเข้ารหัสวิดีโอขนาดนี้ ลองเลือกขนาดเล็กลง');
@@ -27,6 +27,7 @@ async function renderMp4(blobs, W, H, onProgress, luts) {
   const images = [];
   for (let i = 0; i < blobs.length; i++) { { const bmp = await loadScaled(blobs[i], W, H); images.push(luts ? gradeToCanvas(bmp, luts[i]) : bmp); if (luts) bmp.close(); } onProgress(0.1 * (i + 1) / blobs.length, 'กำลังเตรียมรูป'); }
 
+  if (sceneOpt && sceneOpt.scene) images.splice(Math.min(sceneOpt.at, images.length), 0, sceneOpt.scene);
   const muxer = new Mp4Muxer.Muxer({ target: new Mp4Muxer.ArrayBufferTarget(), video: { codec: 'avc', width: W, height: H }, fastStart: 'in-memory' });
   let encErr = null;
   const enc = new VideoEncoder({ output: (c, m) => muxer.addVideoChunk(c, m), error: e => { encErr = e; } });
@@ -34,7 +35,7 @@ async function renderMp4(blobs, W, H, onProgress, luts) {
 
   const canvas = document.createElement('canvas'); canvas.width = W; canvas.height = H;
   const ctx = canvas.getContext('2d');
-  const frames = Math.round(totalDuration(images.length) * FPS);
+  const frames = Math.round(totalDuration(images) * FPS);
   for (let f = 0; f < frames; f++) {
     if (encErr) throw encErr;
     drawFrame(ctx, W, H, images, f / FPS);

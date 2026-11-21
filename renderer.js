@@ -1,8 +1,13 @@
 // เครื่องวาดภาพ: ใช้ทั้งพรีวิวและตอนเรนเดอร์ MP4 (โค้ดชุดเดียวกัน ภาพจึงตรงกัน 100%)
 // สไตล์ v3: ภาพเต็มจอ + Ken Burns ซูม 8% + ภาพละ 2 วินาที + ครอสเฟด
+// รายการในไทม์ไลน์ = รูป (ImageBitmap/canvas) หรือ "ฉาก" ที่มี { dur, draw(ctx,W,H,tวินาทีในฉาก) }
 const STYLE = { secPerImage: 2, fade: 0.5, zoom: 0.08 };
 
-function totalDuration(n) { return n > 0 ? n * STYLE.secPerImage + STYLE.fade : 0; }
+const itemDur = it => (it && it.draw ? it.dur : STYLE.secPerImage);
+function totalDuration(arg) {
+  if (typeof arg === 'number') return arg > 0 ? arg * STYLE.secPerImage + STYLE.fade : 0;
+  return arg.length ? arg.reduce((a, it) => a + itemDur(it), 0) + STYLE.fade : 0;
+}
 
 function drawCover(ctx, img, W, H, scale) {
   const iw = img.naturalWidth || img.width, ih = img.naturalHeight || img.height;
@@ -11,17 +16,18 @@ function drawCover(ctx, img, W, H, scale) {
   ctx.drawImage(img, (W - w) / 2, (H - h) / 2, w, h);
 }
 
-// images = อาร์เรย์ของ ImageBitmap/HTMLImageElement ตามลำดับ, t = วินาที
 function drawFrame(ctx, W, H, images, t) {
   ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
-  const D = STYLE.secPerImage, F = STYLE.fade;
+  const F = STYLE.fade; let start = 0;
   images.forEach((img, i) => {
-    const start = i * D, end = (i + 1) * D + F;
-    if (t < start || t > end) return;
-    const alpha = i === 0 ? 1 : Math.min(1, (t - start) / F);
-    const k = (t - start) / (end - start);
-    ctx.globalAlpha = alpha;
-    drawCover(ctx, img, W, H, 1 + STYLE.zoom * k);
+    const d = itemDur(img), end = start + d + F;
+    if (t >= start && t <= end) {
+      const alpha = i === 0 ? 1 : Math.min(1, (t - start) / F);
+      ctx.globalAlpha = alpha;
+      if (img.draw) { ctx.save(); img.draw(ctx, W, H, t - start); ctx.restore(); }
+      else drawCover(ctx, img, W, H, 1 + STYLE.zoom * ((t - start) / (end - start)));
+    }
+    start += d;
   });
   ctx.globalAlpha = 1;
 }

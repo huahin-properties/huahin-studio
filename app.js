@@ -9,7 +9,7 @@ const SIZES = [
 const ROOMS = [AREA_ROOM, MAP_ROOM, 'หน้าบ้าน/ภายนอก','ที่จอดรถ','ห้องนั่งเล่น','ห้องทานอาหาร','ครัว','ห้องนอนใหญ่','ห้องนอน','ห้องน้ำ','สระว่ายน้ำ','สวน/ระเบียง','วิวรอบๆ','อื่นๆ'];
 const STEPS = ['1 ขนาด','2 ใส่รูป/คลิป','3 สี','4 สคริปต์','5 เสียง','6 มาสคอต','7 เรนเดอร์'];
 
-const state = { skipMap: false, facts: { name: '', beds: '', baths: '', usable: '', land: '', price: '', travel: '', coord: '', highlights: '' }, slot: 'title', step: 0, size: '4:5', items: [], color: { ...COLOR_DEFAULT }, useArea: true, contact: { mode: 'std', custom: { name: '', phone: '', line: '' } }, script: { area: '', rooms: {} } };
+const state = { routeData: null, skipMap: false, facts: { name: '', beds: '', baths: '', usable: '', land: '', price: '', travel: '', coord: '', routeStart: '', routeLabel: '', highlights: '' }, slot: 'title', step: 0, size: '4:5', items: [], color: { ...COLOR_DEFAULT }, useArea: true, contact: { mode: 'std', custom: { name: '', phone: '', line: '' } }, script: { area: '', rooms: {} } };
 let nextId = 1;
 
 // ---- เก็บงานไว้ในเครื่อง (IndexedDB) ปิดแอปแล้วงานไม่หาย ----
@@ -22,10 +22,10 @@ const DB = {
   async get(k) { const db = await this.open(); return new Promise(res => { const q = db.transaction('kv').objectStore('kv').get(k); q.onsuccess = () => res(q.result); }); },
   async set(k, v) { const db = await this.open(); return new Promise(res => { const tx = db.transaction('kv', 'readwrite'); tx.objectStore('kv').put(v, k); tx.oncomplete = res; }); },
 };
-const save = () => (typeof updateSb === 'function' && updateSb(), DB.set('project', { v: 2, skipMap: state.skipMap, facts: state.facts, useArea: state.useArea, contact: state.contact, size: state.size, color: state.color, script: state.script, items: state.items.map(({ id, blob, type, room, name }) => ({ id, blob, type, room, name })) }));
+const save = () => (typeof updateSb === 'function' && updateSb(), DB.set('project', { v: 2, routeData: state.routeData, skipMap: state.skipMap, facts: state.facts, useArea: state.useArea, contact: state.contact, size: state.size, color: state.color, script: state.script, items: state.items.map(({ id, blob, type, room, name }) => ({ id, blob, type, room, name })) }));
 async function load() {
   await loadLib(); const p = await DB.get('project');
-  if (p) { if (!p.v) p.items.forEach(i => { if (i.room === 'หน้าบ้าน/ภายนอก') i.room = ''; }); state.size = p.size; state.color = { ...COLOR_DEFAULT, ...(p.color || {}) }; state.script = { area: '', rooms: {}, ...(p.script || {}) }; state.skipMap = !!p.skipMap; state.facts = { ...state.facts, ...(p.facts || {}) }; state.useArea = true; state.contact = { mode: 'std', ...(p.contact || {}), custom: { name: '', phone: '', line: '', ...((p.contact || {}).custom || {}) } }; state.items = p.items; nextId = Math.max(0, ...p.items.map(i => i.id)) + 1; }
+  if (p) { if (!p.v) p.items.forEach(i => { if (i.room === 'หน้าบ้าน/ภายนอก') i.room = ''; }); state.size = p.size; state.color = { ...COLOR_DEFAULT, ...(p.color || {}) }; state.script = { area: '', rooms: {}, ...(p.script || {}) }; state.skipMap = !!p.skipMap; state.routeData = p.routeData || null; state.facts = { ...state.facts, ...(p.facts || {}) }; state.useArea = true; state.contact = { mode: 'std', ...(p.contact || {}), custom: { name: '', phone: '', line: '', ...((p.contact || {}).custom || {}) } }; state.items = p.items; nextId = Math.max(0, ...p.items.map(i => i.id)) + 1; }
 }
 
 const $ = s => document.querySelector(s);
@@ -148,7 +148,7 @@ function draftAll() {
 function openFacts(after) {
   document.querySelector('#factsSheet')?.remove();
   const f = state.facts, d = document.createElement('div'); d.className = 'sheet tall'; d.id = 'factsSheet';
-  const F = [['name', 'ชื่อโครงการ / ชื่อบ้าน', 'เช่น Coco Hua Hin Luxury 88', ''], ['beds', 'จำนวนห้องนอน (ห้อง)', 'เช่น 3', 'tel'], ['baths', 'จำนวนห้องน้ำ (ห้อง)', 'เช่น 3', 'tel'], ['usable', 'พื้นที่ใช้สอย (ตารางเมตร)', 'เช่น 159', ''], ['land', 'ขนาดที่ดิน (ตารางวา)', 'เช่น 80', ''], ['price', 'ราคา (ล้านบาท)', 'เช่น 4.5', ''], ['coord', 'พิกัดบ้าน (วางจาก Google Maps)', 'เช่น 12.558940,99.909039', ''], ['highlights', 'จุดเด่น 2–3 ข้อ', 'เช่น สระส่วนตัว ใกล้ตลาด', '']];
+  const F = [['name', 'ชื่อโครงการ / ชื่อบ้าน', 'เช่น Coco Hua Hin Luxury 88', ''], ['beds', 'จำนวนห้องนอน (ห้อง)', 'เช่น 3', 'tel'], ['baths', 'จำนวนห้องน้ำ (ห้อง)', 'เช่น 3', 'tel'], ['usable', 'พื้นที่ใช้สอย (ตารางเมตร)', 'เช่น 159', ''], ['land', 'ขนาดที่ดิน (ตารางวา)', 'เช่น 80', ''], ['price', 'ราคา (ล้านบาท)', 'เช่น 4.5', ''], ['coord', 'พิกัดบ้าน (วางจาก Google Maps)', 'เช่น 12.558940,99.909039', ''], ['routeStart', 'จุดเริ่มต้นรถวิ่ง: พิกัดปากซอย/ถนนเพชรเกษม', 'เช่น 12.5400,99.9500', ''], ['routeLabel', 'ชื่อจุดเริ่มต้นที่แสดงบนแผนที่', 'เช่น ถนนเพชรเกษม', ''], ['highlights', 'จุดเด่น 2–3 ข้อ', 'เช่น สระส่วนตัว ใกล้ตลาด', '']];
   d.innerHTML = `<div class="sh-head"><b>🏠 ข้อมูลบ้าน</b><button class="ib" data-a="x" aria-label="ปิด">✕</button></div>
     <p class="hint">กรอกเท่าที่มี ไม่กรอกช่องไหนก็ได้ แอปจะใช้ร่างสคริปต์ให้ (ข้อมูลนี้อยู่ในเครื่องคุณเท่านั้น)</p>
     ${F.map(([k, lab, ph, t]) => `<label class="fl"><span>${lab}</span><input class="ct" data-k="${k}" ${t ? `type="${t}" ` : ''}placeholder="${ph}" value="${String(f[k] || '').replace(/"/g, '&quot;')}"></label>`).join('')}
@@ -194,13 +194,17 @@ function openSlot(id) {
   const sc = getSlotScript(sl);
   d.innerHTML = `<div class="sh-head"><b>${sl.ico} ${sl.label}</b><button class="ib" data-a="x" aria-label="ปิด">✕</button></div>
     <p class="hint">${sl.hint}</p><p class="stline st-${st}">${stTxt}</p>
-    ${sl.id === 'map' ? `<button class="btn alt" data-a="genmap">🗺️ สร้างแผนที่จากพิกัดบ้านอัตโนมัติ</button><p class="hint" id="genStat">ต้องมีพิกัดบ้านใน 🏠 ข้อมูลบ้าน (สร้างแผนที่ภาพรวม + ภาพซูมที่บ้าน ต้องต่อเน็ต)</p><label class="sw"><input type="checkbox" id="skipMap" ${state.skipMap ? 'checked' : ''}> คลิปนี้ไม่ใช้แผนที่ (ข้าม)</label>` : ''}
+    ${sl.id === 'map' ? `<button class="btn alt" data-a="genmap">🗺️ สร้างแผนที่จากพิกัดบ้านอัตโนมัติ</button><p class="hint" id="genStat">ต้องมีพิกัดบ้านใน 🏠 ข้อมูลบ้าน (สร้างแผนที่ภาพรวม + ภาพซูมที่บ้าน ต้องต่อเน็ต)</p><button class="btn" data-a="genroute">🚗 สร้างคลิปรถวิ่งเข้าบ้านอัตโนมัติ</button><p class="hint" id="routeStat">${state.routeData ? (state.routeData.size === state.size ? `✅ มีคลิปเส้นทางแล้ว (~${(state.routeData.meters / 1000).toFixed(1)} กม.${state.routeData.real ? '' : ' · เส้นตรง'}) ต่อเข้า MP4 ให้อัตโนมัติ` : '⚠️ คลิปเส้นทางสร้างไว้สำหรับขนาดคลิปอื่น กดสร้างใหม่') : 'รถวิ่งตามถนนจริงจากถนนเพชรเกษม/ปากซอยเข้าบ้าน ต้องมีพิกัดบ้าน และต่อเน็ตตอนสร้าง'}</p>
+      ${state.routeData ? '<canvas id="routePrev" class="rprev"></canvas><button class="btn alt" data-a="rmroute">🗑️ ลบคลิปเส้นทาง</button>' : ''}
+      <label class="sw"><input type="checkbox" id="skipMap" ${state.skipMap ? 'checked' : ''}> คลิปนี้ไม่ใช้แผนที่ (ข้าม)</label>` : ''}
     ${sl.kind === 'contact' ? contactCardHtml() : `<button class="btn" data-a="add">${sl.max1 && items.length ? '↻ เปลี่ยนไฟล์' : '+ เพิ่มรูป / คลิป'}</button>
       ${items.length ? `<div class="sgrid" id="pgrid">${items.map(it => thumbHtml(it, true)).join('')}</div>` : ''}`}
     ${sc !== null ? `<label class="sl"><span>📝 สคริปต์ของช่วงนี้${sl.cat && sl.cat !== 'lifestyle' ? ' (ใช้ร่วมกันทั้ง 4 แท็บทำเล)' : ''}</span></label><textarea class="sct" id="slotScript" rows="3" placeholder="พิมพ์เรื่องเล่าของช่วงนี้ (ไม่ใส่ก็ได้ เขียนทีหลังได้ที่ขั้น 4)">${sc.replace(/</g, '&lt;')}</textarea>` : ''}
     <button class="btn" data-a="x">เสร็จ</button>`;
   d.onclick = async e => {
     if (e.target.closest('[data-a=x]')) { d.remove(); refreshAll(); return; }
+    if (e.target.closest('[data-a=rmroute]')) { if (confirm('ลบคลิปเส้นทางรถวิ่ง?')) { state.routeData = null; await save(); updateSb(); openSlot(id); } return; }
+    if (e.target.closest('[data-a=genroute]')) { const st = d.querySelector('#routeStat'), btn = e.target.closest('[data-a=genroute]'); btn.disabled = true; try { const rd = await buildRouteData(st); if (rd) { state.routeData = rd; state.skipMap = false; await save(); updateSb(); openSlot(id); } } catch (err) { st.textContent = '❌ สร้างไม่สำเร็จ (ต่อเน็ตอยู่ไหม?) ' + (err.message || err); } btn.disabled = false; return; }
     if (e.target.closest('[data-a=genmap]')) { const st = d.querySelector('#genStat'), btn = e.target.closest('[data-a=genmap]'); btn.disabled = true; const n = await generateMapImages(st); btn.disabled = false; if (n) { updateSb(); openSlot(id); } return; }
     if (e.target.closest('[data-a=add]')) { const fs = await pickFiles('image/*,video/*', !sl.max1); if (fs.length) { await addToSlot(sl, fs); updateSb(); openSlot(id); } return; }
     const b = e.target.closest('[data-del]'); if (b && confirm('ลบไฟล์นี้ใช่ไหม?')) { await removeFromSlot(sl, +b.dataset.del); updateSb(); openSlot(id); }
@@ -209,6 +213,11 @@ function openSlot(id) {
   d.addEventListener('change', e => { if (e.target.id === 'skipMap') { state.skipMap = e.target.checked; save(); updateSb(); } });
   if (sl.kind === 'contact') bindContact(d, () => openSlot(id));
   document.body.appendChild(d);
+  const rp = d.querySelector('#routePrev');
+  if (rp && state.routeData && state.routeData.size === state.size) {
+    const rd = state.routeData; rp.width = rd.W / 3; rp.height = rd.H / 3; const cx = rp.getContext('2d');
+    routeScene(rd).then(sc => { const t0 = performance.now(); const tick = () => { if (!rp.isConnected) return; const t = ((performance.now() - t0) / 1000) % (sc.dur + 1); cx.save(); sc.draw(cx, rp.width, rp.height, Math.min(t, sc.dur)); cx.restore(); requestAnimationFrame(tick); }; tick(); });
+  }
 }
 
 let refreshAll = () => {};
@@ -243,6 +252,7 @@ function viewSlots() {
         ${scriptBarHtml(sl)}
         <div class="sgrid" data-grid="${sl.id}">${items.map(it => thumbHtml(it, true)).join('')}</div></div>`);
     });
+    if (state.routeData) done.push(`<div class="gsec" data-sec="route"><div class="gh"><b>🚗 คลิปเส้นทางรถวิ่งเข้าบ้าน</b><button class="ib sm" data-open="map">จัดการ</button></div><p class="hint">${state.routeData.size === state.size ? `ต่อเข้า MP4 อัตโนมัติ (~${ROUTE_DUR} วินาที) หลังภาพแผนที่` : '⚠️ สร้างไว้สำหรับขนาดคลิปอื่น กด จัดการ เพื่อสร้างใหม่'}</p></div>`);
     const html = (todo.length ? `<h3 class="gtitle todo">⏳ ยังไม่เรียบร้อย (${todo.length})</h3>${todo.join('')}` : '')
       + (done.length ? `<h3 class="gtitle done">✅ เรียบร้อยแล้ว (${done.length})</h3>${done.join('')}` : '');
     g.innerHTML = html || '<div class="soon">ยังไม่มีไฟล์ แตะแท็บด้านบนเพื่อเริ่มเพิ่มรูป/คลิป</div>';
@@ -463,9 +473,11 @@ function viewRender() {
   const imgs = [...areaLibOrdered().filter(i => i.type === 'image'), ...state.items.filter(i => i.type === 'image'), ...lifeItems().filter(i => i.type === 'image')], s = sizeInfo();
   const blockers = sbBlockers();
   const skipped = state.items.length - imgs.length;
+  const routeOk = !!(state.routeData && state.routeData.size === state.size);
+  const routeAt = areaLibOrdered().filter(i => i.type === 'image').length + state.items.filter(i => i.type === 'image' && (i.room === AREA_ROOM || i.room === MAP_ROOM)).length;
   $('#view').innerHTML = `
     <h2>เรนเดอร์เป็น MP4</h2>
-    <p class="hint">ขนาด ${s.name} (${s.w}×${s.h}) · ${imgs.length} รูป · ยาวประมาณ ${totalDuration(imgs.length).toFixed(1)} วินาที${skipped ? ` · คลิปสั้น ${skipped} ไฟล์ยังไม่ถูกใช้ (รอบหน้า)` : ''}</p>
+    <p class="hint">ขนาด ${s.name} (${s.w}×${s.h}) · ${imgs.length} รูป · ยาวประมาณ ${(totalDuration(imgs.length) + (routeOk ? ROUTE_DUR : 0)).toFixed(1)} วินาที${routeOk ? ' (รวมคลิปรถวิ่งเข้าบ้าน)' : ''}${skipped ? ` · คลิปสั้น ${skipped} ไฟล์ยังไม่ถูกใช้ (รอบหน้า)` : ''}</p>
     ${blockers.length ? `<div class="soon" style="border-color:#b00020;color:#b00020;text-align:left">❌ ยังเรนเดอร์ไม่ได้ เพราะผังเรื่องยังขาด:<br>${blockers.map(b => '• ' + b.label.replace(/^\d+\. /, '') + ' — ' + b.info).join('<br>')}<br><br><button class="btn alt" id="openSb">📋 เปิดผังเรื่อง</button></div>` : ''}
     <p class="hint">หมายเหตุ: ไตเติลและหน้าปิดจากคลังกลางจะถูกต่อเข้าไฟล์ MP4 ในรอบถัดไป (ตอนนี้เรนเดอร์ภาพทำเลและรูปบ้าน)</p>
     <p class="hint">ปรับสี: ${isNeutral(state.color) ? 'ปิด' : (state.color.auto ? 'อัตโนมัติ' : 'ตั้งเอง')}</p>
@@ -485,7 +497,7 @@ function viewRender() {
         for (const it of imgs) { if (!statCache.has(it.id)) statCache.set(it.id, imageStats(await getSmall(it))); stats.push(statCache.get(it.id)); }
         luts = makeLuts(stats, state.color);
       }
-      const blob = await renderMp4(imgs.map(i => i.blob), s.w, s.h, (p, msg) => { $('#prog').textContent = `${msg} ${Math.round(p * 100)}%`; }, luts);
+      const blob = await renderMp4(imgs.map(i => i.blob), s.w, s.h, (p, msg) => { $('#prog').textContent = `${msg} ${Math.round(p * 100)}%`; }, luts, routeOk ? { at: routeAt, scene: await routeScene(state.routeData) } : null);
       const url = URL.createObjectURL(blob);
       $('#prog').textContent = `เสร็จใน ${((performance.now() - t0) / 1000).toFixed(0)} วินาที · ขนาดไฟล์ ${(blob.size / 1048576).toFixed(1)} MB`;
       $('#out').innerHTML = `<video src="${url}" controls playsinline style="width:100%;max-height:60vh;background:#000;border-radius:12px"></video><a class="btn" download="huahin-clip.mp4" href="${url}" style="text-decoration:none;text-align:center">⬇ บันทึกไฟล์ MP4</a>`;

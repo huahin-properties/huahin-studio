@@ -70,7 +70,7 @@ async function removeFromSlot(s, id) {
 }
 function slotCount(s) {
   if (s.kind === 'contact') { const ct = activeContact(); return state.contact.mode === 'none' || (ct && ct.phone.trim()) ? 1 : 0; }
-  return slotItems(s).length;
+  return slotItems(s).length + (s.id === 'map' && state.routeData ? 1 : 0);
 }
 function slotStatus(s, n = slotCount(s)) {
   if (n < s.min) return 'miss';
@@ -240,4 +240,99 @@ async function generateMapImages(statusEl) {
     blobs.forEach((b, i) => state.items.push({ id: nextId++, blob: b, type: 'image', room: MAP_ROOM, name: `map-auto-${i + 1}.png` }));
     await save(); state.skipMap = false; return blobs.length;
   } catch (e) { statusEl.textContent = '❌ โหลดแผนที่ไม่สำเร็จ (ต่อเน็ตอยู่ไหม?) ' + (e.message || e) + ' · หรือแคปหน้า Google Maps แล้วเพิ่มรูปเองแทนได้'; return false; }
+}
+
+// ---- คลิปรถวิ่งตามถนนจริงเข้าบ้าน (เส้นทางจาก OSRM · แผนที่ OpenStreetMap · ไม่ใช้รหัส API) ----
+const OSRM = 'https://router.project-osrm.org/route/v1/driving';
+const ROUTE_DUR = 9;
+async function fetchRoute(a, b) {
+  const r = await fetch(`${OSRM}/${a.lo},${a.la};${b.lo},${b.la}?overview=full&geometries=geojson`);
+  if (!r.ok) throw new Error('route ' + r.status);
+  const j = await r.json(); if (!j.routes || !j.routes[0]) throw new Error('ไม่พบเส้นทาง');
+  const rt = j.routes[0];
+  return { pts: rt.geometry.coordinates.map(([lo, la]) => ({ la, lo })), meters: rt.distance, secs: rt.duration };
+}
+async function buildRouteData(statusEl) {
+  const home = parseCoord(state.facts.coord);
+  if (!home) { alert('ยังไม่มีพิกัดบ้าน: กด 🏠 ข้อมูลบ้าน แล้ววางพิกัดบ้านก่อน'); return null; }
+  let start = parseCoord(state.facts.routeStart);
+  if (!start) {
+    const t = prompt('วางพิกัดจุดเริ่มต้นของรถ (เช่น ทางเข้าซอยที่ถนนเพชรเกษม)\\nวิธีคัดลอก: เปิด Google Maps กดค้างที่จุดนั้น แล้วแตะตัวเลขพิกัด');
+    start = parseCoord(t); if (!start) { if (t) alert('อ่านพิกัดไม่ออก ลองวางแบบ 12.558940,99.909039'); return null; }
+    state.facts.routeStart = t.trim();
+  }
+  if (!state.facts.routeLabel) state.facts.routeLabel = prompt('ชื่อจุดเริ่มต้นที่จะแสดงบนแผนที่', 'ถนนเพชรเกษม') || 'ถนนเพชรเกษม';
+  const sz = sizeInfo(), W = sz.w, H = sz.h;
+  statusEl.textContent = 'กำลังหาเส้นทางถนนจริง... (ต้องต่อเน็ต)';
+  let route, real = true;
+  try { route = await fetchRoute(start, home); }
+  catch (e) { real = false; route = { pts: [start, home], meters: haversineKm(start, home) * 1000 * 1.3, secs: 0 }; statusEl.textContent = '⚠️ หาเส้นทางถนนจริงไม่ได้ ใช้เส้นตรงแทน · '; }
+  // เลือกซูมให้เห็นทั้งเส้นทาง
+  let z = 18;
+  for (; z > 10; z--) {
+    const xs = route.pts.map(p => lonToX(p.lo, z) * 256), ys = route.pts.map(p => latToY(p.la, z) * 256);
+    if (Math.max(...xs) - Math.min(...xs) <= W * 0.74 && Math.max(...ys) - Math.min(...ys) <= H * 0.66) break;
+  }
+  const px = route.pts.map(p => lonToX(p.lo, z) * 256), py = route.pts.map(p => latToY(p.la, z) * 256);
+  const left = (Math.min(...px) + Math.max(...px)) / 2 - W / 2, top = (Math.min(...py) + Math.max(...py)) / 2 - H / 2;
+  const cv = document.createElement('canvas'); cv.width = W; cv.height = H; const x = cv.getContext('2d');
+  x.fillStyle = '#e8e0d0'; x.fillRect(0, 0, W, H);
+  statusEl.textContent += 'กำลังโหลดแผนที่...';
+  const jobs = [], n = 2 ** z;
+  for (let tx = Math.floor(left / 256); tx <= Math.floor((left + W) / 256); tx++) for (let ty = Math.floor(top / 256); ty <= Math.floor((top + H) / 256); ty++) if (ty >= 0 && ty < n) jobs.push([tx, ty]);
+  for (let i = 0; i < jobs.length; i += 6) await Promise.all(jobs.slice(i, i + 6).map(async ([tx, ty]) => { const b = await loadTile(z, tx, ty); x.drawImage(b, tx * 256 - left, ty * 256 - top); }));
+  const step = Math.max(1, Math.ceil(route.pts.length / 500));
+  const pts = route.pts.map((p, i) => [px[i] - left, py[i] - top]).filter((_, i, a) => i % step === 0 || i === a.length - 1);
+  const blob = await new Promise(r => cv.toBlob(r, 'image/png'));
+  return { size: state.size, W, H, blob, pts, startLabel: state.facts.routeLabel, meters: route.meters, secs: route.secs, real };
+}
+async function routeScene(rd) {
+  const base = await createImageBitmap(rd.blob), P = rd.pts, cum = [0];
+  for (let i = 1; i < P.length; i++) cum.push(cum[i - 1] + Math.hypot(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1]));
+  const total = cum[cum.length - 1] || 1;
+  const posAt = d => {
+    let i = 1; while (i < cum.length - 1 && cum[i] < d) i++;
+    const seg = cum[i] - cum[i - 1] || 1, f = Math.min(1, Math.max(0, (d - cum[i - 1]) / seg));
+    const a = P[i - 1], b = P[i]; return { x: a[0] + (b[0] - a[0]) * f, y: a[1] + (b[1] - a[1]) * f, ang: Math.atan2(b[1] - a[1], b[0] - a[0]) };
+  };
+  const ease = u => (u < 0.5 ? 4 * u ** 3 : 1 - (-2 * u + 2) ** 3 / 2), clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+  const km = rd.meters / 1000, mins = rd.secs ? Math.max(1, Math.round(rd.secs / 60)) : 0;
+  return {
+    dur: ROUTE_DUR, base,
+    draw(ctx, W, H, t) {
+      const s = W / rd.W; ctx.scale(s, s); const w = rd.W, h = rd.H;
+      ctx.drawImage(base, 0, 0, w, h);
+      const p = ease(clamp((t - 0.8) / 6.4, 0, 1)), d = total * p, lw = Math.max(6, w / 120);
+      const path = (to) => { ctx.beginPath(); ctx.moveTo(P[0][0], P[0][1]); for (let i = 1; i < P.length && cum[i] <= to; i++) ctx.lineTo(P[i][0], P[i][1]); const q = posAt(to); ctx.lineTo(q.x, q.y); };
+      ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+      path(total); ctx.strokeStyle = 'rgba(255,255,255,.85)'; ctx.lineWidth = lw * 1.9; ctx.stroke();
+      path(total); ctx.strokeStyle = 'rgba(122,31,43,.35)'; ctx.lineWidth = lw; ctx.stroke();
+      path(d); ctx.strokeStyle = '#7a1f2b'; ctx.lineWidth = lw * 1.25; ctx.stroke();
+      const fs = Math.round(w / 26), tag = (txt, X, Y, bg, fg) => { ctx.font = `bold ${fs}px sans-serif`; const tw = ctx.measureText(txt).width + fs; ctx.fillStyle = bg; ctx.beginPath(); ctx.roundRect(X - tw / 2, Y - fs * 0.85, tw, fs * 1.6, fs * 0.4); ctx.fill(); ctx.fillStyle = fg; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(txt, X, Y - fs * 0.05); };
+      // จุดเริ่ม
+      ctx.fillStyle = '#1f6fb5'; ctx.beginPath(); ctx.arc(P[0][0], P[0][1], w / 60, 0, 7); ctx.fill(); ctx.lineWidth = 5; ctx.strokeStyle = '#fff'; ctx.stroke();
+      tag(rd.startLabel || 'จุดเริ่มต้น', P[0][0], P[0][1] + w / 14, 'rgba(255,255,255,.95)', '#2e2220');
+      // บ้าน (เด้งเบาๆ ตอนรถถึง)
+      const E = P[P.length - 1], pulse = p >= 1 ? (Math.sin((t - 7.2) * 5) + 1) / 2 : 0;
+      ctx.fillStyle = `rgba(122,31,43,${0.25 * pulse})`; ctx.beginPath(); ctx.arc(E[0], E[1], w / 20 + pulse * w / 30, 0, 7); ctx.fill();
+      ctx.fillStyle = '#7a1f2b'; ctx.beginPath(); ctx.arc(E[0], E[1], w / 28, 0, 7); ctx.fill(); ctx.lineWidth = 6; ctx.strokeStyle = '#fff'; ctx.stroke();
+      ctx.font = `${Math.round(w / 22)}px sans-serif`; ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('🏠', E[0], E[1] + 2);
+      tag('บ้านหลังนี้', E[0], E[1] - w / 14, '#7a1f2b', '#fff');
+      // รถ
+      const q = posAt(d), L = w / 17, Wd = L * 0.52;
+      ctx.save(); ctx.translate(q.x, q.y); ctx.rotate(q.ang);
+      ctx.shadowColor = 'rgba(0,0,0,.35)'; ctx.shadowBlur = 8; ctx.fillStyle = '#c0392b'; ctx.beginPath(); ctx.roundRect(-L / 2, -Wd / 2, L, Wd, Wd * 0.3); ctx.fill(); ctx.shadowBlur = 0;
+      ctx.lineWidth = 3; ctx.strokeStyle = '#fff'; ctx.stroke();
+      ctx.fillStyle = '#cfe8ff'; ctx.beginPath(); ctx.roundRect(L * 0.06, -Wd * 0.36, L * 0.26, Wd * 0.72, Wd * 0.12); ctx.fill();
+      ctx.fillStyle = '#a8c8e8'; ctx.fillRect(-L * 0.32, -Wd * 0.32, L * 0.2, Wd * 0.64);
+      ctx.fillStyle = '#fff3a0'; ctx.fillRect(L * 0.44, -Wd * 0.38, L * 0.06, Wd * 0.2); ctx.fillRect(L * 0.44, Wd * 0.18, L * 0.06, Wd * 0.2);
+      ctx.restore();
+      // แถบหัวเรื่อง
+      const ta = clamp(t / 0.6, 0, 1);
+      ctx.globalAlpha *= ta; ctx.fillStyle = 'rgba(122,31,43,.94)'; ctx.fillRect(0, 0, w, fs * 3.1); ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.font = `bold ${Math.round(fs * 1.2)}px sans-serif`; ctx.fillText('เส้นทางสู่บ้าน', w / 2, fs * 1.15);
+      ctx.font = `${Math.round(fs * 0.85)}px sans-serif`; ctx.fillText(`ประมาณ ${km < 1 ? Math.round(km * 1000) + ' เมตร' : km.toFixed(1) + ' กิโลเมตร'}${mins ? ` · ขับ ~${mins} นาที` : ''}`, w / 2, fs * 2.3);
+      ctx.globalAlpha = 1; ctx.fillStyle = 'rgba(255,255,255,.85)'; ctx.fillRect(0, h - fs * 1.2, w, fs * 1.2); ctx.fillStyle = '#444'; ctx.font = `${Math.round(fs * 0.6)}px sans-serif`; ctx.textAlign = 'right'; ctx.textBaseline = 'middle'; ctx.fillText('© OpenStreetMap contributors · เส้นทาง OSRM', w - 12, h - fs * 0.6);
+    },
+  };
 }
