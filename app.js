@@ -6,12 +6,10 @@ const SIZES = [
   { id: '16:9', name: 'แนวนอน 16:9',    note: '1920×1080',        w: 1920, h: 1080 },
 ];
 // ลำดับห้องตามการเล่าเรื่อง: ภายนอก -> ในบ้าน -> สระ/สวน (ระบบเรียงรูปตามลำดับนี้เอง)
-const ROOMS = ['หน้าบ้าน/ภายนอก','ที่จอดรถ','ห้องนั่งเล่น','ห้องทานอาหาร','ครัว','ห้องนอนใหญ่','ห้องนอน','ห้องน้ำ','สระว่ายน้ำ','สวน/ระเบียง','วิวรอบๆ','อื่นๆ'];
+const ROOMS = [AREA_ROOM, 'หน้าบ้าน/ภายนอก','ที่จอดรถ','ห้องนั่งเล่น','ห้องทานอาหาร','ครัว','ห้องนอนใหญ่','ห้องนอน','ห้องน้ำ','สระว่ายน้ำ','สวน/ระเบียง','วิวรอบๆ','อื่นๆ'];
 const STEPS = ['1 ขนาด','2 รูป/คลิป','3 สี','4 สคริปต์','5 เสียง','6 มาสคอต','7 เรนเดอร์'];
 
-const DEFAULT_TITLE = 'สวัสดีครับ ยินดีต้อนรับสู่ Huahin Properties วันนี้ผมพาทุกท่านมาชมบ้านหลังสวยที่หัวหิน';
-const DEFAULT_CLOSE = 'สนใจบ้านหลังนี้ ติดต่อ Huahin Properties ได้เลยครับ [ใส่เบอร์โทรและ LINE ตรงนี้]';
-const state = { step: 0, size: '4:5', items: [], color: { ...COLOR_DEFAULT }, script: { title: DEFAULT_TITLE, close: DEFAULT_CLOSE, rooms: {} } };
+const state = { step: 0, size: '4:5', items: [], color: { ...COLOR_DEFAULT }, useArea: true, script: { area: '', rooms: {} } };
 let nextId = 1;
 
 // ---- เก็บงานไว้ในเครื่อง (IndexedDB) ปิดแอปแล้วงานไม่หาย ----
@@ -24,10 +22,10 @@ const DB = {
   async get(k) { const db = await this.open(); return new Promise(res => { const q = db.transaction('kv').objectStore('kv').get(k); q.onsuccess = () => res(q.result); }); },
   async set(k, v) { const db = await this.open(); return new Promise(res => { const tx = db.transaction('kv', 'readwrite'); tx.objectStore('kv').put(v, k); tx.oncomplete = res; }); },
 };
-const save = () => DB.set('project', { v: 2, size: state.size, color: state.color, script: state.script, items: state.items.map(({ id, blob, type, room, name }) => ({ id, blob, type, room, name })) });
+const save = () => (typeof updateSb === 'function' && updateSb(), DB.set('project', { v: 2, useArea: state.useArea, size: state.size, color: state.color, script: state.script, items: state.items.map(({ id, blob, type, room, name }) => ({ id, blob, type, room, name })) }));
 async function load() {
-  const p = await DB.get('project');
-  if (p) { if (!p.v) p.items.forEach(i => { if (i.room === 'หน้าบ้าน/ภายนอก') i.room = ''; }); state.size = p.size; state.color = { ...COLOR_DEFAULT, ...(p.color || {}) }; state.script = { title: DEFAULT_TITLE, close: DEFAULT_CLOSE, rooms: {}, ...(p.script || {}) }; state.items = p.items; nextId = Math.max(0, ...p.items.map(i => i.id)) + 1; }
+  await loadLib(); const p = await DB.get('project');
+  if (p) { if (!p.v) p.items.forEach(i => { if (i.room === 'หน้าบ้าน/ภายนอก') i.room = ''; }); state.size = p.size; state.color = { ...COLOR_DEFAULT, ...(p.color || {}) }; state.script = { area: '', rooms: {}, ...(p.script || {}) }; state.useArea = p.useArea !== false; state.items = p.items; nextId = Math.max(0, ...p.items.map(i => i.id)) + 1; }
 }
 
 const $ = s => document.querySelector(s);
@@ -95,6 +93,7 @@ const urlOf = it => { if (!urlCache.has(it.id)) urlCache.set(it.id, URL.createOb
 let previewTimer = null;
 
 function renderSteps() {
+  updateSb(); if (!$('#sb').onclick) $('#sb').onclick = openSb;
   $('#steps').innerHTML = STEPS.map((s, i) => `<button data-i="${i}" class="${i === state.step ? 'on' : ''}" >${s}</button>`).join('');
   const on = $('#steps .on'); if (on) on.scrollIntoView({ inline: 'center', block: 'nearest' });
   $('#steps').onclick = e => { const b = e.target.closest('button'); if (b && !b.disabled) { state.step = +b.dataset.i; render(); } };
@@ -184,10 +183,10 @@ const cleanLen = t => (t || '').replace(/\s+/g, '').length;
 const secOf = t => Math.round(cleanLen(t) / SPEAK_CPS);
 const mmss = n => `${Math.floor(n / 60)}:${String(n % 60).padStart(2, '0')}`;
 function scriptSegments() {
-  const rooms = []; state.items.forEach(it => { if (it.room && !rooms.includes(it.room)) rooms.push(it.room); });
-  const segs = [{ no: 1, key: 'title', label: 'ไตเติล', text: state.script.title }];
-  rooms.forEach((r, i) => segs.push({ no: i + 2, key: 'room:' + r, label: r, room: r, text: state.script.rooms[r] || '' }));
-  segs.push({ no: segs.length + 1, key: 'close', label: 'หน้าปิด (ข้อมูลติดต่อ)', text: state.script.close });
+  const rooms = []; state.items.forEach(it => { if (it.room && it.room !== AREA_ROOM && !rooms.includes(it.room)) rooms.push(it.room); });
+  const segs = [];
+  if (areaItems().length) segs.push({ no: 1, key: 'area', label: 'ทำเล หัวหิน', text: state.script.area || '' });
+  rooms.forEach(r => segs.push({ no: segs.length + 1, key: 'room:' + r, label: r, room: r, text: state.script.rooms[r] || '' }));
   return segs;
 }
 async function copyText(t) {
@@ -198,10 +197,10 @@ async function copyText(t) {
 function viewScript() {
   organizeItems(); save();
   const segs = scriptSegments(), no2 = n => String(n).padStart(2, '0');
-  const setText = (seg, v) => { if (seg.key === 'title') state.script.title = v; else if (seg.key === 'close') state.script.close = v; else state.script.rooms[seg.room] = v; };
+  const setText = (seg, v) => { if (seg.key === 'area') state.script.area = v; else state.script.rooms[seg.room] = v; };
   const total = () => scriptSegments().reduce((a, g) => a + secOf(g.text), 0);
   const card = g => {
-    const its = g.room ? state.items.filter(i => i.room === g.room) : [];
+    const its = g.key === 'area' ? areaItems() : state.items.filter(i => i.room === g.room);
     return `<div class="seg" data-key="${g.key}">
       <div class="seg-h"><b>${no2(g.no)} · ${g.label}</b><span class="badge" data-t="${g.key}">~${secOf(g.text)} วิ</span><button class="ib sm" data-cp="${g.key}" title="คัดลอกท่อนนี้" aria-label="คัดลอกท่อนนี้">📋</button></div>
       ${its.length ? `<div class="mini">${its.slice(0, 4).map(i => i.type === 'image' ? `<img src="${urlOf(i)}" alt="">` : '<span>🎬</span>').join('')}<small>${its.length} รูป/คลิป</small></div>` : ''}
@@ -211,7 +210,7 @@ function viewScript() {
   $('#view').innerHTML = `
     <h2>4 สคริปต์: เรื่องราว</h2>
     <div class="tools"><button class="ib" data-all title="คัดลอกสคริปต์ทั้งหมดไปวางใน Google AI Studio" aria-label="คัดลอกทั้งหมด">📋 ทั้งหมด</button></div>
-    <p class="hint">เวลารวมโดยประมาณ <b id="tot">${mmss(total())}</b> (เป้าหมายประมาณ 3:00) · เลขท่อนตรงกับชื่อไฟล์เสียง 01, 02, ...</p>
+    <p class="hint">เวลารวมโดยประมาณ <b id="tot">${mmss(total())}</b> (เป้าหมายประมาณ 3:00) · เลขท่อนตรงกับชื่อไฟล์เสียง 01, 02, ... · ไตเติลและหน้าปิดเป็นคลิปประจำ ไม่ต้องเขียนสคริปต์</p>
     ${state.items.length ? '' : '<div class="soon">ยังไม่มีรูป กลับไปขั้น 2 เพื่อใส่รูปและติดแท็กห้องก่อน</div>'}
     <div id="segs">${segs.map(card).join('')}</div>
     <p class="hint" id="warn"></p>
@@ -223,7 +222,6 @@ function viewScript() {
     const noRoom = state.items.filter(i => !i.room).length;
     if (noRoom) msgs.push(`⚠️ มี ${noRoom} รูปที่ยังไม่ตั้งห้อง (ย้อนกลับไปขั้น 3 เพื่อตั้งห้อง)`);
     if (empty.length) msgs.push('ท่อนที่ยังว่าง: ' + empty.join(', '));
-    if (all.some(g => /\[[^\]]*\]/.test(g.text))) msgs.push('⚠️ ยังมีข้อความในวงเล็บ [ ] ให้แก้เป็นข้อมูลจริงก่อนทำเสียงพากย์');
     $('#warn').innerHTML = msgs.join('<br>');
   };
   warn();
@@ -344,17 +342,21 @@ async function viewColor() {
 
 function viewRender() {
   organizeItems(); save();
-  const imgs = state.items.filter(i => i.type === 'image'), s = sizeInfo();
+  const imgs = [...(state.useArea ? lib.area : []).filter(i => i.type === 'image'), ...state.items.filter(i => i.type === 'image')], s = sizeInfo();
+  const blockers = sbBlockers();
   const skipped = state.items.length - imgs.length;
   $('#view').innerHTML = `
     <h2>เรนเดอร์เป็น MP4</h2>
     <p class="hint">ขนาด ${s.name} (${s.w}×${s.h}) · ${imgs.length} รูป · ยาวประมาณ ${totalDuration(imgs.length).toFixed(1)} วินาที${skipped ? ` · คลิปสั้น ${skipped} ไฟล์ยังไม่ถูกใช้ (รอบหน้า)` : ''}</p>
+    ${blockers.length ? `<div class="soon" style="border-color:#b00020;color:#b00020;text-align:left">❌ ยังเรนเดอร์ไม่ได้ เพราะผังเรื่องยังขาด:<br>${blockers.map(b => '• ' + b.label.replace(/^\d+\. /, '') + ' — ' + b.info).join('<br>')}<br><br><button class="btn alt" id="openSb">📋 เปิดผังเรื่อง</button></div>` : ''}
+    <p class="hint">หมายเหตุ: ไตเติลและหน้าปิดจากคลังกลางจะถูกต่อเข้าไฟล์ MP4 ในรอบถัดไป (ตอนนี้เรนเดอร์ภาพทำเลและรูปบ้าน)</p>
     <p class="hint">ปรับสี: ${isNeutral(state.color) ? 'ปิด' : (state.color.auto ? 'อัตโนมัติ' : 'ตั้งเอง')}</p>
     <p class="hint">ระหว่างเรนเดอร์ ให้เปิดหน้าจอค้างไว้ อย่าสลับแอป</p>
-    <button class="btn" id="go" ${imgs.length ? '' : 'disabled'}>🎬 เริ่มเรนเดอร์</button>
+    <button class="btn" id="go" ${imgs.length && !blockers.length ? '' : 'disabled'}>🎬 เริ่มเรนเดอร์</button>
     <div id="prog" class="hint"></div><div id="out"></div>
     <button class="btn alt" id="bk">← ย้อนกลับ</button>`;
   $('#bk').onclick = () => go(5);
+  if ($('#openSb')) $('#openSb').onclick = openSb;
   $('#go').onclick = async () => {
     $('#go').disabled = true; $('#out').innerHTML = '';
     const t0 = performance.now();
