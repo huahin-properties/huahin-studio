@@ -9,7 +9,7 @@ const SIZES = [
 const ROOMS = [AREA_ROOM, MAP_ROOM, 'หน้าบ้าน/ภายนอก','ที่จอดรถ','ห้องนั่งเล่น','ห้องทานอาหาร','ครัว','ห้องนอนใหญ่','ห้องนอน','ห้องน้ำ','สระว่ายน้ำ','สวน/ระเบียง','วิวรอบๆ','อื่นๆ'];
 const STEPS = ['1 ขนาด','2 ใส่รูป/คลิป','3 สี','4 สคริปต์','5 เสียง','6 มาสคอต','7 เรนเดอร์'];
 
-const state = { capOn: true, hookOn: true, hero: null, content: null, stock: { mode: 'auto', ids: null, counted: [] }, trans: 'auto', overlay: true, mascot: { presenter: true, size: 0.28, side: 'left' }, audio: { mode: 'single', single: null, chunks: {}, beatAud: {}, music: null, musicVol: 15, duck: true, duckBoost: 2.5, sfx: true }, stretch: true, clipSec: 180, routeData: null, skipMap: false, facts: { name: '', beds: '', baths: '', usable: '', land: '', price: '', travel: '', coord: '', routeStart: '', routeLabel: '', highlights: '' }, slot: 'title', step: 0, size: '4:5', items: [], color: { ...COLOR_DEFAULT }, useArea: true, contact: { mode: 'std', custom: { name: '', phone: '', line: '' } }, script: { area: '', rooms: {}, en: {}, enSrc: {} } };
+const state = { cover: null, capOn: true, hookOn: true, hero: null, content: null, stock: { mode: 'auto', ids: null, counted: [] }, trans: 'auto', overlay: true, mascot: { presenter: true, size: 0.28, side: 'left' }, audio: { mode: 'single', single: null, chunks: {}, beatAud: {}, music: null, musicVol: 15, duck: true, duckBoost: 2.5, sfx: true }, stretch: true, clipSec: 180, routeData: null, skipMap: false, facts: { name: '', beds: '', baths: '', usable: '', land: '', price: '', travel: '', coord: '', routeStart: '', routeLabel: '', highlights: '' }, slot: 'title', step: 0, size: '4:5', items: [], color: { ...COLOR_DEFAULT }, useArea: true, contact: { mode: 'std', custom: { name: '', phone: '', line: '' } }, script: { area: '', rooms: {}, en: {}, enSrc: {} } };
 const STATE0 = structuredClone(state);
 let nextId = 1;
 
@@ -24,10 +24,10 @@ const DB = {
   async set(k, v) { const db = await this.open(); return new Promise((res, rej) => { const tx = db.transaction('kv', 'readwrite'); tx.objectStore('kv').put(v, k); tx.oncomplete = res; tx.onerror = tx.onabort = () => rej(tx.error || new Error('บันทึกไม่ได้ (พื้นที่เต็ม?)')); }); },
   async del(k) { const db = await this.open(); return new Promise((res, rej) => { const tx = db.transaction('kv', 'readwrite'); tx.objectStore('kv').delete(k); tx.oncomplete = res; tx.onerror = tx.onabort = () => rej(tx.error); }); },
 };
-const projData = () => ({ v: 2, hookOn: state.hookOn, hero: state.hero, content: state.content, stock: state.stock, capOn: state.capOn, trans: state.trans, overlay: state.overlay, mascot: state.mascot, audio: state.audio, stretch: state.stretch, clipSec: state.clipSec, routeData: state.routeData, skipMap: state.skipMap, facts: state.facts, useArea: state.useArea, contact: state.contact, size: state.size, color: state.color, script: state.script, items: state.items.map(({ id, blob, type, room, name, title }) => ({ id, blob, type, room, name, title })) });
+const projData = () => ({ v: 2, hookOn: state.hookOn, hero: state.hero, content: state.content, stock: state.stock, capOn: state.capOn, cover: state.cover, trans: state.trans, overlay: state.overlay, mascot: state.mascot, audio: state.audio, stretch: state.stretch, clipSec: state.clipSec, routeData: state.routeData, skipMap: state.skipMap, facts: state.facts, useArea: state.useArea, contact: state.contact, size: state.size, color: state.color, script: state.script, items: state.items.map(({ id, blob, type, room, name, title }) => ({ id, blob, type, room, name, title })) });
 const save = () => { if (typeof updateSb === 'function') updateSb(); if (!state.pid) return Promise.resolve(); if (typeof schedMeta === 'function') schedMeta(); return DB.set('project:' + state.pid, projData()).catch(() => {}); };
 function applyProject(p) {
-  if (p) { if (!p.v) p.items.forEach(i => { if (i.room === 'หน้าบ้าน/ภายนอก') i.room = ''; }); state.size = p.size; state.hookOn = p.hookOn !== false; state.hero = p.hero || null; state.content = p.content || null; state.capOn = p.capOn !== false; state.stock = p.stock || { mode: 'all', ids: null, counted: [] }; state.trans = p.trans || 'auto'; state.overlay = p.overlay !== false; state.color = { ...COLOR_DEFAULT, ...(p.color || {}) }; state.script = { area: '', rooms: {}, en: {}, enSrc: {}, ...(p.script || {}) }; state.skipMap = !!p.skipMap; state.clipSec = p.clipSec || 180; state.audio = { mode: 'single', single: null, chunks: {}, beatAud: {}, music: null, musicVol: 15, duck: true, duckBoost: 2.5, sfx: true, ...(p.audio || {}) }; state.mascot = { presenter: true, size: 0.28, side: 'left', ...(p.mascot || {}) }; state.stretch = p.stretch !== false; state.routeData = p.routeData || null; state.facts = { ...state.facts, ...(p.facts || {}) }; state.useArea = true; state.contact = { mode: 'std', ...(p.contact || {}), custom: { name: '', phone: '', line: '', ...((p.contact || {}).custom || {}) } }; state.items = p.items; nextId = Math.max(0, ...p.items.map(i => i.id)) + 1; }
+  if (p) { if (!p.v) p.items.forEach(i => { if (i.room === 'หน้าบ้าน/ภายนอก') i.room = ''; }); state.size = p.size; state.hookOn = p.hookOn !== false; state.hero = p.hero || null; state.content = p.content || null; state.capOn = p.capOn !== false; state.cover = p.cover || null; state.stock = p.stock || { mode: 'all', ids: null, counted: [] }; state.trans = p.trans || 'auto'; state.overlay = p.overlay !== false; state.color = { ...COLOR_DEFAULT, ...(p.color || {}) }; state.script = { area: '', rooms: {}, en: {}, enSrc: {}, ...(p.script || {}) }; state.skipMap = !!p.skipMap; state.clipSec = p.clipSec || 180; state.audio = { mode: 'single', single: null, chunks: {}, beatAud: {}, music: null, musicVol: 15, duck: true, duckBoost: 2.5, sfx: true, ...(p.audio || {}) }; state.mascot = { presenter: true, size: 0.28, side: 'left', ...(p.mascot || {}) }; state.stretch = p.stretch !== false; state.routeData = p.routeData || null; state.facts = { ...state.facts, ...(p.facts || {}) }; state.useArea = true; state.contact = { mode: 'std', ...(p.contact || {}), custom: { name: '', phone: '', line: '', ...((p.contact || {}).custom || {}) } }; state.items = p.items; nextId = Math.max(0, ...p.items.map(i => i.id)) + 1; }
 }
 
 const $ = s => document.querySelector(s);
@@ -1018,6 +1018,7 @@ function viewRender() {
     <p class="hint">ปรับสี: ${isNeutral(state.color) ? 'ปิด' : (state.color.auto ? 'อัตโนมัติ' : 'ตั้งเอง')}</p>
     <p class="hint">ระหว่างเรนเดอร์ ให้เปิดหน้าจอค้างไว้ อย่าสลับแอป</p>
     <button class="btn" id="go" ${imgs.length && !blockers.length ? '' : 'disabled'}>🎬 เริ่มเรนเดอร์</button>
+    ${(() => { const c = coverItem(); return c ? `<div class="seg"><div class="seg-h"><b>🖼️ ภาพหน้าปกคลิป</b></div><div class="mini"><img src="${urlOf(c)}" alt=""><small>${c.room || 'ภาพที่เลือก'}${state.cover && state.cover.id === c.id ? '' : ' (เลือกให้อัตโนมัติ)'}</small></div><p class="hint">ใช้เป็นหน้าปกการ์ดในหน้า "คลิปของฉัน" และดาวน์โหลดเป็นไฟล์ภาพไปตั้งเป็นหน้าปกโพสต์ Facebook / YouTube ได้</p><div class="tools"><button class="ib wide" id="coverPick">🖼️ เลือกภาพหน้าปก</button><button class="ib wide" id="coverDl">⬇ ดาวน์โหลดภาพหน้าปก</button></div></div>` : ''; })()}
     <div id="saved"></div><div id="prog" class="hint"></div><div id="out"></div>
     <button class="btn alt" id="bk">← ย้อนกลับ</button>`;
   $('#ovl').onchange = e => { state.overlay = e.target.checked; save(); };
@@ -1026,6 +1027,17 @@ function viewRender() {
   $('#stretch').onchange = e => { state.stretch = e.target.checked; save(); viewRender(); };
   $('#bk').onclick = () => go(5);
   if ($('#chk2')) $('#chk2').onclick = openFactCheck;
+  if ($('#coverPick')) $('#coverPick').onclick = () => {
+    const d = document.createElement('div'); d.className = 'sheet tall'; d.id = 'coverSheet', cur = coverItem();
+    d.innerHTML = `<div class="sh-head"><b>🖼️ เลือกภาพหน้าปกคลิป</b><button class="ib" data-a="x" aria-label="ปิด">✕</button></div><p class="hint">เลือกภาพบ้านที่สวยและสะดุดตาที่สุด 1 ภาพ</p><div class="pgrid">${state.items.filter(i => i.type === 'image').map(i => `<button class="pcell ${cur && cur.id === i.id ? 'on' : ''}" data-cv="${i.id}"><img src="${urlOf(i)}" alt="" style="width:100%;height:92px;object-fit:cover;border-radius:8px"><span>${i.room || 'ยังไม่ตั้งห้อง'}</span></button>`).join('')}</div><button class="btn alt" data-a="x">ปิด</button>`;
+    d.onclick = async e => { if (e.target.closest('[data-a=x]')) { d.remove(); return; } const b = e.target.closest('[data-cv]'); if (b) { state.cover = { id: +b.dataset.cv }; await save(); await metaNow(); d.remove(); viewRender(); } };
+    document.body.appendChild(d);
+  };
+  if ($('#coverDl')) $('#coverDl').onclick = async () => {
+    const c = coverItem(); if (!c) return; const z = sizeInfo(), bmp = await createImageBitmap(c.blob), cv = document.createElement('canvas'); cv.width = z.w; cv.height = z.h;
+    const x = cv.getContext('2d'); x.imageSmoothingQuality = 'high'; drawCover(x, bmp, z.w, z.h, 1); bmp.close && bmp.close();
+    const blob = await new Promise(r => cv.toBlob(r, 'image/jpeg', 0.92)), u = URL.createObjectURL(blob), l = document.createElement('a'); l.href = u; l.download = clipName(metaOf(state.pid) || {}) + '-cover.jpg'; document.body.appendChild(l); l.click(); l.remove(); setTimeout(() => URL.revokeObjectURL(u), 60000);
+  };
   if ($('#openSb')) $('#openSb').onclick = openSb;
   fillSaved();
   $('#go').onclick = async () => {

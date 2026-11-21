@@ -3,6 +3,8 @@ const PROJ = { idx: [], urls: [], timer: null };
 const newPid = () => 'p' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
 async function loadIdx() { PROJ.idx = (await DB.get('projects')) || []; return PROJ.idx; }
 const saveIdx = () => DB.set('projects', PROJ.idx).catch(() => {});
+// ภาพหน้าปกของคลิป: ที่เลือกไว้ → ภาพเด่นเปิดคลิป → รูปแรก (ใช้ที่การ์ด 'คลิปของฉัน' และดาวน์โหลดเป็นไฟล์ได้ที่ขั้น 7)
+function coverItem() { const imgs = state.items.filter(i => i.type === 'image'); if (!imgs.length) return null; return (state.cover && imgs.find(i => i.id === state.cover.id)) || (state.hero && imgs.find(i => i.id === state.hero.id)) || imgs.find(i => i.room === 'หน้าบ้าน/ภายนอก') || imgs[0]; }
 const metaOf = id => PROJ.idx.find(m => m.id === id);
 // ย้ายงานเดิม (ก่อนมีหลายคลิป) มาเป็นคลิปแรกอัตโนมัติ
 async function migrateProjects() {
@@ -24,7 +26,7 @@ async function makeThumb(blob) {
 // อัปเดตการ์ดของคลิปที่กำลังทำ (ชื่อบ้าน ขนาด จำนวนรูป เวลาแก้ล่าสุด รูปหน้าปก)
 async function metaNow() {
   const m = state.pid && metaOf(state.pid); if (!m) return;
-  const imgs = state.items.filter(i => i.type === 'image'), first = imgs[0];
+  const imgs = state.items.filter(i => i.type === 'image'), first = coverItem() || imgs[0];
   m.fname = (state.facts && state.facts.name) || ''; m.size = state.size; m.n = imgs.length; m.updated = Date.now();
   if (!first) { m.thumb = null; m.thumbId = null; } else if (m.thumbId !== first.id || !m.thumb) { m.thumb = await makeThumb(first.blob); m.thumbId = first.id; }
   await saveIdx();
