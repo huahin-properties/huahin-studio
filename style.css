@@ -111,3 +111,13 @@ canvas#pv{width:100%;max-height:60vh;object-fit:contain;background:#000;border-r
 .pickp{margin:0;flex:1;text-align:left;padding:10px 12px}.pickp small{display:block;font-weight:400;opacity:.7;font-size:12px}
 .pgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:10px 0}.pcell{background:#fff3e6;border:2px solid transparent;border-radius:12px;padding:6px 4px;display:flex;flex-direction:column;align-items:center;gap:4px;font:inherit;color:inherit;cursor:pointer}.pcell.on{border-color:var(--accent,#7a1f2b)}.pcell canvas{width:72px;height:104px}.pcell span{font-size:12px;line-height:1.2;text-align:center}
 .myth{width:60px;height:86px}
+
+header{display:flex;align-items:center;gap:8px;flex-wrap:wrap}header small{font-size:12px;opacity:.85}.hbtn{margin-left:auto;background:rgba(255,255,255,.18);color:#fff;border:1px solid rgba(255,255,255,.5);border-radius:999px;padding:6px 12px;font:inherit;font-size:14px;cursor:pointer}
+.pcards{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
+.pcard{background:var(--card);border:1px solid var(--line);border-radius:16px;overflow:hidden;display:flex;flex-direction:column}
+.pthumb{position:relative;background:#e9dccb;display:flex;align-items:center;justify-content:center;max-height:150px;width:100%;overflow:hidden}.pthumb img{width:100%;height:100%;object-fit:cover}.pthumb span{font-size:42px}
+.pbadge{position:absolute;top:8px;left:8px;background:#fff;color:var(--accent);font-style:normal;font-size:12px;padding:3px 9px;border-radius:999px;border:1px solid var(--line)}.pbadge.ok{background:var(--accent);color:#fff}
+.pinfo{padding:10px 12px 4px;display:flex;flex-direction:column;gap:3px}.pinfo small{color:var(--mute);font-size:13px;line-height:1.4}.pinfo .pst{color:var(--ink)}
+.pact{display:flex;flex-wrap:wrap;gap:6px;padding:8px 12px 12px}.pcard .ib.wide{flex:1 1 auto}
+@media(min-width:700px){.pcards{grid-template-columns:repeat(3,1fr)}}
+.pinfo{padding:8px 9px 2px}.pinfo b{font-size:15px;line-height:1.25}.pinfo small{font-size:12px}.pact{padding:6px 9px 10px;gap:5px}.pcard .ib.wide{padding:6px 8px;font-size:13px}.pbadge{font-size:11px;padding:2px 7px}

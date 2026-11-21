@@ -10,6 +10,7 @@ const ROOMS = [AREA_ROOM, MAP_ROOM, 'หน้าบ้าน/ภายนอก
 const STEPS = ['1 ขนาด','2 ใส่รูป/คลิป','3 สี','4 สคริปต์','5 เสียง','6 มาสคอต','7 เรนเดอร์'];
 
 const state = { trans: 'auto', overlay: true, mascot: { presenter: true, size: 0.28, side: 'left' }, audio: { mode: 'single', single: null, chunks: {}, music: null, musicVol: 15, duck: true, duckBoost: 2.5, sfx: true }, stretch: true, clipSec: 180, routeData: null, skipMap: false, facts: { name: '', beds: '', baths: '', usable: '', land: '', price: '', travel: '', coord: '', routeStart: '', routeLabel: '', highlights: '' }, slot: 'title', step: 0, size: '4:5', items: [], color: { ...COLOR_DEFAULT }, useArea: true, contact: { mode: 'std', custom: { name: '', phone: '', line: '' } }, script: { area: '', rooms: {}, en: {}, enSrc: {} } };
+const STATE0 = structuredClone(state);
 let nextId = 1;
 
 // ---- เก็บงานไว้ในเครื่อง (IndexedDB) ปิดแอปแล้วงานไม่หาย ----
@@ -20,11 +21,12 @@ const DB = {
     r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
   }); },
   async get(k) { const db = await this.open(); return new Promise(res => { const q = db.transaction('kv').objectStore('kv').get(k); q.onsuccess = () => res(q.result); }); },
-  async set(k, v) { const db = await this.open(); return new Promise(res => { const tx = db.transaction('kv', 'readwrite'); tx.objectStore('kv').put(v, k); tx.oncomplete = res; }); },
+  async set(k, v) { const db = await this.open(); return new Promise((res, rej) => { const tx = db.transaction('kv', 'readwrite'); tx.objectStore('kv').put(v, k); tx.oncomplete = res; tx.onerror = tx.onabort = () => rej(tx.error || new Error('บันทึกไม่ได้ (พื้นที่เต็ม?)')); }); },
+  async del(k) { const db = await this.open(); return new Promise((res, rej) => { const tx = db.transaction('kv', 'readwrite'); tx.objectStore('kv').delete(k); tx.oncomplete = res; tx.onerror = tx.onabort = () => rej(tx.error); }); },
 };
-const save = () => (typeof updateSb === 'function' && updateSb(), DB.set('project', { v: 2, trans: state.trans, overlay: state.overlay, mascot: state.mascot, audio: state.audio, stretch: state.stretch, clipSec: state.clipSec, routeData: state.routeData, skipMap: state.skipMap, facts: state.facts, useArea: state.useArea, contact: state.contact, size: state.size, color: state.color, script: state.script, items: state.items.map(({ id, blob, type, room, name }) => ({ id, blob, type, room, name })) }));
-async function load() {
-  await loadLib(); const p = await DB.get('project');
+const projData = () => ({ v: 2, trans: state.trans, overlay: state.overlay, mascot: state.mascot, audio: state.audio, stretch: state.stretch, clipSec: state.clipSec, routeData: state.routeData, skipMap: state.skipMap, facts: state.facts, useArea: state.useArea, contact: state.contact, size: state.size, color: state.color, script: state.script, items: state.items.map(({ id, blob, type, room, name }) => ({ id, blob, type, room, name })) });
+const save = () => { if (typeof updateSb === 'function') updateSb(); if (!state.pid) return Promise.resolve(); if (typeof schedMeta === 'function') schedMeta(); return DB.set('project:' + state.pid, projData()).catch(() => {}); };
+function applyProject(p) {
   if (p) { if (!p.v) p.items.forEach(i => { if (i.room === 'หน้าบ้าน/ภายนอก') i.room = ''; }); state.size = p.size; state.trans = p.trans || 'auto'; state.overlay = p.overlay !== false; state.color = { ...COLOR_DEFAULT, ...(p.color || {}) }; state.script = { area: '', rooms: {}, en: {}, enSrc: {}, ...(p.script || {}) }; state.skipMap = !!p.skipMap; state.clipSec = p.clipSec || 180; state.audio = { mode: 'single', single: null, chunks: {}, music: null, musicVol: 15, duck: true, duckBoost: 2.5, sfx: true, ...(p.audio || {}) }; state.mascot = { presenter: true, size: 0.28, side: 'left', ...(p.mascot || {}) }; state.stretch = p.stretch !== false; state.routeData = p.routeData || null; state.facts = { ...state.facts, ...(p.facts || {}) }; state.useArea = true; state.contact = { mode: 'std', ...(p.contact || {}), custom: { name: '', phone: '', line: '', ...((p.contact || {}).custom || {}) } }; state.items = p.items; nextId = Math.max(0, ...p.items.map(i => i.id)) + 1; }
 }
 
@@ -93,6 +95,8 @@ const urlOf = it => { if (!urlCache.has(it.id)) urlCache.set(it.id, URL.createOb
 let previewTimer = null;
 
 function renderSteps() {
+  $('#steps').style.display = state.home ? 'none' : ''; $('#sb').style.display = state.home ? 'none' : '';
+  if (state.home) { $('#steps').innerHTML = ''; return; }
   updateSb(); if (!$('#sb').onclick) $('#sb').onclick = openSb;
   $('#steps').innerHTML = STEPS.map((s, i) => `<button data-i="${i}" class="${i === state.step ? 'on' : ''}" >${s}</button>`).join('');
   const on = $('#steps .on'); if (on) on.scrollIntoView({ inline: 'center', block: 'nearest' });
@@ -866,7 +870,7 @@ function viewRender() {
     <p class="hint">ปรับสี: ${isNeutral(state.color) ? 'ปิด' : (state.color.auto ? 'อัตโนมัติ' : 'ตั้งเอง')}</p>
     <p class="hint">ระหว่างเรนเดอร์ ให้เปิดหน้าจอค้างไว้ อย่าสลับแอป</p>
     <button class="btn" id="go" ${imgs.length && !blockers.length ? '' : 'disabled'}>🎬 เริ่มเรนเดอร์</button>
-    <div id="prog" class="hint"></div><div id="out"></div>
+    <div id="saved"></div><div id="prog" class="hint"></div><div id="out"></div>
     <button class="btn alt" id="bk">← ย้อนกลับ</button>`;
   $('#ovl').onchange = e => { state.overlay = e.target.checked; save(); };
   $('#trs').onchange = e => { state.trans = e.target.value; save(); };
@@ -874,7 +878,9 @@ function viewRender() {
   $('#bk').onclick = () => go(5);
   if ($('#chk2')) $('#chk2').onclick = openFactCheck;
   if ($('#openSb')) $('#openSb').onclick = openSb;
+  fillSaved();
   $('#go').onclick = async () => {
+    const pid0 = state.pid;
     $('#go').disabled = true; $('#out').innerHTML = '';
     const t0 = performance.now();
     try {
@@ -906,9 +912,10 @@ function viewRender() {
       STYLE.trans = state.trans; OVERLAY.on = !!state.overlay; OVERLAY.events = state.overlay ? buildOverlayEvents(entries, state.facts) : []; PRESENTER.on = !!state.mascot.presenter; PRESENTER.size = state.mascot.size; PRESENTER.move = state.mascot.move !== false; PRESENTER.random = state.mascot.random !== false; PRESENTER.fidget = state.mascot.fidget !== false; PRESENTER._prep = -1; PRESENTER.side = state.mascot.side; PRESENTER.spans = [];
       { let tt = 0; const seen = {}; entries.forEach(e => { if (e.key && e.key !== 'open' && e.key !== 'close') { const sp = seen[e.key] || (seen[e.key] = { start: tt, end: tt, pose: poseForSeg(e.key), seed: Object.keys(seen).length }); sp.end = tt + e.dur; } tt += e.dur; }); PRESENTER.spans = Object.values(seen); }
       const blob = await renderMp4(imgs.map(i => i.blob), s.w, s.h, (p, msg) => { $('#prog').textContent = `${msg} ${Math.round(p * 100)}%`; }, luts, sceneList, durs, audioMix);
-      const url = URL.createObjectURL(blob);
-      $('#prog').textContent = `เสร็จใน ${((performance.now() - t0) / 1000).toFixed(0)} วินาที · ขนาดไฟล์ ${(blob.size / 1048576).toFixed(1)} MB`;
-      $('#out').innerHTML = `<video src="${url}" controls playsinline style="width:100%;max-height:60vh;background:#000;border-radius:12px"></video><a class="btn" download="huahin-clip.mp4" href="${url}" style="text-decoration:none;text-align:center">⬇ บันทึกไฟล์ MP4</a>`;
+      const url = URL.createObjectURL(blob), kept = await storeVideo(pid0, blob); await markRendered(pid0, blob, kept);
+      $('#prog').textContent = `${kept ? '💾 เก็บไว้ในหน้า "คลิปของฉัน" แล้ว · ' : '⚠️ พื้นที่เก็บในเครื่องไม่พอจะเก็บวิดีโอไว้ในแอป (โหลดลงเครื่องเลย) · '}เสร็จใน ${((performance.now() - t0) / 1000).toFixed(0)} วินาที · ขนาดไฟล์ ${(blob.size / 1048576).toFixed(1)} MB`;
+      $('#out').innerHTML = `<video src="${url}" controls playsinline style="width:100%;max-height:60vh;background:#000;border-radius:12px"></video><a class="btn" id="dl" download="${clipName(metaOf(pid0) || {})}.mp4" href="${url}" style="text-decoration:none;text-align:center">⬇ บันทึกไฟล์ MP4</a>`;
+      $('#dl').onclick = () => markDownloaded(pid0); $('#saved').innerHTML = '';
     } catch (e) { $('#prog').textContent = '❌ ' + (e.message || e); }
     PRESENTER.on = false; OVERLAY.on = false; MOUTH.env = null; MOUTH.wid = null; MOUTH.babble = true;
     $('#go').disabled = false;
@@ -1315,11 +1322,14 @@ async function viewMascot() {
 function render() {
   clearInterval(previewTimer);
   renderSteps();
+  if (state.home) return viewHome();
   if (state.step === 0) viewSize(); else if (state.step === 6) viewRender(); else if (state.step === 1) viewSlots(); else if (state.step === 2) viewColor(); else if (state.step === 3) viewScript(); else if (state.step === 4) viewAudio(); else if (state.step === 5) viewMascot(); else viewComing();
 }
 
 (async () => {
-  await load(); render();
+  await loadLib(); await migrateProjects(); state.home = true; render();
+  try { navigator.storage && navigator.storage.persist && navigator.storage.persist(); } catch (e) {}
+  $('#homeBtn').onclick = goHome;
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
 })();
 
@@ -1344,4 +1354,18 @@ async function removePlainBg(file) {
   if (x1 <= x0 || y1 <= y0) throw new Error('ไม่พบตัวมาสคอตในรูป (พื้นหลังอาจไม่เรียบ)');
   const o = document.createElement('canvas'); o.width = x1 - x0 + 1; o.height = y1 - y0 + 1; o.getContext('2d').drawImage(c, x0, y0, o.width, o.height, 0, 0, o.width, o.height);
   return new Promise(r => o.toBlob(r, 'image/png'));
+}
+
+// คลิปที่เรนเดอร์แล้วและเก็บไว้ในแอป: ดูซ้ำ/ดาวน์โหลด/ลบไฟล์ได้ที่ขั้น 7
+async function fillSaved() {
+  const pid = state.pid, m = pid && metaOf(pid), box = $('#saved'); if (!box || !m || !m.rendered || !m.rendered.saved) return;
+  const v = await DB.get('video:' + pid); if (!v || state.pid !== pid || !$('#saved')) return;
+  const u = URL.createObjectURL(v);
+  box.innerHTML = `<div class="soon" style="text-align:left"><b>🎬 คลิปที่เรนเดอร์ไว้แล้ว</b> · ${fmtDate(m.rendered.at)} · ${mb(m.rendered.size)} · ${m.rendered.downloaded ? '✅ ดาวน์โหลดแล้ว' : '⬇ ยังไม่ได้ดาวน์โหลด'}
+    <video src="${u}" controls playsinline style="width:100%;max-height:50vh;background:#000;border-radius:12px;margin-top:8px"></video>
+    <a class="btn" id="dl0" download="${clipName(m)}.mp4" href="${u}" style="text-decoration:none;text-align:center">⬇ บันทึกไฟล์ MP4</a>
+    <button class="btn alt" id="rmv">🗑 ลบวิดีโอที่เก็บไว้ในแอป (ประหยัดพื้นที่)</button>
+    <p class="hint">กด "เริ่มเรนเดอร์" ด้านล่างเพื่อทำใหม่ (วิดีโอใหม่จะแทนอันนี้)</p></div>`;
+  $('#dl0').onclick = () => markDownloaded(pid);
+  $('#rmv').onclick = async () => { if (confirm('ลบวิดีโอที่เก็บไว้ในแอป? (รูปและสคริปต์ยังอยู่ เรนเดอร์ใหม่ได้)')) { await removeVideo(pid); box.innerHTML = ''; } };
 }
