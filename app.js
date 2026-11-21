@@ -8,7 +8,9 @@ const SIZES = [
 const ROOMS = ['หน้าบ้าน/ภายนอก','สระว่ายน้ำ','ห้องนั่งเล่น','ครัว','ห้องนอนใหญ่','ห้องนอน','ห้องน้ำ','สวน/ระเบียง','วิวรอบๆ','อื่นๆ'];
 const STEPS = ['1 ขนาด','2 รูป/คลิป','3 สี','4 สคริปต์','5 เสียง','6 มาสคอต','7 เรนเดอร์'];
 
-const state = { step: 0, size: '4:5', items: [], color: { ...COLOR_DEFAULT } };
+const DEFAULT_TITLE = 'สวัสดีครับ ยินดีต้อนรับสู่ Huahin Properties วันนี้ผมพาทุกท่านมาชมบ้านหลังสวยที่หัวหิน';
+const DEFAULT_CLOSE = 'สนใจบ้านหลังนี้ ติดต่อ Huahin Properties ได้เลยครับ [ใส่เบอร์โทรและ LINE ตรงนี้]';
+const state = { step: 0, size: '4:5', items: [], color: { ...COLOR_DEFAULT }, script: { title: DEFAULT_TITLE, close: DEFAULT_CLOSE, rooms: {} } };
 let nextId = 1;
 
 // ---- เก็บงานไว้ในเครื่อง (IndexedDB) ปิดแอปแล้วงานไม่หาย ----
@@ -21,10 +23,10 @@ const DB = {
   async get(k) { const db = await this.open(); return new Promise(res => { const q = db.transaction('kv').objectStore('kv').get(k); q.onsuccess = () => res(q.result); }); },
   async set(k, v) { const db = await this.open(); return new Promise(res => { const tx = db.transaction('kv', 'readwrite'); tx.objectStore('kv').put(v, k); tx.oncomplete = res; }); },
 };
-const save = () => DB.set('project', { size: state.size, color: state.color, items: state.items.map(({ id, blob, type, room, name }) => ({ id, blob, type, room, name })) });
+const save = () => DB.set('project', { size: state.size, color: state.color, script: state.script, items: state.items.map(({ id, blob, type, room, name }) => ({ id, blob, type, room, name })) });
 async function load() {
   const p = await DB.get('project');
-  if (p) { state.size = p.size; state.color = { ...COLOR_DEFAULT, ...(p.color || {}) }; state.items = p.items; nextId = Math.max(0, ...p.items.map(i => i.id)) + 1; }
+  if (p) { state.size = p.size; state.color = { ...COLOR_DEFAULT, ...(p.color || {}) }; state.script = { title: DEFAULT_TITLE, close: DEFAULT_CLOSE, rooms: {}, ...(p.script || {}) }; state.items = p.items; nextId = Math.max(0, ...p.items.map(i => i.id)) + 1; }
 }
 
 const $ = s => document.querySelector(s);
@@ -142,7 +144,6 @@ function viewMedia() {
 function go(n) { selMode = false; picked.clear(); state.step = n; render(); window.scrollTo(0, 0); }
 
 const COMING = {
-  3: ['สคริปต์เรื่องราว', 'พิมพ์เรื่องราวเล่าตามแต่ละห้อง'],
   4: ['เสียงพากย์และเพลงประกอบ', 'อัปโหลดไฟล์เสียงพากย์ทีละไฟล์ (01, 02, ...) และเพลง mp3'],
   5: ['มาสคอต', 'ปากขยับตามเสียงพูด กะพริบตา โบกมือ กระโดด เดินสั้นๆ'],
 };
@@ -155,6 +156,70 @@ function viewComing() {
     <button class="btn alt" id="bk">← ย้อนกลับ</button>`;
   $('#nx').onclick = () => go(state.step + 1);
   $('#bk').onclick = () => go(state.step - 1);
+}
+
+// ---- ขั้น 4: สคริปต์เรื่องราว ----
+const SPEAK_CPS = 12; // ตัวอักษรไทยต่อวินาที (ประมาณ)
+const cleanLen = t => (t || '').replace(/\s+/g, '').length;
+const secOf = t => Math.round(cleanLen(t) / SPEAK_CPS);
+const mmss = n => `${Math.floor(n / 60)}:${String(n % 60).padStart(2, '0')}`;
+function scriptSegments() {
+  const rooms = []; state.items.forEach(it => { if (!rooms.includes(it.room)) rooms.push(it.room); });
+  const segs = [{ no: 1, key: 'title', label: 'ไตเติล', text: state.script.title }];
+  rooms.forEach((r, i) => segs.push({ no: i + 2, key: 'room:' + r, label: r, room: r, text: state.script.rooms[r] || '' }));
+  segs.push({ no: segs.length + 1, key: 'close', label: 'หน้าปิด (ข้อมูลติดต่อ)', text: state.script.close });
+  return segs;
+}
+async function copyText(t) {
+  try { await navigator.clipboard.writeText(t); return true; } catch (_) {}
+  const ta = document.createElement('textarea'); ta.value = t; document.body.appendChild(ta); ta.select();
+  let ok = false; try { ok = document.execCommand('copy'); } catch (_) {} ta.remove(); return ok;
+}
+function viewScript() {
+  const segs = scriptSegments(), no2 = n => String(n).padStart(2, '0');
+  const setText = (seg, v) => { if (seg.key === 'title') state.script.title = v; else if (seg.key === 'close') state.script.close = v; else state.script.rooms[seg.room] = v; };
+  const total = () => scriptSegments().reduce((a, g) => a + secOf(g.text), 0);
+  const card = g => {
+    const its = g.room ? state.items.filter(i => i.room === g.room) : [];
+    return `<div class="seg" data-key="${g.key}">
+      <div class="seg-h"><b>${no2(g.no)} · ${g.label}</b><span class="badge" data-t="${g.key}">~${secOf(g.text)} วิ</span><button class="ib sm" data-cp="${g.key}" title="คัดลอกท่อนนี้" aria-label="คัดลอกท่อนนี้">📋</button></div>
+      ${its.length ? `<div class="mini">${its.slice(0, 4).map(i => i.type === 'image' ? `<img src="${urlOf(i)}" alt="">` : '<span>🎬</span>').join('')}<small>${its.length} รูป/คลิป</small></div>` : ''}
+      <textarea rows="3" data-k="${g.key}" placeholder="พิมพ์เรื่องเล่าของห้องนี้...">${g.text.replace(/</g, '&lt;')}</textarea>
+    </div>`;
+  };
+  $('#view').innerHTML = `
+    <h2>4 สคริปต์: เรื่องราว</h2>
+    <div class="tools"><button class="ib" data-all title="คัดลอกสคริปต์ทั้งหมดไปวางใน Google AI Studio" aria-label="คัดลอกทั้งหมด">📋 ทั้งหมด</button></div>
+    <p class="hint">เวลารวมโดยประมาณ <b id="tot">${mmss(total())}</b> (เป้าหมายประมาณ 3:00) · เลขท่อนตรงกับชื่อไฟล์เสียง 01, 02, ...</p>
+    ${state.items.length ? '' : '<div class="soon">ยังไม่มีรูป กลับไปขั้น 2 เพื่อใส่รูปและติดแท็กห้องก่อน</div>'}
+    <div id="segs">${segs.map(card).join('')}</div>
+    <p class="hint" id="warn"></p>
+    <button class="btn" id="nx">ถัดไป: 5 เสียง →</button>
+    <button class="btn alt" id="bk">← ย้อนกลับ</button>`;
+  const warn = () => {
+    const all = scriptSegments(), msgs = [];
+    const empty = all.filter(g => !g.text.trim()).map(g => no2(g.no));
+    if (empty.length) msgs.push('ท่อนที่ยังว่าง: ' + empty.join(', '));
+    if (all.some(g => /\[[^\]]*\]/.test(g.text))) msgs.push('⚠️ ยังมีข้อความในวงเล็บ [ ] ให้แก้เป็นข้อมูลจริงก่อนทำเสียงพากย์');
+    $('#warn').innerHTML = msgs.join('<br>');
+  };
+  warn();
+  $('#segs').oninput = e => {
+    const ta = e.target.closest('textarea'); if (!ta) return;
+    const g = scriptSegments().find(x => x.key === ta.dataset.k); setText(g, ta.value); save();
+    document.querySelector(`[data-t="${CSS.escape(g.key)}"]`).textContent = `~${secOf(ta.value)} วิ`;
+    $('#tot').textContent = mmss(total()); warn();
+  };
+  const flash = (btn, ok) => { const o = btn.textContent; btn.textContent = ok ? '✓ คัดลอกแล้ว' : 'คัดลอกไม่ได้'; setTimeout(() => { btn.textContent = o; }, 1500); };
+  $('#segs').onclick = async e => {
+    const b = e.target.closest('[data-cp]'); if (!b) return;
+    const g = scriptSegments().find(x => x.key === b.dataset.cp); flash(b, await copyText(g.text));
+  };
+  document.querySelector('[data-all]').onclick = async e => {
+    const txt = scriptSegments().map(g => `[${no2(g.no)}]\n${g.text.trim()}`).join('\n\n');
+    flash(e.currentTarget, await copyText(txt));
+  };
+  $('#nx').onclick = () => go(4); $('#bk').onclick = () => go(2);
 }
 
 // ---- ขั้น 3: ปรับสี ----
@@ -352,7 +417,7 @@ async function startPreview() {
 function render() {
   clearInterval(previewTimer);
   renderSteps();
-  if (state.step === 0) viewSize(); else if (state.step === 6) viewRender(); else if (state.step === 1) viewMedia(); else if (state.step === 2) viewColor(); else viewComing();
+  if (state.step === 0) viewSize(); else if (state.step === 6) viewRender(); else if (state.step === 1) viewMedia(); else if (state.step === 2) viewColor(); else if (state.step === 3) viewScript(); else viewComing();
 }
 
 (async () => {
