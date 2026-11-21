@@ -84,10 +84,11 @@ function slotInfo(s, n) {
   if (n === 0) return s.min ? 'ยังไม่มี · จำเป็น' : 'ยังไม่มี · แนะนำให้ใส่';
   return `${n} รูป/คลิป${n < s.rec ? ` · แนะนำ ${s.rec}+` : ''}`;
 }
+const orphanItems = () => state.items.filter(i => !i.room || (!SLOTS.some(s => s.rooms && s.rooms.includes(i.room)) && i.room !== AREA_ROOM));
 function sbSlots() {
-  const un = state.items.filter(i => !i.room || !SLOTS.some(s => s.rooms && s.rooms.includes(i.room)) && i.room !== AREA_ROOM).length;
+  const un = orphanItems().length;
   return [...SLOTS.map(s => { const n = slotCount(s); return { id: s.id, label: s.label, st: slotStatus(s, n), info: slotInfo(s, n), act: 'go' }; }),
-    ...(un ? [{ id: 'un', label: 'รูปเดิมที่ยังไม่จัดเข้าแท็บ', st: 'miss', info: `${un} รูป · ไปขั้น 3 เพื่อย้ายเข้าห้อง หรือลบ`, act: 'un', nonum: true }] : [])];
+    ...(un ? [{ id: 'un', label: 'รูปเดิมที่ยังไม่จัดเข้าแท็บ', st: 'miss', info: `${un} รูป · ย้ายเข้าแท็บหรือลบ`, act: 'un', nonum: true }] : [])];
 }
 const sbBlockers = () => sbSlots().filter(s => s.st === 'miss');
 

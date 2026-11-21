@@ -252,6 +252,10 @@ function viewSlots() {
         ${scriptBarHtml(sl)}
         <div class="sgrid" data-grid="${sl.id}">${items.map(it => thumbHtml(it, true)).join('')}</div></div>`);
     });
+    { const orp = orphanItems(); if (orp.length) {
+      const opts = SLOTS.filter(x => x.kind === 'room').map(x => `<option value="${x.room}">${x.ico} ${x.short}</option>`).join('');
+      todo.unshift(`<div class="gsec gmiss" data-sec="orphan"><div class="gh"><b>⚠️ รูปที่ยังไม่ได้จัดเข้าแท็บ · ${orp.length}</b></div><p class="hint">รูปเหล่านี้ใส่ไว้ก่อนมีแท็บ เลือกว่าเป็นของแท็บไหน หรือกด ✕ ลบ (ต้องจัดให้ครบก่อนไปขั้นต่อไป)</p>
+        <div class="sgrid">${orp.map(it => `<div class="th orp" data-id="${it.id}">${it.type === 'video' ? `<video src="${urlOf(it)}#t=0.1" muted playsinline></video>` : `<img src="${urlOf(it)}" alt="">`}<button class="x" data-del="${it.id}" aria-label="ลบ">✕</button><select class="mv" data-mv="${it.id}"><option value="">ย้ายไป…</option>${opts}</select></div>`).join('')}</div></div>`); } }
     if (state.routeData) done.push(`<div class="gsec" data-sec="route"><div class="gh"><b>🚗 คลิปเส้นทางรถวิ่งเข้าบ้าน</b><button class="ib sm" data-open="map">จัดการ</button></div><p class="hint">${state.routeData.size === state.size ? `ต่อเข้า MP4 อัตโนมัติ (~${ROUTE_DUR} วินาที) หลังภาพแผนที่` : '⚠️ สร้างไว้สำหรับขนาดคลิปอื่น กด จัดการ เพื่อสร้างใหม่'}</p></div>`);
     const html = (todo.length ? `<h3 class="gtitle todo">⏳ ยังไม่เรียบร้อย (${todo.length})</h3>${todo.join('')}` : '')
       + (done.length ? `<h3 class="gtitle done">✅ เรียบร้อยแล้ว (${done.length})</h3>${done.join('')}` : '');
@@ -267,17 +271,23 @@ function viewSlots() {
   };
   const renderDone = () => {
     const miss = sbBlockers(), el = $('#doneBar'); if (!el) return;
-    el.innerHTML = `${miss.length ? '' : '<p class="hint" style="color:#1e6b3a">✅ เช็กลิสต์ของจำเป็นครบแล้ว</p>'}
+    const hidden = miss.filter(m => m.id === 'un');
+    el.innerHTML = `${hidden.length ? `<p class="hint" style="color:#9b1c1c">❌ ปุ่มยังกดไม่ได้: ${hidden[0].info} (ดูการ์ด ⚠️ ด้านบน)</p>` : miss.length ? '' : '<p class="hint" style="color:#1e6b3a">✅ เช็กลิสต์ของจำเป็นครบแล้ว</p>'}
       <button class="btn" id="toColor" ${miss.length ? 'disabled' : ''}>ถัดไป: 3 สี →</button>`;
     $('#toColor').onclick = () => go(2);
   };
   refreshAll = () => { renderChips(); renderGallery(); renderDone(); };
   refreshChips = () => { if ($('#chips')) { renderChips(); renderDone(); } };
   $('#chips').onclick = e => { const b = e.target.closest('.chip'); if (b) openSlot(b.dataset.s); };
+  $('#gallery').onchange = async e => {
+    const m = e.target.closest('[data-mv]'); if (!m || !m.value) return;
+    const it = state.items.find(x => x.id === +m.dataset.mv); if (it) { it.room = m.value; await save(); updateSb(); refreshAll(); }
+  };
   $('#gallery').onclick = async e => {
     const o = e.target.closest('[data-open]'); if (o) { openSlot(o.dataset.open); return; }
     const x = e.target.closest('[data-del]'); if (!x) return;
-    const sl = SLOTS.find(z => z.id === x.closest(".gsec").dataset.sec);
+    if (x.closest('.gsec').dataset.sec === 'orphan') { if (confirm('ลบรูปนี้ใช่ไหม?')) { removeItem(+x.dataset.del); await save(); updateSb(); refreshAll(); } return; }
+    const sl = SLOTS.find(z => z.id === x.closest('.gsec').dataset.sec);
     if (confirm('ลบไฟล์นี้ใช่ไหม?')) { await removeFromSlot(sl, +x.dataset.del); updateSb(); refreshAll(); }
   };
   $('#btnFacts').onclick = () => openFacts(() => refreshAll());
