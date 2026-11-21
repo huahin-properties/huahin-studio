@@ -34,7 +34,7 @@ const urlOf = it => { if (!urlCache.has(it.id)) urlCache.set(it.id, URL.createOb
 let previewTimer = null;
 
 function renderSteps() {
-  $('#steps').innerHTML = STEPS.map((s, i) => `<button data-i="${i}" class="${i === state.step ? 'on' : ''}" ${i > 1 && i < 6 ? 'disabled' : ''}>${s}</button>`).join('');
+  $('#steps').innerHTML = STEPS.map((s, i) => `<button data-i="${i}" class="${i === state.step ? 'on' : ''}" >${s}</button>`).join('');
   const on = $('#steps .on'); if (on) on.scrollIntoView({ inline: 'center', block: 'nearest' });
   $('#steps').onclick = e => { const b = e.target.closest('button'); if (b && !b.disabled) { state.step = +b.dataset.i; render(); } };
 }
@@ -46,7 +46,7 @@ function viewSize() {
     <div class="sizes">${SIZES.map(s => `<button class="size ${s.id === state.size ? 'on' : ''}" data-id="${s.id}"><i style="${box(s)}"></i><b>${s.name}</b><span>${s.note}</span></button>`).join('')}</div>
     <button class="btn" id="next">ถัดไป: ใส่รูปบ้าน →</button>`;
   $('.sizes').onclick = e => { const b = e.target.closest('.size'); if (b) { state.size = b.dataset.id; save(); viewSize(); } };
-  $('#next').onclick = () => { state.step = 1; render(); };
+  $('#next').onclick = () => go(1);
 }
 
 function viewMedia() {
@@ -66,8 +66,8 @@ function viewMedia() {
     <button class="btn" id="add">+ เพิ่มรูป / คลิป</button>
     <div class="items">${list || '<div class="soon">ยังไม่มีรูป กดปุ่มด้านบนเพื่อเพิ่ม</div>'}</div>
     ${state.items.some(i => i.type === 'image') ? `<h2>พรีวิวสไตล์ v3</h2><canvas id="pv"></canvas><button class="btn alt" id="play">▶ เล่นพรีวิวอีกครั้ง</button>` : ''}
-    ${state.items.length ? '<button class="btn" id="toRender">ถัดไป: เรนเดอร์ MP4 →</button>' : ''}
-    <p class="hint">ขั้นปรับสี สคริปต์ เสียง มาสคอต จะทำต่อในรอบถัดไป</p>`;
+    ${state.items.length ? '<button class="btn" id="toNext">ถัดไป: ขั้น 3 ปรับสี →</button>' : ''}
+    `;
   $('#add').onclick = () => $('#file').click();
   $('#file').onchange = async e => {
     for (const f of e.target.files) {
@@ -84,9 +84,28 @@ function viewMedia() {
     if (act === 'del') { URL.revokeObjectURL(urlCache.get(state.items[i].id)); urlCache.delete(state.items[i].id); state.items.splice(i, 1); }
     await save(); viewMedia();
   };
-  if ($('#toRender')) $('#toRender').onclick = () => { state.step = 6; render(); window.scrollTo(0, 0); };
+  if ($('#toNext')) $('#toNext').onclick = () => go(2);
   enableDrag($('.items'));
   if ($('#pv')) { startPreview(); $('#play').onclick = startPreview; }
+}
+
+function go(n) { state.step = n; render(); window.scrollTo(0, 0); }
+
+const COMING = {
+  2: ['ปรับสีให้เข้ากันอัตโนมัติ', 'ปรับความสว่าง คอนทราสต์ และ white balance ให้ดูเป็นธรรมชาติ และปรับเองได้'],
+  3: ['สคริปต์เรื่องราว', 'พิมพ์เรื่องราวเล่าตามแต่ละห้อง'],
+  4: ['เสียงพากย์และเพลงประกอบ', 'อัปโหลดไฟล์เสียงพากย์ทีละไฟล์ (01, 02, ...) และเพลง mp3'],
+  5: ['มาสคอต', 'ปากขยับตามเสียงพูด กะพริบตา โบกมือ กระโดด เดินสั้นๆ'],
+};
+function viewComing() {
+  const [t, d] = COMING[state.step];
+  $('#view').innerHTML = `
+    <h2>${STEPS[state.step]}: ${t}</h2>
+    <div class="soon">🚧 ขั้นนี้ยังไม่เปิดใช้งาน<br><br>${d}<br><br>ตอนนี้กดถัดไปเพื่อข้ามได้</div>
+    <button class="btn" id="nx">ถัดไป: ${STEPS[state.step + 1]} →</button>
+    <button class="btn alt" id="bk">← ย้อนกลับ</button>`;
+  $('#nx').onclick = () => go(state.step + 1);
+  $('#bk').onclick = () => go(state.step - 1);
 }
 
 function viewRender() {
@@ -97,7 +116,9 @@ function viewRender() {
     <p class="hint">ขนาด ${s.name} (${s.w}×${s.h}) · ${imgs.length} รูป · ยาวประมาณ ${totalDuration(imgs.length).toFixed(1)} วินาที${skipped ? ` · คลิปสั้น ${skipped} ไฟล์ยังไม่ถูกใช้ (รอบหน้า)` : ''}</p>
     <p class="hint">ระหว่างเรนเดอร์ ให้เปิดหน้าจอค้างไว้ อย่าสลับแอป</p>
     <button class="btn" id="go" ${imgs.length ? '' : 'disabled'}>🎬 เริ่มเรนเดอร์</button>
-    <div id="prog" class="hint"></div><div id="out"></div>`;
+    <div id="prog" class="hint"></div><div id="out"></div>
+    <button class="btn alt" id="bk">← ย้อนกลับ</button>`;
+  $('#bk').onclick = () => go(5);
   $('#go').onclick = async () => {
     $('#go').disabled = true; $('#out').innerHTML = '';
     const t0 = performance.now();
@@ -176,7 +197,7 @@ async function startPreview() {
 function render() {
   clearInterval(previewTimer);
   renderSteps();
-  if (state.step === 0) viewSize(); else if (state.step === 6) viewRender(); else viewMedia();
+  if (state.step === 0) viewSize(); else if (state.step === 6) viewRender(); else if (state.step === 1) viewMedia(); else viewComing();
 }
 
 (async () => {
