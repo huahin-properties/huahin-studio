@@ -3,17 +3,32 @@ const FPS = 30;
 const sleep0 = () => new Promise(r => setTimeout(r, 0));
 
 // โหลดรูปแล้วย่อให้พอดีขนาดคลิป กันมือถือหน่วยความจำเต็มเมื่อมีรูปเยอะ
+// ย่อรูปให้ใหญ่กว่าคลิป 20% (ซูม Ken Burns แล้วไม่ต้องขยายภาพ → คมกว่า) แล้วเพิ่มความคมนิดๆ
+function sharpen(c, amt) {
+  const x = c.getContext('2d', { willReadFrequently: true }), w = c.width, h = c.height, src = x.getImageData(0, 0, w, h), s = src.data, out = x.createImageData(w, h), d = out.data, k = amt;
+  for (let y = 0; y < h; y++) for (let xx = 0; xx < w; xx++) {
+    const i = (y * w + xx) * 4;
+    if (y === 0 || xx === 0 || y === h - 1 || xx === w - 1) { d[i] = s[i]; d[i + 1] = s[i + 1]; d[i + 2] = s[i + 2]; d[i + 3] = 255; continue; }
+    for (let ch = 0; ch < 3; ch++) { const v = s[i + ch] * (1 + 4 * k) - k * (s[i - 4 + ch] + s[i + 4 + ch] + s[i - w * 4 + ch] + s[i + w * 4 + ch]); d[i + ch] = v < 0 ? 0 : v > 255 ? 255 : v; }
+    d[i + 3] = 255;
+  }
+  x.putImageData(out, 0, 0); return c;
+}
 async function loadScaled(blob, W, H) {
   const full = await createImageBitmap(blob);
-  const k = Math.max(W / full.width, H / full.height);
-  const scaled = await createImageBitmap(full, { resizeWidth: Math.round(full.width * k), resizeHeight: Math.round(full.height * k), resizeQuality: 'high' });
+  const k = Math.min(1, Math.max(W / full.width, H / full.height) * 1.2);
+  const tw = Math.round(full.width * k), th = Math.round(full.height * k);
+  const scaled = await createImageBitmap(full, { resizeWidth: tw, resizeHeight: th, resizeQuality: 'high' });
   full.close();
-  return scaled;
+  const c = document.createElement('canvas'); c.width = tw; c.height = th; c.getContext('2d').drawImage(scaled, 0, 0); scaled.close();
+  sharpen(c, 0.28);
+  const bmp = await createImageBitmap(c); c.width = c.height = 0;
+  return bmp;
 }
 
 async function pickCodec(W, H) {
   for (const codec of ['avc1.64002A', 'avc1.4D002A', 'avc1.42002A']) {
-    const cfg = { codec, width: W, height: H, bitrate: 5_000_000, framerate: FPS };
+    const cfg = { codec, width: W, height: H, bitrate: Math.round(Math.min(24e6, Math.max(8e6, W * H * FPS * 0.16))), framerate: FPS, latencyMode: 'quality' };
     try { const r = await VideoEncoder.isConfigSupported(cfg); if (r.supported) return cfg; } catch (e) {}
   }
   return null;
@@ -38,7 +53,7 @@ async function renderMp4(blobs, W, H, onProgress, luts, sceneOpt, durs, audio) {
   if (audio) {
     if (!('AudioEncoder' in window)) throw new Error('เบราว์เซอร์นี้ยังเข้ารหัสเสียงไม่ได้ ให้ใช้ Chrome บนมือถือ Android');
     for (const [c, mc] of [['mp4a.40.2', 'aac'], ['opus', 'opus']]) {
-      const cfg = { codec: c, sampleRate: audio.sampleRate, numberOfChannels: 1, bitrate: 96000 };
+      const cfg = { codec: c, sampleRate: audio.sampleRate, numberOfChannels: 1, bitrate: 128000 };
       try { if ((await AudioEncoder.isConfigSupported(cfg)).supported) { acfg = cfg; acodec = mc; break; } } catch (e) {}
     }
     if (!acfg) throw new Error('มือถือเครื่องนี้เข้ารหัสเสียงไม่ได้ ลองปิดเสียงแล้วเรนเดอร์ หรือใช้ Chrome เวอร์ชันล่าสุด');
