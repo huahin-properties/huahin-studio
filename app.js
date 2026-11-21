@@ -576,8 +576,8 @@ function viewScript() {
       <div class="sbar ok" id="totBar" style="height:10px"><i style="width:0%"></i></div><small class="sbl" id="totTxt"></small>
       <div class="tools"><button class="ib wide danger" id="s4Draft">✨ เติมให้ครบเวลา</button><button class="ib wide" id="s4Facts">🏠 ข้อมูลบ้าน</button></div>
       <div class="tools"><button class="ib wide" id="aiCopy">🤖 คัดลอก + เปิด AI Studio (เขียนสคริปต์)</button><button class="ib wide" id="aiPaste">📥 วางสคริปต์จาก AI</button></div>
-      <div class="tools"><button class="ib wide" id="ttsOpen">🔊 สร้างเสียง (คัดลอกทีละช่วง + เปิดหน้าสร้างเสียง)</button><button class="ib" id="linkEdit" title="แก้ลิงก์" aria-label="แก้ลิงก์">⚙️</button></div>
-      <div class="tools"><button class="ib wide" id="chk">🔍 ตรวจข้อมูลในสคริปต์</button></div></div>
+      <div class="tools"><button class="ib wide" id="chk">🔍 ตรวจข้อมูลในสคริปต์</button></div>
+      <div class="tools"><button class="ib wide" id="ttsOpen">🔊 สร้างเสียง (คัดลอกทีละช่วง + เปิดหน้าสร้างเสียง)</button><button class="ib" id="linkEdit" title="แก้ลิงก์" aria-label="แก้ลิงก์">⚙️</button></div></div>
     <div class="tools"><button class="ib wide" id="trAll">🌐 แปลทั้งหมด</button><button class="ib wide" data-all="th">📋 ไทยทั้งหมด</button><button class="ib wide" data-all="en">📋 EN ทั้งหมด</button></div>
     <p class="hint" id="saved">💾 บันทึกอัตโนมัติทุกครั้งที่พิมพ์</p>
     <p class="hint">เวลารวมโดยประมาณ <b id="tot">${mmss(total())}</b> (เป้าหมายประมาณ 3:00) · ไตเติลและหน้าปิดเป็นคลิปประจำ ไม่ต้องเขียนสคริปต์</p>
