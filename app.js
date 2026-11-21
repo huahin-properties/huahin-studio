@@ -35,6 +35,7 @@ let previewTimer = null;
 
 function renderSteps() {
   $('#steps').innerHTML = STEPS.map((s, i) => `<button data-i="${i}" class="${i === state.step ? 'on' : ''}" ${i > 1 && i < 6 ? 'disabled' : ''}>${s}</button>`).join('');
+  const on = $('#steps .on'); if (on) on.scrollIntoView({ inline: 'center', block: 'nearest' });
   $('#steps').onclick = e => { const b = e.target.closest('button'); if (b && !b.disabled) { state.step = +b.dataset.i; render(); } };
 }
 
@@ -53,19 +54,20 @@ function viewMedia() {
     <div class="item" data-id="${it.id}">
       ${it.type === 'video' ? `<video src="${urlOf(it)}#t=0.1" muted playsinline></video>` : `<img src="${urlOf(it)}" alt="">`}
       <div class="col">
-        <span class="badge">${i + 1}. ${it.type === 'video' ? '🎬 คลิปสั้น' : '🖼️ รูป'}</span>
+        <span class="badge">☰ ${i + 1}. ${it.type === 'video' ? '🎬 คลิปสั้น' : '🖼️ รูป'} · กดค้างแล้วลาก</span>
         <select data-act="room">${ROOMS.map(r => `<option ${r === it.room ? 'selected' : ''}>${r}</option>`).join('')}</select>
-        <div class="row"><button data-act="up">↑</button><button data-act="down">↓</button><button data-act="del">🗑️ ลบ</button></div>
+        <div class="row"><button data-act="del">🗑️ ลบ</button></div>
       </div>
     </div>`).join('');
   $('#view').innerHTML = `
     <h2>ใส่รูปบ้านและคลิปสั้น</h2>
-    <p class="hint">เลือกได้ทีละหลายไฟล์ แล้วติดแท็กห้อง ใช้ลูกศรสลับลำดับ</p>
+    <p class="hint">เลือกได้ทีละหลายไฟล์ แล้วติดแท็กห้อง · กดค้างที่การ์ดแล้วลากเพื่อสลับลำดับ</p>
     <input type="file" id="file" accept="image/*,video/*" multiple hidden>
     <button class="btn" id="add">+ เพิ่มรูป / คลิป</button>
     <div class="items">${list || '<div class="soon">ยังไม่มีรูป กดปุ่มด้านบนเพื่อเพิ่ม</div>'}</div>
     ${state.items.some(i => i.type === 'image') ? `<h2>พรีวิวสไตล์ v3</h2><canvas id="pv"></canvas><button class="btn alt" id="play">▶ เล่นพรีวิวอีกครั้ง</button>` : ''}
-    <p class="hint">ขั้น 3–7 (ปรับสี สคริปต์ เสียง มาสคอต เรนเดอร์) จะทำต่อในรอบถัดไป</p>`;
+    ${state.items.length ? '<button class="btn" id="toRender">ถัดไป: เรนเดอร์ MP4 →</button>' : ''}
+    <p class="hint">ขั้นปรับสี สคริปต์ เสียง มาสคอต จะทำต่อในรอบถัดไป</p>`;
   $('#add').onclick = () => $('#file').click();
   $('#file').onchange = async e => {
     for (const f of e.target.files) {
@@ -80,10 +82,10 @@ function viewMedia() {
     if (!el || act === 'room') return;
     const i = state.items.findIndex(x => x.id == el.dataset.id);
     if (act === 'del') { URL.revokeObjectURL(urlCache.get(state.items[i].id)); urlCache.delete(state.items[i].id); state.items.splice(i, 1); }
-    if (act === 'up' && i > 0) [state.items[i - 1], state.items[i]] = [state.items[i], state.items[i - 1]];
-    if (act === 'down' && i < state.items.length - 1) [state.items[i + 1], state.items[i]] = [state.items[i], state.items[i + 1]];
     await save(); viewMedia();
   };
+  if ($('#toRender')) $('#toRender').onclick = () => { state.step = 6; render(); window.scrollTo(0, 0); };
+  enableDrag($('.items'));
   if ($('#pv')) { startPreview(); $('#play').onclick = startPreview; }
 }
 
@@ -107,6 +109,51 @@ function viewRender() {
     } catch (e) { $('#prog').textContent = '❌ ' + (e.message || e); }
     $('#go').disabled = false;
   };
+}
+
+// กดค้างที่การ์ด ~0.35 วินาที แล้วลากขึ้น/ลงเพื่อสลับลำดับ
+function enableDrag(box) {
+  let timer = null, item = null, grab = 0, lastY = 0, scroller = null;
+  const down = e => {
+    const el = e.target.closest('.item');
+    if (!el || e.target.closest('select,button')) return;
+    const x0 = e.clientX, y0 = e.clientY; lastY = y0;
+    const cancel = ev => { if (Math.hypot(ev.clientX - x0, ev.clientY - y0) > 10) clear(); };
+    const clear = () => { clearTimeout(timer); document.removeEventListener('pointermove', cancel); };
+    document.addEventListener('pointermove', cancel);
+    timer = setTimeout(() => { clear(); begin(el, e); }, 350);
+    const upEarly = () => { clear(); document.removeEventListener('pointerup', upEarly); };
+    document.addEventListener('pointerup', upEarly);
+  };
+  const place = () => {
+    item.style.transform = '';
+    const natural = item.getBoundingClientRect().top;
+    item.style.transform = `translateY(${lastY - grab - natural}px)`;
+  };
+  const begin = (el, e) => {
+    item = el; item.classList.add('dragging');
+    grab = e.clientY - item.getBoundingClientRect().top; lastY = e.clientY;
+    if (navigator.vibrate) navigator.vibrate(30);
+    try { item.setPointerCapture(e.pointerId); } catch (_) {}
+    item.addEventListener('pointermove', move); item.addEventListener('pointerup', end); item.addEventListener('pointercancel', end);
+    scroller = setInterval(() => { if (lastY < 130) scrollBy(0, -12); else if (lastY > innerHeight - 130) scrollBy(0, 12); place(); }, 16);
+  };
+  const move = e => {
+    lastY = e.clientY;
+    const others = [...box.children].filter(c => c !== item);
+    const after = others.find(c => { const r = c.getBoundingClientRect(); return lastY < r.top + r.height / 2; });
+    if (after) { if (item.nextSibling !== after) box.insertBefore(item, after); } else if (box.lastChild !== item) box.appendChild(item);
+    place();
+  };
+  const end = async () => {
+    clearInterval(scroller);
+    const order = [...box.children].map(c => +c.dataset.id);
+    state.items = order.map(id => state.items.find(x => x.id === id));
+    item = null; await save(); viewMedia();
+  };
+  box.addEventListener('pointerdown', down);
+  box.addEventListener('contextmenu', e => e.preventDefault());
+  document.addEventListener('touchmove', e => { if (item) e.preventDefault(); }, { passive: false });
 }
 
 async function startPreview() {
