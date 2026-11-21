@@ -496,7 +496,7 @@ function viewScript() {
       <div class="sbar ok" id="totBar" style="height:10px"><i style="width:0%"></i></div><small class="sbl" id="totTxt"></small>
       <div class="tools"><button class="ib wide danger" id="s4Draft">✨ เติมให้ครบเวลา</button><button class="ib wide" id="s4Facts">🏠 ข้อมูลบ้าน</button></div>
       <div class="tools"><button class="ib wide" id="aiCopy">🤖 คัดลอก + เปิด AI Studio (เขียนสคริปต์)</button><button class="ib wide" id="aiPaste">📥 วางสคริปต์จาก AI</button></div>
-      <div class="tools"><button class="ib wide" id="ttsOpen">🔊 คัดลอกสคริปต์ + เปิดหน้าสร้างเสียง</button><button class="ib" id="linkEdit" title="แก้ลิงก์" aria-label="แก้ลิงก์">⚙️</button></div>
+      <div class="tools"><button class="ib wide" id="ttsOpen">🔊 สร้างเสียง (คัดลอกทีละช่วง + เปิดหน้าสร้างเสียง)</button><button class="ib" id="linkEdit" title="แก้ลิงก์" aria-label="แก้ลิงก์">⚙️</button></div>
       <div class="tools"><button class="ib wide" id="chk">🔍 ตรวจข้อมูลในสคริปต์</button></div></div>
     <div class="tools"><button class="ib wide" id="trAll">🌐 แปลทั้งหมด</button><button class="ib wide" data-all="th">📋 ไทยทั้งหมด</button><button class="ib wide" data-all="en">📋 EN ทั้งหมด</button></div>
     <p class="hint" id="saved">💾 บันทึกอัตโนมัติทุกครั้งที่พิมพ์</p>
@@ -560,10 +560,25 @@ function viewScript() {
   // คัดลอกข้อความ แล้วเปิดหน้า Google AI Studio ในแท็บใหม่ (กดปุ่มเดียว)
   const openLink = url => { const a = document.createElement('a'); a.href = url; a.target = '_blank'; a.rel = 'noopener'; document.body.appendChild(a); a.click(); a.remove(); };
   $('#aiCopy').onclick = async e => { const btn = e.currentTarget, ok = await copyText(buildAiPrompt()); flash(btn, ok); openLink(lib.links.chat); };
-  $('#ttsOpen').onclick = async e => {
-    const txt = scriptSegments().map(g => g.text.trim()).filter(Boolean).join('\n\n');
-    if (!txt) { alert('ยังไม่มีสคริปต์ให้คัดลอก'); return; }
-    const btn = e.currentTarget, ok = await copyText(txt); flash(btn, ok); openLink(lib.links.tts);
+  // แบ่งสคริปต์เป็นช่วง (ไม่เกิน ~700 ตัวอักษรต่อช่วง) แสดงต้นข้อความ ให้คัดลอกทีละช่วงและตรวจก่อนวาง
+  $('#ttsOpen').onclick = () => {
+    const segs = scriptSegments().filter(g => g.text.trim()); if (!segs.length) { alert('ยังไม่มีสคริปต์ให้คัดลอก'); return; }
+    const chunks = []; let cur = null;
+    segs.forEach(g => { const t = g.text.trim(); if (!cur || cur.len + t.length > 700) { cur = { nos: [], texts: [], len: 0 }; chunks.push(cur); } cur.nos.push(String(g.no).padStart(2, '0')); cur.texts.push(t); cur.len += t.length; });
+    const d = document.createElement('div'); d.className = 'sheet tall'; d.id = 'ttsSheet';
+    d.innerHTML = `<div class="sh-head"><b>🔊 สร้างเสียง (ทีละช่วง)</b><button class="ib" data-a="x" aria-label="ปิด">✕</button></div>
+      <p class="hint">ทำทีละช่วงตามลำดับ: กด <b>คัดลอก</b> → กด <b>เปิดหน้าสร้างเสียง</b> → ในช่องข้อความ <b>ลบของเก่าให้ว่างก่อน</b> แล้ววาง → ตรวจว่าบรรทัดแรกตรงกับ "ขึ้นต้นว่า" ด้านล่าง → สร้างเสียง → ตั้งชื่อไฟล์ตามเลขช่วง (เช่น ช่วง 1 = <b>01</b>) แล้วทำช่วงต่อไป</p>
+      ${chunks.map((c, i) => `<div class="seg"><div class="seg-h"><b>ช่วง ${String(i + 1).padStart(2, '0')} · ท่อน ${c.nos[0]}${c.nos.length > 1 ? '–' + c.nos[c.nos.length - 1] : ''}</b><span class="badge">${c.len} ตัวอักษร · ~${secOf(c.texts.join(''))} วิ</span></div>
+        <p class="hint">ขึ้นต้นว่า: <b>"${c.texts[0].slice(0, 32).replace(/</g, '&lt;')}…"</b></p>
+        <div class="tools"><button class="ib wide" data-cc="${i}">📋 คัดลอกช่วง ${i + 1}</button></div></div>`).join('')}
+      <button class="btn" data-a="open">🔊 เปิดหน้าสร้างเสียง</button><button class="btn alt" data-a="x">ปิด</button>`;
+    d.onclick = async e => {
+      if (e.target.closest('[data-a=x]')) { d.remove(); return; }
+      if (e.target.closest('[data-a=open]')) { openLink(lib.links.tts); return; }
+      const b = e.target.closest('[data-cc]'); if (!b) return;
+      const ok = await copyText(chunks[+b.dataset.cc].texts.join('\n\n')); flash(b, ok);
+    };
+    document.body.appendChild(d);
   };
   $('#linkEdit').onclick = async () => {
     const c = prompt('ลิงก์หน้าเขียนสคริปต์ (AI Studio แชต) · เว้นว่าง = ค่ามาตรฐาน', lib.links.chat); if (c === null) return;
