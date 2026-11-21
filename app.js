@@ -5,7 +5,7 @@ const SIZES = [
   { id: '1:1',  name: 'จัตุรัส 1:1',     note: '1080×1080',        w: 1080, h: 1080 },
   { id: '16:9', name: 'แนวนอน 16:9',    note: '1920×1080',        w: 1920, h: 1080 },
 ];
-const ROOMS = ['หน้าบ้าน/ภายนอก','สระว่ายน้ำ','ห้องนั่งเล่น','ครัว','ห้องนอนใหญ่','ห้องนอน','ห้องน้ำ','สวน/ระเบียง','วิวรอบๆ','อื่นๆ'];
+const ROOMS = ['หน้าบ้าน/ภายนอก','สระว่ายน้ำ','ห้องนั่งเล่น','ห้องทานอาหาร','ครัว','ห้องนอนใหญ่','ห้องนอน','ห้องน้ำ','สวน/ระเบียง','ที่จอดรถ','วิวรอบๆ','อื่นๆ'];
 const STEPS = ['1 ขนาด','2 รูป/คลิป','3 สี','4 สคริปต์','5 เสียง','6 มาสคอต','7 เรนเดอร์'];
 
 const DEFAULT_TITLE = 'สวัสดีครับ ยินดีต้อนรับสู่ Huahin Properties วันนี้ผมพาทุกท่านมาชมบ้านหลังสวยที่หัวหิน';
@@ -39,9 +39,18 @@ async function addFiles(files) {
 }
 let selMode = false; const picked = new Set();
 let selExtra = '', selPre = '';
+// หน้าต่างเลือกห้อง (ใช้ตั้งห้องให้รูปที่ติ๊กไว้ทีละหลายรูป)
+function chooseRoom(n) {
+  return new Promise(res => {
+    const d = document.createElement('div'); d.className = 'sheet';
+    d.innerHTML = `<div class="sh-head"><b>🏷️ ตั้งห้องให้ ${n} รูปที่เลือก</b><button class="ib" data-r="" aria-label="ปิด">✕</button></div><div class="rooms">${ROOMS.map(r => `<button class="btn alt" data-r="${r}">${r}</button>`).join('')}</div>`;
+    d.onclick = e => { const b = e.target.closest('button'); if (!b) return; d.remove(); res(b.dataset.r || null); };
+    document.body.appendChild(d);
+  });
+}
 function selBarHtml() {
   return selMode
-    ? `<button class="ib wide" data-sa="all">ทั้งหมด</button><button class="ib wide" data-sa="off">ยกเลิก</button><button class="ib wide danger" data-sa="del" ${picked.size ? '' : 'disabled'}>🗑️ ลบ (${picked.size})</button>`
+    ? `<button class="ib wide" data-sa="all">ทั้งหมด</button><button class="ib wide" data-sa="off">ยกเลิก</button><button class="ib wide" data-sa="room" ${picked.size ? '' : 'disabled'}>🏷️ ห้อง</button><button class="ib wide danger" data-sa="del" ${picked.size ? '' : 'disabled'}>🗑️ ลบ (${picked.size})</button>`
     : `${selPre}<button class="ib" data-sa="on" title="เลือกหลายรูปเพื่อลบ" aria-label="เลือกหลายรูปเพื่อลบ">☑</button>${selExtra}`;
 }
 function bindSelBar(bar, allIds, refresh, opt = {}) {
@@ -55,6 +64,11 @@ function bindSelBar(bar, allIds, refresh, opt = {}) {
     if (a === 'on') { selMode = true; picked.clear(); }
     else if (a === 'off') { selMode = false; picked.clear(); }
     else if (a === 'all') allIds().forEach(id => picked.add(id));
+    else if (a === 'room') {
+      const r = await chooseRoom(picked.size); if (!r) return;
+      state.items.forEach(it => { if (picked.has(it.id)) it.room = r; });
+      picked.clear(); selMode = false; await save(); refresh(true); return;
+    }
     else if (a === 'del') {
       if (!picked.size || !confirm(`ลบ ${picked.size} รูปที่เลือกใช่ไหม?`)) return;
       [...picked].forEach(removeItem); picked.clear(); selMode = false; await save(); refresh(true); return;
@@ -264,6 +278,8 @@ async function viewColor() {
     put($('#cb'), smalls[sel], null, 240); put($('#ca'), smalls[sel], luts && luts[sel], 240);
     document.querySelectorAll('#th canvas').forEach(cv => {
       const i = +cv.dataset.i; put(cv, smalls[i], luts && luts[i], 110); cv.classList.toggle('on', !selMode && i === sel);
+      { const x = cv.getContext('2d'); x.fillStyle = 'rgba(0,0,0,.55)'; x.fillRect(0, cv.height - 17, cv.width, 17);
+        x.fillStyle = '#fff'; x.font = '11px sans-serif'; x.textAlign = 'left'; x.textBaseline = 'middle'; x.fillText(imgs[i].room, 5, cv.height - 8, cv.width - 10); }
       if (selMode) {
         const x = cv.getContext('2d'), on = picked.has(imgs[i].id);
         if (on) { x.fillStyle = 'rgba(122,31,43,.45)'; x.fillRect(0, 0, cv.width, cv.height); }
