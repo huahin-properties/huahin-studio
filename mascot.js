@@ -130,9 +130,13 @@ function computeMouthEnv(voice, sr, fps = 30) {
 const _e = x => (x < 0 ? 0 : x > 1 ? 1 : x * x * (3 - 2 * x)), _r = (t, a, d) => _e((t - a) / d); // ค่าไล่ 0→1
 // วงจร 6 ท่อน: เดิน 4 ครั้งใน 6 ท่อน (≈67% ของเดิมที่เดินทุกท่อน) ที่เหลือ นั่งยอง/นอน/ยืนเฉยๆ
 const MOVES = ['cross', 'sit', 'lie', 'return', 'lean', 'cross'];
-const PRESENTER = { on: false, spans: [], size: 0.28, side: 'left', move: true, prep() {
+const PRESENTER = { on: false, spans: [], size: 0.28, side: 'left', move: true, random: true, prep() {
   let cur = 0; // 0 = มุมบ้านเดิม, 1 = ปลายทางเดิน (ห่างจากมุมเดิม 70% ของความกว้างจอ)
-  this.spans.forEach((sp, i) => { const L = sp.end - sp.start; sp.from = cur; sp.mv = L < 6 ? 'stand' : MOVES[i % MOVES.length]; if (sp.mv === 'cross') cur = 1 - cur; sp.to = cur; });
+  // สุ่มอิริยาบถ: ถ่วงน้ำหนักให้เดิน ~2 ใน 3 ท่อน · ไม่ซ้ำท่าเดิมติดกัน · แต่ละครั้งที่เรนเดอร์ไม่เหมือนกัน (ปิดสุ่ม = วงจรตายตัวเดิม)
+  const W8 = [['cross', 0.34], ['return', 0.15], ['sit', 0.18], ['lie', 0.13], ['lean', 0.14], ['stand', 0.06]];
+  const pick = prev => { for (let t = 0; t < 20; t++) { let r = Math.random(), a = 0; for (const [k, w] of W8) { a += w; if (r < a) { if (k !== prev) return k; break; } } } return 'cross'; };
+  let prev = '';
+  this.spans.forEach((sp, i) => { const L = sp.end - sp.start; sp.from = cur; sp.mv = L < 6 ? 'stand' : this.random ? pick(prev) : MOVES[i % MOVES.length]; prev = sp.mv; sp.r = this.random ? [Math.random(), Math.random(), Math.random()] : [0.5, 0.5, 0.5]; if (sp.mv === 'cross') cur = 1 - cur; sp.to = cur; });
   this._prep = this.spans.length;
 },
 draw(ctx, W, H, t) {
@@ -144,13 +148,14 @@ draw(ctx, W, H, t) {
   if (!this.move) { f = 0; }
   else {
     const WD = 2.4, go = (a, from, to) => { const p = _r(k, a, WD); if (p > 0 && p < 1) { walk = 1; dir = X(to) > X(from) ? 1 : -1; } return from + (to - from) * p; };
-    if (sp.mv === 'cross') f = go(Math.min(2.2, L * 0.25), sp.from, sp.to);
-    else if (sp.mv === 'return') { const a = Math.min(2, L * 0.2), b2 = L * 0.62, o = 1 - sp.from; f = k < b2 ? go(a, sp.from, o) : go(b2, o, sp.from); }
-    else if (sp.mv === 'sit') { const a = L * 0.18, b2 = L - 1.2; sit = _r(k, a, 0.8) * (1 - _r(k, b2 - 0.8, 0.8)); if (sp.to !== sp.from) f = go(b2 + 0.4, sp.from, sp.to); }
+    const R = sp.r || [0.5, 0.5, 0.5];
+    if (sp.mv === 'cross') f = go(Math.min(2.2, L * 0.25) * (0.6 + 0.8 * R[1]), sp.from, sp.to);
+    else if (sp.mv === 'return') { const a = Math.min(2, L * 0.2) * (0.6 + 0.8 * R[1]), b2 = L * (0.5 + 0.25 * R[2]), o = 1 - sp.from; f = k < b2 ? go(a, sp.from, o) : go(b2, o, sp.from); }
+    else if (sp.mv === 'sit') { const a = L * (0.12 + 0.18 * R[1]), b2 = L - 1.2; sit = _r(k, a, 0.8) * (1 - _r(k, b2 - 0.8, 0.8)); if (sp.to !== sp.from) f = go(b2 + 0.4, sp.from, sp.to); }
     else if (sp.mv === 'lean') { lean = _r(k, L * 0.15, 0.7) * (1 - _r(k, L * 0.85 - 0.7, 0.7)); }
-    else if (sp.mv === 'lie') { const a = L * 0.3, b2 = a + Math.min(4.5, L * 0.35); lie = _r(k, a, 0.9) * (1 - _r(k, b2, 0.9)); }
+    else if (sp.mv === 'lie') { const a = L * (0.2 + 0.2 * R[1]), b2 = a + Math.min(4.5, L * 0.35); lie = _r(k, a, 0.9) * (1 - _r(k, b2, 0.9)); }
   }
-  const sideL = X(f) < W / 2, pk = (arr, ex) => (arr.length ? MASCOT_IMG[arr[(((sp.seed || 0) * 3 + ex) % arr.length)]] : null);
+  const sideL = X(f) < W / 2, pk = (arr, ex) => (arr.length ? MASCOT_IMG[this.random && sp.r ? arr[Math.floor(sp.r[ex] * arr.length) % arr.length] : arr[(((sp.seed || 0) * 3 + ex) % arr.length)]] : null);
   const csImg = (sideL ? MASCOT_IMG.my_sitL : MASCOT_IMG.my_sitR) || pk(sideL ? SITS.L : SITS.R, 0), clImg = MASCOT_IMG.my_lie || pk(LIES, 2), lnImg = lean > 0 ? pk(sideL ? LEANS.L : LEANS.R, 1) : null; let cA = 0, cI = '';
   if (sit > 0 && csImg) { cA = sit; cI = 'sit'; sit = 0; } else if (lie > 0 && clImg) { cA = lie; cI = 'lie'; lie = 0; } else if (lean > 0 && lnImg) { cA = lean; cI = 'lean'; } // มีรูปท่านั่ง/นอนที่อัปโหลดไว้ → ใช้รูปนั้นแทนการย่อ/หมุนตัว
   let cx = X(f), step = walk ? Math.abs(Math.sin(k * Math.PI * 2.3)) : 0, hop = k < 0.4 ? (1 - k / 0.4) * H * 0.07 : 0;
