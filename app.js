@@ -5,7 +5,8 @@ const SIZES = [
   { id: '1:1',  name: 'จัตุรัส 1:1',     note: '1080×1080',        w: 1080, h: 1080 },
   { id: '16:9', name: 'แนวนอน 16:9',    note: '1920×1080',        w: 1920, h: 1080 },
 ];
-const ROOMS = ['หน้าบ้าน/ภายนอก','สระว่ายน้ำ','ห้องนั่งเล่น','ห้องทานอาหาร','ครัว','ห้องนอนใหญ่','ห้องนอน','ห้องน้ำ','สวน/ระเบียง','ที่จอดรถ','วิวรอบๆ','อื่นๆ'];
+// ลำดับห้องตามการเล่าเรื่อง: ภายนอก -> ในบ้าน -> สระ/สวน (ระบบเรียงรูปตามลำดับนี้เอง)
+const ROOMS = ['หน้าบ้าน/ภายนอก','ที่จอดรถ','ห้องนั่งเล่น','ห้องทานอาหาร','ครัว','ห้องนอนใหญ่','ห้องนอน','ห้องน้ำ','สระว่ายน้ำ','สวน/ระเบียง','วิวรอบๆ','อื่นๆ'];
 const STEPS = ['1 ขนาด','2 รูป/คลิป','3 สี','4 สคริปต์','5 เสียง','6 มาสคอต','7 เรนเดอร์'];
 
 const DEFAULT_TITLE = 'สวัสดีครับ ยินดีต้อนรับสู่ Huahin Properties วันนี้ผมพาทุกท่านมาชมบ้านหลังสวยที่หัวหิน';
@@ -36,6 +37,11 @@ async function addFiles(files) {
     state.items.push({ id: nextId++, blob: f, type, room: '', name: f.name });
   }
   await save();
+}
+// เรียงรูป: ยังไม่ตั้งห้องอยู่บนสุด -> ตั้งห้องแล้วเรียงตามลำดับเล่าเรื่อง (ในห้องเดียวกันคงลำดับเดิม)
+function organizeItems() {
+  const rank = r => (r ? (ROOMS.indexOf(r) >= 0 ? ROOMS.indexOf(r) : 99) : -1);
+  state.items = state.items.map((it, i) => [it, i]).sort((a, b) => rank(a[0].room) - rank(b[0].room) || a[1] - b[1]).map(x => x[0]);
 }
 let selMode = false; const picked = new Set();
 let selExtra = '', selPre = '';
@@ -190,6 +196,7 @@ async function copyText(t) {
   let ok = false; try { ok = document.execCommand('copy'); } catch (_) {} ta.remove(); return ok;
 }
 function viewScript() {
+  organizeItems(); save();
   const segs = scriptSegments(), no2 = n => String(n).padStart(2, '0');
   const setText = (seg, v) => { if (seg.key === 'title') state.script.title = v; else if (seg.key === 'close') state.script.close = v; else state.script.rooms[seg.room] = v; };
   const total = () => scriptSegments().reduce((a, g) => a + secOf(g.text), 0);
@@ -245,6 +252,7 @@ async function getSmall(it) {
   return smallCache.get(it.id);
 }
 async function viewColor() {
+  organizeItems(); save();
   const imgs = state.items.filter(i => i.type === 'image');
   if (!imgs.length) {
     $('#view').innerHTML = `<h2>3 สี: ปรับสีให้เข้ากัน</h2><div class="soon">ยังไม่มีรูป กลับไปขั้น 2 เพื่อใส่รูปก่อน</div><button class="btn" id="b2">← กลับไปใส่รูป</button>`;
@@ -335,6 +343,7 @@ async function viewColor() {
 }
 
 function viewRender() {
+  organizeItems(); save();
   const imgs = state.items.filter(i => i.type === 'image'), s = sizeInfo();
   const skipped = state.items.length - imgs.length;
   $('#view').innerHTML = `
