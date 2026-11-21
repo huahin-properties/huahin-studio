@@ -90,3 +90,4 @@ canvas#pv{width:100%;max-height:60vh;object-fit:contain;background:#000;border-r
 .gsec .gh{padding-bottom:6px;border-bottom:1px solid var(--line);margin-bottom:8px}
 .gsec .gh b{font-size:16px}
 .prow{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:8px 0;border-top:1px solid var(--line)}.prow b{flex:1 1 60%}.prow .ct{flex:1 1 100%;margin:0}.prow .pst{font-size:13px}
+.fl{display:block;margin:10px 0 0}.fl span{display:block;font-size:14px;font-weight:bold;color:var(--ink);margin-bottom:2px}.fl .ct{margin:2px 0}

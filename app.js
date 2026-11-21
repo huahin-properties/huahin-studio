@@ -112,12 +112,15 @@ function viewSize() {
 // ---- ร่างสคริปต์อัตโนมัติ: ใช้ข้อความประจำห้อง + ข้อมูลบ้านที่กรอก (เติมเฉพาะท่อนที่ยังว่าง ไม่ทับของเดิม) ----
 function draftFor(sl) {
   const f = state.facts, n = v => String(v || '').trim();
-  const intro = n(f.name) ? `บ้านหลังนี้อยู่ใน${n(f.name)}` : 'บ้านหลังนี้';
-  const bits = [n(f.beds) && `${n(f.beds)} ห้องนอน`, n(f.baths) && `${n(f.baths)} ห้องน้ำ`, n(f.usable) && `พื้นที่ใช้สอย ${n(f.usable)}`, n(f.land) && `บนที่ดิน ${n(f.land)}`].filter(Boolean);
+  const num = v => /^[\d.,]+$/.test(n(v));
+  const area = v => (num(v) ? `${n(v)} ตารางเมตร` : n(v)), wah = v => (num(v) ? `${n(v)} ตารางวา` : n(v));
+  const price = v => { if (!num(v)) return n(v); const x = Number(n(v).replace(/,/g, '')); return x < 1000 ? `${n(v)} ล้านบาท` : `${x.toLocaleString('th-TH')} บาท`; };
+  const intro = n(f.name) ? `บ้านหลังนี้อยู่ใน ${n(f.name)}` : 'บ้านหลังนี้';
+  const bits = [n(f.beds) && `${n(f.beds)} ห้องนอน`, n(f.baths) && `${n(f.baths)} ห้องน้ำ`, n(f.usable) && `พื้นที่ใช้สอย ${area(f.usable)}`, n(f.land) && `บนที่ดิน ${wah(f.land)}`].filter(Boolean);
   const T = {
     cat: 'หัวหินเมืองริมทะเลที่มีครบทุกอย่าง ทั้งชายหาดสวย ตลาดและร้านอาหารหลากหลาย ธรรมชาติภูเขาให้พักผ่อน เหมาะทั้งอยู่อาศัยจริงและลงทุน',
     map: mapScriptText() || (n(f.travel) ? `เดินทางสะดวก ${n(f.travel)}` : 'เดินทางเข้าถึงสะดวก ใกล้ทุกความสะดวกสบายในเมืองหัวหิน'),
-    ext: `${intro} หน้าบ้านกว้างขวาง ดูโปร่งสบาย${bits.length ? ' ' + bits.join(' ') : ''}${n(f.highlights) ? ' จุดเด่นคือ ' + n(f.highlights) : ''}${n(f.price) ? ' ราคา ' + n(f.price) : ''}`,
+    ext: `${intro} หน้าบ้านกว้างขวาง ดูโปร่งสบาย${bits.length ? ' ' + bits.join(' ') : ''}${n(f.highlights) ? ' จุดเด่นคือ ' + n(f.highlights) : ''}${n(f.price) ? ' ราคา ' + price(f.price) : ''}`,
     park: 'มีที่จอดรถสะดวก จอดได้สบาย',
     liv: 'ห้องนั่งเล่นโปร่งโล่ง รับแสงธรรมชาติ ตกแต่งอบอุ่น เหมาะกับการนั่งเล่นพักผ่อนกับครอบครัว',
     dine: 'ห้องทานอาหารกว้างขวาง ทานข้าวด้วยกันได้ทั้งครอบครัว',
@@ -145,10 +148,10 @@ function draftAll() {
 function openFacts(after) {
   document.querySelector('#factsSheet')?.remove();
   const f = state.facts, d = document.createElement('div'); d.className = 'sheet tall'; d.id = 'factsSheet';
-  const F = [['name', 'ชื่อโครงการ / ชื่อบ้าน', ''], ['beds', 'จำนวนห้องนอน', 'tel'], ['baths', 'จำนวนห้องน้ำ', 'tel'], ['usable', 'พื้นที่ใช้สอย (เช่น 150 ตร.ม.)', ''], ['land', 'ที่ดิน (เช่น 80 ตร.ว.)', ''], ['price', 'ราคา (เช่น 4.9 ล้านบาท)', ''], ['coord', 'พิกัดบ้าน (คัดลอกจาก Google Maps เช่น 12.558940,99.909039)', ''], ['highlights', 'จุดเด่น 2–3 ข้อ (เช่น สระส่วนตัว ใกล้ตลาด)', '']];
+  const F = [['name', 'ชื่อโครงการ / ชื่อบ้าน', 'เช่น Coco Hua Hin Luxury 88', ''], ['beds', 'จำนวนห้องนอน (ห้อง)', 'เช่น 3', 'tel'], ['baths', 'จำนวนห้องน้ำ (ห้อง)', 'เช่น 3', 'tel'], ['usable', 'พื้นที่ใช้สอย (ตารางเมตร)', 'เช่น 159', ''], ['land', 'ขนาดที่ดิน (ตารางวา)', 'เช่น 80', ''], ['price', 'ราคา (ล้านบาท)', 'เช่น 4.5', ''], ['coord', 'พิกัดบ้าน (วางจาก Google Maps)', 'เช่น 12.558940,99.909039', ''], ['highlights', 'จุดเด่น 2–3 ข้อ', 'เช่น สระส่วนตัว ใกล้ตลาด', '']];
   d.innerHTML = `<div class="sh-head"><b>🏠 ข้อมูลบ้าน</b><button class="ib" data-a="x" aria-label="ปิด">✕</button></div>
     <p class="hint">กรอกเท่าที่มี ไม่กรอกช่องไหนก็ได้ แอปจะใช้ร่างสคริปต์ให้ (ข้อมูลนี้อยู่ในเครื่องคุณเท่านั้น)</p>
-    ${F.map(([k, ph, t]) => `<input class="ct" data-k="${k}" ${t ? `type="${t}" ` : ''}placeholder="${ph}" value="${String(f[k] || '').replace(/"/g, '&quot;')}">`).join('')}
+    ${F.map(([k, lab, ph, t]) => `<label class="fl"><span>${lab}</span><input class="ct" data-k="${k}" ${t ? `type="${t}" ` : ''}placeholder="${ph}" value="${String(f[k] || '').replace(/"/g, '&quot;')}"></label>`).join('')}
     <div class="hint" id="distPrev"></div>
     <button class="btn alt" data-a="places">📍 ตั้งสถานที่สำคัญ (วางพิกัดครั้งเดียว ใช้ซ้ำทุกบ้าน)</button>
     <button class="btn alt" data-a="dist">🗺️ สร้างสคริปต์ระยะทาง (แทนท่อนแผนที่)</button>

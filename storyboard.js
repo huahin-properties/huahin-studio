@@ -114,9 +114,9 @@ function contactCardHtml() {
     <label class="sw"><input type="radio" name="cm" value="std" ${mode === 'std' ? 'checked' : ''}> ใช้เบอร์มาตรฐาน (ตั้งครั้งเดียว)</label>
     <label class="sw"><input type="radio" name="cm" value="custom" ${mode === 'custom' ? 'checked' : ''}> ใช้เบอร์ใหม่เฉพาะคลิปนี้</label>
     <label class="sw"><input type="radio" name="cm" value="none" ${mode === 'none' ? 'checked' : ''}> ไม่แสดงเบอร์</label>
-    ${mode === 'none' ? '' : `<input class="ct" id="ctName" placeholder="ชื่อ / ชื่อบริษัท" value="${esc(tgt.name)}">
-    <input class="ct" id="ctPhone" type="tel" placeholder="เบอร์โทร" value="${esc(tgt.phone)}">
-    <input class="ct" id="ctLine" placeholder="LINE ID" value="${esc(tgt.line)}">`}</div>`;
+    ${mode === 'none' ? '' : `<label class="fl"><span>ชื่อ / ชื่อบริษัท</span><input class="ct" id="ctName" placeholder="เช่น Huahin Properties" value="${esc(tgt.name)}"></label>
+    <label class="fl"><span>เบอร์โทร</span><input class="ct" id="ctPhone" type="tel" placeholder="เช่น 081-234-5678" value="${esc(tgt.phone)}"></label>
+    <label class="fl"><span>LINE ID</span><input class="ct" id="ctLine" placeholder="เช่น @huahin" value="${esc(tgt.line)}"></label>`}</div>`;
 }
 function bindContact(root, rerender) {
   root.oninput = e => {
