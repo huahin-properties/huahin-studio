@@ -57,3 +57,4 @@ canvas#pv{width:100%;max-height:60vh;object-fit:contain;background:#000;border-r
 .sheet.tall{max-height:85vh;overflow:auto}
 .sbrow{display:flex;align-items:center;gap:8px;padding:8px 0;border-top:1px solid var(--line)}.sbt{flex:1;min-width:0}.sbt b{display:block;font-size:14px}.sbt small{color:var(--mute)}
 .sbb{display:flex;gap:4px;align-items:center}.sbrow .dot{font-size:18px}
+.ct{display:block;width:100%;margin:6px 0;border:1px solid var(--line);border-radius:8px;padding:10px;font:inherit;font-size:16px;background:#fff}
