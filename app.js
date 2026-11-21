@@ -870,7 +870,7 @@ function viewRender() {
       // มาสคอต: ปากขยับตามแทร็กเสียงพากย์ล้วน · มาสคอตนำเสนอ (ตามช่วงของแต่ละท่อน)
       await loadPoses(); MOUTH.babble = false;
       if (audioMix && audioMix.voice) { const me = computeMouthEnv(audioMix.voice, audioMix.sampleRate, MOUTH.fps); MOUTH.env = me.env; MOUTH.wid = me.wid; } else { MOUTH.env = null; MOUTH.wid = null; }
-      STYLE.trans = state.trans; OVERLAY.on = !!state.overlay; OVERLAY.events = state.overlay ? buildOverlayEvents(entries, state.facts) : []; PRESENTER.on = !!state.mascot.presenter; PRESENTER.size = state.mascot.size; PRESENTER.side = state.mascot.side; PRESENTER.spans = [];
+      STYLE.trans = state.trans; OVERLAY.on = !!state.overlay; OVERLAY.events = state.overlay ? buildOverlayEvents(entries, state.facts) : []; PRESENTER.on = !!state.mascot.presenter; PRESENTER.size = state.mascot.size; PRESENTER.move = state.mascot.move !== false; PRESENTER._prep = -1; PRESENTER.side = state.mascot.side; PRESENTER.spans = [];
       { let tt = 0; const seen = {}; entries.forEach(e => { if (e.key && e.key !== 'open' && e.key !== 'close') { const sp = seen[e.key] || (seen[e.key] = { start: tt, end: tt, pose: poseForSeg(e.key), seed: Object.keys(seen).length }); sp.end = tt + e.dur; } tt += e.dur; }); PRESENTER.spans = Object.values(seen); }
       const blob = await renderMp4(imgs.map(i => i.blob), s.w, s.h, (p, msg) => { $('#prog').textContent = `${msg} ${Math.round(p * 100)}%`; }, luts, sceneList, durs, audioMix);
       const url = URL.createObjectURL(blob);
@@ -1236,6 +1236,7 @@ async function viewMascot() {
     <h2>6 มาสคอต</h2>
     <p class="hint">มาสคอตปรากฏเต็มตัวในฉากไตเติลและเครดิตปิดเสมอ ขยับปากตามเสียงพากย์ และกะพริบตา · ที่นี่ตั้งค่า <b>มาสคอตนำเสนอ</b> ที่ยืนมุมจอระหว่างเล่าเรื่องแต่ละห้อง เปลี่ยนท่าตามเนื้อหา</p>
     <label class="sw"><input type="checkbox" id="mpres" ${M.presenter ? 'checked' : ''}> แสดงมาสคอตนำเสนอระหว่างเล่าเรื่อง</label>
+    <label class="sw"><input type="checkbox" id="mmove" ${M.move !== false ? 'checked' : ''}> ให้มาสคอตเคลื่อนไหว (เดินข้ามจอ นั่งที่ขอบจอ นอน เดินกลับ สลับไปแต่ละท่อน)</label>
     <div class="seg"><div class="tgt"><label class="fl" style="flex:1"><span>ขนาด</span><select class="ct" id="msize"><option value="0.2" ${M.size === 0.2 ? 'selected' : ''}>เล็ก</option><option value="0.28" ${M.size === 0.28 ? 'selected' : ''}>กลาง</option><option value="0.36" ${M.size === 0.36 ? 'selected' : ''}>ใหญ่</option></select></label>
       <label class="fl" style="flex:1"><span>ตำแหน่ง</span><select class="ct" id="mside"><option value="left" ${M.side === 'left' ? 'selected' : ''}>มุมซ้ายล่าง</option><option value="right" ${M.side === 'right' ? 'selected' : ''}>มุมขวาล่าง</option></select></label></div></div>
     <p class="hint"><b>ท่าของแต่ละท่อน</b> (แอปเลือกให้ตามเนื้อหา เปลี่ยนเองได้)</p>
@@ -1246,6 +1247,7 @@ async function viewMascot() {
   document.querySelectorAll('.mth').forEach(paint);
   document.querySelectorAll('[data-pose]').forEach(sel => sel.onchange = () => { state.script.poses[sel.dataset.pose] = sel.value; save(); paint(document.querySelector(`.mth[data-pk="${CSS.escape(sel.dataset.pose)}"]`)); });
   $('#mpres').onchange = e => { M.presenter = e.target.checked; save(); };
+  $('#mmove').onchange = e => { M.move = e.target.checked; save(); };
   $('#msize').onchange = e => { M.size = +e.target.value; save(); }; $('#mside').onchange = e => { M.side = e.target.value; save(); };
   $('#nx').onclick = () => go(6); $('#bk').onclick = () => go(4);
 }
