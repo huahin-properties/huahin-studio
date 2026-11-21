@@ -868,7 +868,7 @@ function viewRender() {
       let audioMix = null;
       if (hasAudio) { $('#prog').textContent = 'กำลังผสมเสียง...'; audioMix = await buildMix(starts, total, sceneAt); }
       // มาสคอต: ปากขยับตามแทร็กเสียงพากย์ล้วน · มาสคอตนำเสนอ (ตามช่วงของแต่ละท่อน)
-      await loadPoses(); MOUTH.babble = false;
+      await loadPoses(); await loadMyPoses(); MOUTH.babble = false;
       if (audioMix && audioMix.voice) { const me = computeMouthEnv(audioMix.voice, audioMix.sampleRate, MOUTH.fps); MOUTH.env = me.env; MOUTH.wid = me.wid; } else { MOUTH.env = null; MOUTH.wid = null; }
       STYLE.trans = state.trans; OVERLAY.on = !!state.overlay; OVERLAY.events = state.overlay ? buildOverlayEvents(entries, state.facts) : []; PRESENTER.on = !!state.mascot.presenter; PRESENTER.size = state.mascot.size; PRESENTER.move = state.mascot.move !== false; PRESENTER._prep = -1; PRESENTER.side = state.mascot.side; PRESENTER.spans = [];
       { let tt = 0; const seen = {}; entries.forEach(e => { if (e.key && e.key !== 'open' && e.key !== 'close') { const sp = seen[e.key] || (seen[e.key] = { start: tt, end: tt, pose: poseForSeg(e.key), seed: Object.keys(seen).length }); sp.end = tt + e.dur; } tt += e.dur; }); PRESENTER.spans = Object.values(seen); }
@@ -1229,9 +1229,8 @@ async function buildMix(starts, total, sceneAt) {
 async function viewMascot() {
   const M = state.mascot, segs = scriptSegments();
   $('#view').innerHTML = `<h2>6 มาสคอต</h2><p class="hint">กำลังโหลดมาสคอต...</p>`;
-  await loadPoses();
+  await loadPoses(); await loadMyPoses();
   state.script.poses = state.script.poses || {};
-  const opts = cur => Object.keys(POSES).map(k => `<option value="${k}" ${k === cur ? 'selected' : ''}>${POSES[k].label}</option>`).join('');
   $('#view').innerHTML = `
     <h2>6 มาสคอต</h2>
     <p class="hint">มาสคอตปรากฏเต็มตัวในฉากไตเติลและเครดิตปิดเสมอ ขยับปากตามเสียงพากย์ และกะพริบตา · ที่นี่ตั้งค่า <b>มาสคอตนำเสนอ</b> ที่ยืนมุมจอระหว่างเล่าเรื่องแต่ละห้อง เปลี่ยนท่าตามเนื้อหา</p>
@@ -1239,13 +1238,36 @@ async function viewMascot() {
     <label class="sw"><input type="checkbox" id="mmove" ${M.move !== false ? 'checked' : ''}> ให้มาสคอตเคลื่อนไหว (เดินข้ามจอบ้าง นั่งยอง นอน เดินกลับ สลับไปแต่ละท่อน)</label>
     <div class="seg"><div class="tgt"><label class="fl" style="flex:1"><span>ขนาด</span><select class="ct" id="msize"><option value="0.2" ${M.size === 0.2 ? 'selected' : ''}>เล็ก</option><option value="0.28" ${M.size === 0.28 ? 'selected' : ''}>กลาง</option><option value="0.36" ${M.size === 0.36 ? 'selected' : ''}>ใหญ่</option></select></label>
       <label class="fl" style="flex:1"><span>ตำแหน่ง</span><select class="ct" id="mside"><option value="left" ${M.side === 'left' ? 'selected' : ''}>มุมซ้ายล่าง</option><option value="right" ${M.side === 'right' ? 'selected' : ''}>มุมขวาล่าง</option></select></label></div></div>
-    <p class="hint"><b>ท่าของแต่ละท่อน</b> (แอปเลือกให้ตามเนื้อหา เปลี่ยนเองได้)</p>
-    ${segs.map(g => { const cur = poseForSeg(g.key); return `<div class="seg"><div class="seg-h"><b>${String(g.no).padStart(2, '0')} · ${g.label}</b></div><div class="mrow"><canvas class="mth" data-pk="${g.key}" width="90" height="130"></canvas><select class="ct" data-pose="${g.key}">${opts(cur)}</select></div></div>`; }).join('') || '<div class="soon">ยังไม่มีท่อนเล่าเรื่อง</div>'}
-    <p class="hint">ปากขยับตามความดังของเสียงพากย์จริง ตอนเรนเดอร์ (ถ้ายังไม่ใส่เสียง ปากจะปิด) · มาสคอตกระโดดเข้าจอทุกครั้งที่เริ่มท่อนใหม่ · ยังไม่มีท่อนเดินหรือกระโดดต่อเนื่อง</p>
+    <p class="hint"><b>ท่าพิเศษของฉัน</b> (นั่งพิงขอบ / นอน) · ใส่รูปมาสคอตท่าใหม่ที่สร้างจาก AI ไว้ให้มาสคอตใช้ตอนนั่งและนอน ถ้ายังไม่ใส่ แอปจะใช้ท่านั่งยอง/นอนจากรูปเดิมแทน</p>
+    ${MY_POSES.map(d => { const has = !!(lib.myPoses || {})[d.id]; return `<div class="seg"><div class="seg-h"><b>${d.label}</b></div><div class="mrow"><canvas class="mth myth" data-my="${d.id}" width="90" height="130"></canvas><div style="flex:1"><div class="hint" style="margin:0 0 6px">${has ? '✅ ใส่รูปแล้ว' : 'ยังไม่มีรูป'} · ${d.hint}</div><div class="tools"><label class="ib wide" style="cursor:pointer">📷 ${has ? 'เปลี่ยนรูป' : 'เลือกรูป'}<input type="file" accept="image/*" data-up="${d.id}" hidden></label><button class="ib wide" data-cp="${d.id}">📋 คัดลอกคำสั่งสร้างรูป</button>${has ? `<button class="ib wide" data-rm="${d.id}">🗑 ลบ</button>` : ''}</div></div></div></div>`; }).join('')}
+    <p class="hint">วิธีสร้างรูป: กด "คัดลอกคำสั่งสร้างรูป" → เปิดแอป AI สร้างรูปที่ใช้อยู่ (เช่น Gemini หรือ ChatGPT) → แนบรูปมาสคอตเดิม 1 รูปเป็นต้นแบบ → วางคำสั่ง → โหลดรูปที่ได้ แล้วกด "เลือกรูป" ที่นี่ แอปจะลบพื้นหลังเรียบๆ (สีขาว) ให้เอง</p>
+    <p class="hint"><b>ท่าของแต่ละท่อน</b> (แอปเลือกให้ตามเนื้อหา แตะเพื่อเลือกจากรูป)</p>
+    ${segs.map(g => { const cur = poseForSeg(g.key); return `<div class="seg"><div class="seg-h"><b>${String(g.no).padStart(2, '0')} · ${g.label}</b></div><div class="mrow"><canvas class="mth" data-pk="${g.key}" width="90" height="130"></canvas><button class="btn alt pickp" data-pose="${g.key}">${POSES[cur].label} ▾<small>แตะเพื่อเลือกจากรูป</small></button></div></div>`; }).join('') || '<div class="soon">ยังไม่มีท่อนเล่าเรื่อง</div>'}
+    <p class="hint">ปากขยับตามความดังของเสียงพากย์จริง ตอนเรนเดอร์ (ถ้ายังไม่ใส่เสียง ปากจะปิด) · มาสคอตกระโดดเข้าจอทุกครั้งที่เริ่มท่อนใหม่ · มาสคอตเดินข้ามจอ นั่ง นอน สลับไปในแต่ละท่อน</p>
     <button class="btn" id="nx">ถัดไป: 7 เรนเดอร์ →</button><button class="btn alt" id="bk">← ย้อนกลับ</button>`;
-  const paint = cv => { const k = cv.dataset.pk, x = cv.getContext('2d'); x.clearRect(0, 0, 90, 130); const pose = poseForSeg(k), img = MASCOT_IMG[pose], h = 124, w = img.width * h / img.height; drawMascotTalking(x, pose, 45, 127, h, { mouth: 0.45, wf: 1, blink: 0 }); };
-  document.querySelectorAll('.mth').forEach(paint);
-  document.querySelectorAll('[data-pose]').forEach(sel => sel.onchange = () => { state.script.poses[sel.dataset.pose] = sel.value; save(); paint(document.querySelector(`.mth[data-pk="${CSS.escape(sel.dataset.pose)}"]`)); });
+  const thumb = (cv, pose) => { const x = cv.getContext('2d'), img = MASCOT_IMG[pose]; x.clearRect(0, 0, cv.width, cv.height); if (!img) return; const cw = cv.width, ch = cv.height; if (POSES[pose] && POSES[pose].custom) { const s = Math.min((ch - 6) / img.height, (cw - 6) / img.width); x.drawImage(img, (cw - img.width * s) / 2, ch - 3 - img.height * s, img.width * s, img.height * s); } else drawMascotTalking(x, pose, cw / 2, ch - 3, ch - 6, { mouth: 0.45, wf: 1, blink: 0 }); };
+  const paint = cv => thumb(cv, poseForSeg(cv.dataset.pk));
+  document.querySelectorAll('.mth[data-pk]').forEach(paint);
+  document.querySelectorAll('.myth').forEach(cv => thumb(cv, cv.dataset.my));
+  document.querySelectorAll('[data-pose]').forEach(btn => btn.onclick = async () => {
+    const key = btn.dataset.pose, d = document.createElement('div'); d.className = 'sheet tall'; d.id = 'poseSheet';
+    d.innerHTML = '<div class="sh-head"><b>เลือกท่ามาสคอต</b><button class="ib" id="pcl">✕</button></div><p class="hint">กำลังโหลดรูปท่าทั้งหมด...</p>'; document.body.appendChild(d);
+    d.querySelector('#pcl').onclick = () => d.remove();
+    await loadPoses(Object.keys(POSES));
+    const cells = ks => ks.map(k => `<button class="pcell ${k === poseForSeg(key) ? 'on' : ''}" data-k="${k}"><canvas width="90" height="130"></canvas><span>${POSES[k].label}</span></button>`).join('');
+    const std = Object.keys(POSES).filter(k => !POSES[k].custom), mine = Object.keys(POSES).filter(k => POSES[k].custom && !POSES[k].sticker), stk = Object.keys(POSES).filter(k => POSES[k].sticker);
+    d.innerHTML = `<div class="sh-head"><b>เลือกท่ามาสคอต</b><button class="ib" id="pcl">✕</button></div>
+      <p class="hint"><b>ท่าปากขยับตามเสียง</b></p><div class="pgrid">${cells(std)}</div>
+      ${mine.length ? `<p class="hint"><b>ท่าพิเศษของฉัน</b> (ปากไม่ขยับ)</p><div class="pgrid">${cells(mine)}</div>` : ''}
+      <p class="hint"><b>สติกเกอร์พร้อมข้อความ</b> (ปากไม่ขยับ ใช้ภาพต้นฉบับ)</p><div class="pgrid">${cells(stk)}</div>`;
+    d.querySelectorAll('.pcell').forEach(c => { thumb(c.querySelector('canvas'), c.dataset.k); c.onclick = () => { state.script.poses[key] = c.dataset.k; save(); d.remove(); viewMascot(); }; });
+    d.querySelector('#pcl').onclick = () => d.remove();
+  });
+  document.querySelectorAll('[data-up]').forEach(inp => inp.onchange = async () => {
+    const f = inp.files[0]; if (!f) return; try { lib.myPoses[inp.dataset.up] = await removePlainBg(f); await saveLib(); await loadMyPoses(); } catch (e) { alert('ใช้รูปนี้ไม่ได้: ' + (e.message || e)); } viewMascot();
+  });
+  document.querySelectorAll('[data-rm]').forEach(b => b.onclick = async () => { if (!confirm('ลบรูปท่านี้?')) return; delete lib.myPoses[b.dataset.rm]; await saveLib(); await loadMyPoses(); viewMascot(); });
+  document.querySelectorAll('[data-cp]').forEach(b => b.onclick = async () => { const d = MY_POSES.find(x => x.id === b.dataset.cp); try { await navigator.clipboard.writeText(d.prompt); b.textContent = '✅ คัดลอกแล้ว'; } catch (e) { prompt('คัดลอกคำสั่งนี้เอง', d.prompt); } });
   $('#mpres').onchange = e => { M.presenter = e.target.checked; save(); };
   $('#mmove').onchange = e => { M.move = e.target.checked; save(); };
   $('#msize').onchange = e => { M.size = +e.target.value; save(); }; $('#mside').onchange = e => { M.side = e.target.value; save(); };
@@ -1262,3 +1284,26 @@ function render() {
   await load(); render();
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
 })();
+
+// ลบพื้นหลังเรียบๆ (เช่นสีขาว) ของรูปที่อัปโหลด: ไล่จากขอบรูปเข้ามาตามสีใกล้เคียงพื้น แล้วตัดขอบให้พอดีตัวมาสคอต · รูปที่โปร่งใสอยู่แล้วจะไม่แตะ
+async function removePlainBg(file) {
+  const bmp = await createImageBitmap(file), k = Math.min(1, 1000 / Math.max(bmp.width, bmp.height)), w = Math.round(bmp.width * k), h = Math.round(bmp.height * k);
+  const c = document.createElement('canvas'); c.width = w; c.height = h; const x = c.getContext('2d', { willReadFrequently: true }); x.drawImage(bmp, 0, 0, w, h);
+  const img = x.getImageData(0, 0, w, h), d = img.data, at = (px, py) => (py * w + px) * 4;
+  let transparent = 0; for (let i = 3; i < d.length; i += 4 * 97) if (d[i] < 250) transparent++;
+  if (transparent < 5) { // มีพื้นหลังทึบ → ลบ
+    const cs = [[0, 0], [w - 1, 0], [0, h - 1], [w - 1, h - 1]].map(([px, py]) => { const i = at(px, py); return [d[i], d[i + 1], d[i + 2]]; }), bg = [0, 1, 2].map(j => Math.round(cs.reduce((s, q) => s + q[j], 0) / 4));
+    const near = i => Math.hypot(d[i] - bg[0], d[i + 1] - bg[1], d[i + 2] - bg[2]) < 48, seen = new Uint8Array(w * h), st = [];
+    const push = (px, py) => { const p = py * w + px; if (!seen[p] && near(p * 4)) { seen[p] = 1; st.push(p); } };
+    for (let i = 0; i < w; i++) { push(i, 0); push(i, h - 1); } for (let j = 0; j < h; j++) { push(0, j); push(w - 1, j); }
+    while (st.length) { const p = st.pop(), px = p % w, py = (p / w) | 0; if (px > 0) push(px - 1, py); if (px < w - 1) push(px + 1, py); if (py > 0) push(px, py - 1); if (py < h - 1) push(px, py + 1); }
+    for (let p = 0; p < w * h; p++) if (seen[p]) d[p * 4 + 3] = 0;
+    for (let py = 1; py < h - 1; py++) for (let px = 1; px < w - 1; px++) { const p = py * w + px; if (!seen[p] && (seen[p - 1] || seen[p + 1] || seen[p - w] || seen[p + w])) d[p * 4 + 3] = 150; } // ขอบนุ่ม
+    x.putImageData(img, 0, 0);
+  }
+  const im2 = x.getImageData(0, 0, w, h).data; let x0 = w, y0 = h, x1 = 0, y1 = 0;
+  for (let py = 0; py < h; py++) for (let px = 0; px < w; px++) if (im2[(py * w + px) * 4 + 3] > 20) { if (px < x0) x0 = px; if (px > x1) x1 = px; if (py < y0) y0 = py; if (py > y1) y1 = py; }
+  if (x1 <= x0 || y1 <= y0) throw new Error('ไม่พบตัวมาสคอตในรูป (พื้นหลังอาจไม่เรียบ)');
+  const o = document.createElement('canvas'); o.width = x1 - x0 + 1; o.height = y1 - y0 + 1; o.getContext('2d').drawImage(c, x0, y0, o.width, o.height, 0, 0, o.width, o.height);
+  return new Promise(r => o.toBlob(r, 'image/png'));
+}

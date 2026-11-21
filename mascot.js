@@ -9,16 +9,37 @@ const POSES = {
   love: { label: 'ส่งหัวใจ', blink: false }, cheers: { label: 'ชนแก้ว', blink: true }, dance: { label: 'เต้น', blink: true },
   cleaning: { label: 'กวาดบ้าน (ไม้กวาด)', blink: true }, furnished: { label: 'กางแขน (เฟอร์นิเจอร์ครบ)', blink: true }, ready: { label: 'พร้อมเข้าอยู่ (กระเป๋า+กุญแจ)', blink: true },
 };
+// สติกเกอร์พร้อมข้อความ (ตัดจากชีตที่เจ้าของส่งมา) · ใช้เป็นท่าของมาสคอตนำเสนอได้ แต่ปากไม่ขยับตามเสียง (ใช้ภาพต้นฉบับ)
+const STICKERS = [['224885ee_1','ยินดีต้อนรับ (โบกมือ)'],['224885ee_2','ยอดเยี่ยม Great!'],['224885ee_3','ฉลอง Celebrate'],['224885ee_4','ถือป้ายยินดีต้อนรับ'],['224885ee_5','ชี้ทาง This way'],['224885ee_6','ส่งหัวใจ Love'],['d73801cf_1','ไอเดีย Idea'],['d73801cf_2','ขอบคุณ Thank you'],['d73801cf_3','ถ่ายรูป Snap!'],['d73801cf_4','วิ่งมาแล้ว On my way'],['d73801cf_5','โอเค OK!'],['d73801cf_6','หัวเราะ Haha'],['d9ae68f2_1','กอดหัวใจ Love'],['d9ae68f2_2','ชนแก้ว Cheers!'],['d9ae68f2_3','ไหว้ Greeting'],['d9ae68f2_4','เต้น Dance'],['d9ae68f2_5','บ้านของคุณ Your Home'],['d9ae68f2_6','ฮัลโหล Hello!'],['9bc64e2a_1','พร้อมเข้าอยู่ Ready to Move'],['9bc64e2a_2','เฟอร์ฯ ครบครัน'],['9bc64e2a_3','จองเลย Book Now'],['9bc64e2a_4','เปิดประตูต้อนรับ'],['9bc64e2a_5','แถมฟรี Free Gift'],['9bc64e2a_6','ราคาเบาๆ Good Price'],['f97a4cb3_2','โปรโมชัน Promotion'],['f97a4cb3_3','พาชมบ้าน Open House'],['f97a4cb3_4','ปิดการขาย Deal'],['f97a4cb3_5','ปรึกษาฟรี Consult'],['f97a4cb3_6','ราคาพิเศษ Special Price'],['258b6b4b_1','มอบกุญแจ Handover'],['258b6b4b_2','ทำความสะอาด Cleaning'],['258b6b4b_3','เซ็นสัญญา Contract'],['258b6b4b_4','โฉนดที่ดิน Deed'],['258b6b4b_5','ทาสี Renovate'],['258b6b4b_6','บ้านใหม่ New Home'],['6b2cc827_1','ยินดีให้บริการครับ!'],['6b2cc827_2','รับฝากขาย-เช่า'],['6b2cc827_3','ขอบคุณที่ไว้วางใจ'],['6b2cc827_4','ยินดีต้อนรับสู่ครอบครัว'],['aee45653_1','ทักมาได้เลยครับ!'],['aee45653_2','อยากได้แบบไหน'],['aee45653_3','หาบ้านเช่า'],['aee45653_4','ยินดีต้อนรับทุกท่าน'],['dad2a4c5_2','ฝากเราทำตลาด'],['dad2a4c5_3','ฝากขายบ้าน'],['dad2a4c5_4','พร้อมดูแล'],['32615200_1','เรื่องขายบ้าน'],['32615200_2','ดันยอดขายให้ปัง!'],['32615200_3','ทำตลาดครบวงจร'],['32615200_4','ยินดีดูแลทุกเคส']];
+STICKERS.forEach(([id, label]) => { POSES['stk_' + id] = { label, custom: true, sticker: true, src: `assets/stk/${id}.png` }; });
+// ท่าพิเศษที่อัปโหลดเอง (รูปมาสคอตที่สร้างจาก AI) · ไม่มีตำแหน่งหัว จึงไม่ทับปาก/ตา (ใช้ภาพยิ้มตามต้นฉบับ)
+const MY_POSES = [
+  { id: 'my_sitL', label: 'นั่งพิงขอบซ้าย', hint: 'ใช้ตอนมาสคอตนั่งที่มุมซ้ายของจอ',
+    prompt: 'Using the attached image as the exact character reference (same round maroon head with house-roof logo, same face, same maroon "H" tag body, white gloves, orange shoes, same flat cartoon sticker style with a white outline), draw ONE cute full-body pose: the character sits on the floor with its back and left shoulder leaning against a wall on the LEFT side of the picture, knees bent and squeezed together, relaxed and cozy. Very happy smiling face, big cheerful open eyes. Plain solid pure white background, no text, no shadow, whole body inside the frame.' },
+  { id: 'my_sitR', label: 'นั่งพิงขอบขวา (ยืดเข่า ยกขา)', hint: 'ใช้ตอนมาสคอตนั่งที่มุมขวาของจอ',
+    prompt: 'Using the attached image as the exact character reference (same round maroon head with house-roof logo, same face, same maroon "H" tag body, white gloves, orange shoes, same flat cartoon sticker style with a white outline), draw ONE cute full-body pose: the character sits on the floor with its back leaning against a wall on the RIGHT side of the picture, knees stretched forward, one leg lifted playfully, relaxed and carefree. Very happy smiling face, big cheerful open eyes. Plain solid pure white background, no text, no shadow, whole body inside the frame.' },
+  { id: 'my_lie', label: 'นอนเอามือเท้าหัว', hint: 'ใช้ตอนมาสคอตนอนพักระหว่างท่อน',
+    prompt: 'Using the attached image as the exact character reference (same round maroon head with house-roof logo, same face, same maroon "H" tag body, white gloves, orange shoes, same flat cartoon sticker style with a white outline), draw ONE cute full-body pose: the character lies relaxed on its side on the floor, one hand propped under its head, legs crossed, comfortable and calm. Very happy smiling face, big cheerful open eyes. Plain solid pure white background, no text, no shadow, whole body inside the frame, horizontal composition.' },
+];
+async function loadMyPoses() {
+  for (const d of MY_POSES) {
+    const b = (typeof lib !== 'undefined' && lib.myPoses || {})[d.id];
+    if (b && !MASCOT_IMG[d.id]) { try { MASCOT_IMG[d.id] = await createImageBitmap(b); } catch (e) {} }
+    if (b && MASCOT_IMG[d.id]) POSES[d.id] = { label: d.label, custom: true }; else { delete POSES[d.id]; delete MASCOT_IMG[d.id]; }
+  }
+}
 const POSE_BY_SEG = { open: 'hello', area: 'great', 'room:แผนที่/การเดินทาง': 'thisway', 'room:หน้าบ้าน/ภายนอก': 'yourhome', 'room:ที่จอดรถ': 'ready', 'room:ห้องนั่งเล่น': 'furnished', 'room:ห้องทานอาหาร': 'furnished', 'room:ครัว': 'idea', 'room:ห้องนอนใหญ่': 'love', 'room:ห้องนอน': 'love', 'room:ห้องน้ำ': 'cleaning', 'room:สระว่ายน้ำ': 'cheers', 'room:สวน/ระเบียง': 'wave', life: 'dance', close: 'greeting' };
 const poseForSeg = key => ((state.script.poses || {})[key]) || POSE_BY_SEG[key] || 'wave';
 
 const MASCOT_IMG = {}, FACE_COL = {};
+// ท่าที่ต้องใช้จริง = ท่ามาตรฐาน (ปากขยับ) + สติกเกอร์ที่ถูกเลือกไว้ในแต่ละท่อน (สติกเกอร์อื่นโหลดตอนเปิดหน้าเลือกท่า)
+const neededPoses = () => [...new Set([...Object.keys(POSES).filter(k => !POSES[k].custom), ...Object.values((typeof state !== 'undefined' && state.script && state.script.poses) || {}).filter(k => POSES[k] && POSES[k].sticker)])];
 async function loadPoses(names) {
-  const list = names || Object.keys(POSES);
+  const list = (names || neededPoses()).filter(n => POSES[n] && (!POSES[n].custom || POSES[n].src));
   await Promise.all(list.map(async n => {
     if (MASCOT_IMG[n]) return;
-    const bmp = await fetch(`assets/${n}.png`).then(r => { if (!r.ok) throw new Error('assets/' + n); return r.blob(); }).then(createImageBitmap);
-    MASCOT_IMG[n] = bmp;
+    const bmp = await fetch(POSES[n].src || `assets/${n}.png`).then(r => { if (!r.ok) throw new Error('assets/' + n); return r.blob(); }).then(createImageBitmap);
+    MASCOT_IMG[n] = bmp; if (POSES[n].custom) return;
     // สีหน้าเหนือปาก (บน) และใต้ปาก (ล่าง) ใช้ไล่สีทับปากเดิมให้กลืนกับหน้า
     const [x0, y0, W] = POSE_HEAD[n], samp = fy => { const c = document.createElement('canvas'); c.width = Math.round(W * 0.16); c.height = Math.round(W * 0.04);
       const x = c.getContext('2d', { willReadFrequently: true }); x.drawImage(bmp, x0 + W * 0.42, y0 + W * fy, c.width, c.height, 0, 0, c.width, c.height);
@@ -65,9 +86,10 @@ const blinkAt = (t, seed = 0) => { const p = (t + seed * 0.7) % 3.4; return p < 
 // ----- วาดมาสคอตทั้งตัว: cx = กึ่งกลางแนวนอน, bottom = เท้า, h = ความสูง -----
 function drawMascotTalking(ctx, pose, cx, bottom, h, o = {}) {
   const img = MASCOT_IMG[pose]; if (!img) return;
-  const s = h / img.height, w = img.width * s, [hx0, hy0, W] = POSE_HEAD[pose], rot = o.rot || 0, yoff = o.yoff || 0;
+  const s = h / img.height, w = img.width * s, [hx0, hy0, W] = POSE_HEAD[pose] || [0, 0, 0], rot = o.rot || 0, yoff = o.yoff || 0;
   ctx.save(); ctx.translate(cx, bottom + yoff); ctx.rotate(rot); ctx.translate(-w / 2, -h); ctx.scale(s, s);
   ctx.drawImage(img, 0, 0);
+  if (!POSE_HEAD[pose]) { ctx.restore(); return; }
   const face = FACE_COL[pose] || { top: '#6e1e24', bot: '#5a1820' };
   if (POSES[pose].blink) drawBlink(ctx, hx0 + W * 0.4975, hy0 + W * 0.54, W, o.blink || 0, face);
   if (o.talk !== false) drawMouth(ctx, hx0 + W * 0.5, hy0 + W * 0.745, W, o.mouth || 0, o.wf || 1, face);
@@ -123,15 +145,20 @@ draw(ctx, W, H, t) {
     else if (sp.mv === 'sit') { const a = L * 0.18, b2 = L - 1.2; sit = _r(k, a, 0.8) * (1 - _r(k, b2 - 0.8, 0.8)); if (sp.to !== sp.from) f = go(b2 + 0.4, sp.from, sp.to); }
     else if (sp.mv === 'lie') { const a = L * 0.3, b2 = a + Math.min(4.5, L * 0.35); lie = _r(k, a, 0.9) * (1 - _r(k, b2, 0.9)); }
   }
+  const csImg = X(f) < W / 2 ? MASCOT_IMG.my_sitL : MASCOT_IMG.my_sitR, clImg = MASCOT_IMG.my_lie; let cA = 0, cI = '';
+  if (sit > 0 && csImg) { cA = sit; cI = 'sit'; sit = 0; } else if (lie > 0 && clImg) { cA = lie; cI = 'lie'; lie = 0; } // มีรูปท่านั่ง/นอนที่อัปโหลดไว้ → ใช้รูปนั้นแทนการย่อ/หมุนตัว
   let cx = X(f), step = walk ? Math.abs(Math.sin(k * Math.PI * 2.3)) : 0, hop = k < 0.4 ? (1 - k / 0.4) * H * 0.07 : 0;
   const bob = Math.sin(t * 2.6) * H * 0.004 * (1 - lie), flip = walk ? (dir < 0 ? 1 : 0) : (cx > W / 2 ? 1 : 0);
   let yoff = -hop - step * H * 0.022 + bob - lie * w * 0.46, rot = walk ? Math.sin(k * Math.PI * 2.3) * 0.06 : sit ? Math.sin(t * 2) * 0.02 * sit : 0;
   if (lie) { rot = -lie * 1.5; cx = Math.max(cx, h * 0.98 + mg); cx = Math.min(cx, W - mg - w * 0.1); }
   const mo = mouthAt(t), bottom = H - H * 0.015;
   ctx.save();
+  if (cA > 0) ctx.globalAlpha = 1 - cA;
   if (flip && !lie) { ctx.translate(cx, 0); ctx.scale(-1, 1); ctx.translate(-cx, 0); }
   if (sit > 0) { ctx.translate(cx, bottom); ctx.scale(1 + 0.07 * sit, 1 - 0.17 * sit); ctx.translate(-cx, -bottom); } // นั่งยอง: ตัวเตี้ยลง แต่ยังอยู่ในจอครบตัว
   drawMascotTalking(ctx, sp.pose, cx, bottom, h, { mouth: mo.m, wf: mo.wf, blink: lie > 0.6 ? 1 : blinkAt(t, sp.seed || 0), yoff, rot });
   ctx.restore();
+  if (cA > 0) { const im = cI === 'sit' ? csImg : clImg, hh = h * (cI === 'sit' ? 0.8 : 0.55), ww = im.width * hh / im.height, x = cI === 'sit' ? (X(f) < W / 2 ? ww / 2 : W - ww / 2) : Math.min(W - ww / 2 - mg, Math.max(ww / 2 + mg, X(f)));
+    ctx.save(); ctx.globalAlpha = cA; ctx.drawImage(im, x - ww / 2, bottom - hh, ww, hh); ctx.restore(); }
   if (lie > 0.85) { ctx.save(); ctx.fillStyle = 'rgba(255,255,255,.9)'; ctx.strokeStyle = 'rgba(90,24,32,.8)'; ctx.lineWidth = H * 0.003; ctx.textAlign = 'left'; ['z', 'Z', 'Z'].forEach((c, i) => { const q = ((t * 0.6 + i * 0.33) % 1), fs = H * (0.022 + i * 0.01); ctx.globalAlpha = Math.sin(Math.PI * q) * lie; ctx.font = `700 ${fs}px sans-serif`; const px = cx - h * 1.0 + q * H * 0.05 + i * H * 0.02, py = H - H * 0.015 - w * 0.9 - q * H * 0.07; ctx.strokeText(c, px, py); ctx.fillText(c, px, py); }); ctx.restore(); }
 } };

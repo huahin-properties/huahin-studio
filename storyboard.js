@@ -35,12 +35,12 @@ const VOICE_STYLES = {
   doc_th: { label: 'สารคดี (ภาษาไทย)', text: 'บรรยายสไตล์สารคดีท่องเที่ยวระดับพรีเมียม น้ำเสียงนุ่มลึก สงบ อบอุ่น น่าเชื่อถือ เหมือนผู้บรรยายสารคดี จังหวะช้าถึงปานกลาง ออกเสียงภาษาไทยชัดเจนเป็นธรรมชาติ ไม่เร่งรีบ หยุดเว้นจังหวะประมาณ 1 วินาทีเมื่อจบแต่ละย่อหน้า รักษาน้ำเสียง จังหวะ และอารมณ์ให้คงที่ตั้งแต่บรรทัดแรกถึงบรรทัดสุดท้าย' },
   warm_en: { label: 'อบอุ่นเป็นกันเอง (English)', text: 'Speak like a friendly, trustworthy property host walking guests through a beautiful home: warm, relaxed, smiling, medium pace, clear natural Thai pronunciation. Pause about one second between paragraphs. Keep the same voice, pace and energy from start to finish.' },
 };
-const lib = { voiceStyle: VOICE_STYLES.doc_en.text, links: { ...DEFAULT_LINKS }, brand: { greeting: '', tagline: '', subtitle: '', thanks: '', invite: '' }, titleBuiltin: true, closeBuiltin: true, title: null, close: null, area: [], contact: { name: '', phone: '', line: '' }, places: DEFAULT_PLACES.map((name, i) => ({ id: i + 1, name, coord: '' })) };
+const lib = { voiceStyle: VOICE_STYLES.doc_en.text, links: { ...DEFAULT_LINKS }, brand: { greeting: '', tagline: '', subtitle: '', thanks: '', invite: '' }, titleBuiltin: true, closeBuiltin: true, myPoses: {}, title: null, close: null, area: [], contact: { name: '', phone: '', line: '' }, places: DEFAULT_PLACES.map((name, i) => ({ id: i + 1, name, coord: '' })) };
 let libSeq = 1000000;
 const saveLib = () => DB.set('library', lib);
 async function loadLib() {
   const l = await DB.get('library'); if (!l) return;
-  lib.contact = { name: '', phone: '', line: '', ...(l.contact || {}) }; lib.brand = { ...lib.brand, ...(l.brand || {}) }; lib.links = { ...DEFAULT_LINKS, ...(l.links || {}) }; if (l.voiceStyle) lib.voiceStyle = l.voiceStyle; lib.titleBuiltin = l.titleBuiltin !== false; lib.closeBuiltin = l.closeBuiltin !== false; lib.title = l.title || null; lib.close = l.close || null; lib.area = l.area || []; if (l.places && l.places.length) lib.places = l.places;
+  lib.contact = { name: '', phone: '', line: '', ...(l.contact || {}) }; lib.brand = { ...lib.brand, ...(l.brand || {}) }; lib.links = { ...DEFAULT_LINKS, ...(l.links || {}) }; if (l.voiceStyle) lib.voiceStyle = l.voiceStyle; lib.titleBuiltin = l.titleBuiltin !== false; lib.closeBuiltin = l.closeBuiltin !== false; lib.title = l.title || null; lib.close = l.close || null; lib.area = l.area || []; lib.myPoses = l.myPoses || {}; if (l.places && l.places.length) lib.places = l.places;
   libSeq = Math.max(libSeq, ...lib.area.map(a => a.id || 0), (lib.title && lib.title.id) || 0, (lib.close && lib.close.id) || 0) + 1;
 }
 const libArea = cat => lib.area.filter(x => x.cat === cat);
