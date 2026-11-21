@@ -1,0 +1,29 @@
+:root{--bg:#f4ece0;--card:#fffaf2;--ink:#2e2220;--accent:#7a1f2b;--line:#e2d4c0;--mute:#8a7a70}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,"Noto Sans Thai",sans-serif;padding-bottom:80px}
+header{background:var(--accent);color:#fff;padding:14px 16px;font-family:Georgia,serif;font-size:20px;position:sticky;top:0;z-index:5}
+header small{opacity:.75;font-family:system-ui;font-size:12px;margin-left:8px}
+.steps{display:flex;gap:6px;overflow-x:auto;padding:10px 12px;background:var(--card);border-bottom:1px solid var(--line)}
+.steps button{flex:0 0 auto;border:1px solid var(--line);background:#fff;border-radius:20px;padding:8px 12px;font-size:14px;color:var(--ink)}
+.steps button.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+.steps button:disabled{opacity:.4}
+main{padding:14px;max-width:640px;margin:auto}
+h2{font-family:Georgia,serif;margin:6px 0 4px}
+p.hint{color:var(--mute);margin:0 0 12px;font-size:14px}
+.sizes{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.size{background:var(--card);border:2px solid var(--line);border-radius:14px;padding:14px;text-align:center;font-size:15px}
+.size.on{border-color:var(--accent);background:#fff}
+.size i{display:block;margin:0 auto 8px;background:var(--line);border:2px solid var(--accent);border-radius:4px}
+.size b{display:block}.size span{color:var(--mute);font-size:12px}
+.btn{display:block;width:100%;border:0;border-radius:12px;background:var(--accent);color:#fff;padding:14px;font-size:16px;margin:12px 0}
+.btn.alt{background:#fff;color:var(--accent);border:2px solid var(--accent)}
+.items{display:grid;grid-template-columns:1fr;gap:10px}
+.item{display:flex;gap:10px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:8px;align-items:center}
+.item img,.item video{width:84px;height:84px;object-fit:cover;border-radius:8px;background:#000}
+.item .col{flex:1;display:flex;flex-direction:column;gap:6px;min-width:0}
+.item select{padding:8px;border-radius:8px;border:1px solid var(--line);font-size:15px;background:#fff}
+.item .row{display:flex;gap:6px}
+.item .row button{flex:1;border:1px solid var(--line);background:#fff;border-radius:8px;padding:6px}
+.badge{font-size:11px;color:var(--mute)}
+canvas#pv{width:100%;max-height:60vh;object-fit:contain;background:#000;border-radius:12px;display:block;margin:auto}
+.soon{background:var(--card);border:1px dashed var(--line);border-radius:12px;padding:20px;text-align:center;color:var(--mute)}
