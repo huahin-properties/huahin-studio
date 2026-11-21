@@ -64,7 +64,7 @@ async function viewHome() {
     return `<div class="pcard" data-id="${m.id}">
       <div class="pthumb" style="aspect-ratio:${s.w}/${s.h}">${url ? `<img src="${url}" alt="">` : '<span>🎬</span>'}<em class="pbadge ${r ? 'ok' : ''}">${r ? 'เรนเดอร์แล้ว' : 'ร่าง'}</em></div>
       <div class="pinfo"><b>${title.replace(/</g, '&lt;')}</b><small>${s.name} · ${m.n || 0} รูป · แก้ไข ${fmtDate(m.updated)}</small><small class="pst">${st}</small></div>
-      <div class="pact"><button class="ib wide" data-a="edit">✏️ แก้ไข</button>${r && r.saved ? '<button class="ib wide" data-a="view">▶ ดู</button><button class="ib wide" data-a="dl">⬇ โหลด</button>' : ''}<button class="ib wide" data-a="ren">✎ ชื่อ</button><button class="ib wide" data-a="dup">⧉ สำเนา</button><button class="ib wide danger" data-a="del">🗑 ลบ</button></div></div>`;
+      <div class="pact ${r && r.saved ? 'n6' : 'n4'}"><button class="ib wide" data-a="edit">✏️ แก้ไข</button>${r && r.saved ? '<button class="ib wide" data-a="view">▶ ดู</button><button class="ib wide" data-a="dl">⬇ โหลด</button>' : ''}<button class="ib wide" data-a="ren">✎ ชื่อ</button><button class="ib wide" data-a="dup">⧉ สำเนา</button><button class="ib wide danger" data-a="del">🗑 ลบ</button></div></div>`;
   };
   $('#view').innerHTML = `<h2>คลิปของฉัน</h2>
     <p class="hint">${list.length ? 'แตะ "แก้ไข" เพื่อกลับไปทำต่อ · คลิปที่เรนเดอร์แล้วดูและดาวน์โหลดซ้ำได้จากการ์ด' : 'ยังไม่มีคลิป กด "เพิ่มคลิปใหม่" เพื่อเริ่มทำคลิปแรก'}</p>
