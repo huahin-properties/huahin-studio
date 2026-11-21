@@ -27,7 +27,7 @@ async function renderMp4(blobs, W, H, onProgress, luts, sceneOpt) {
   const images = [];
   for (let i = 0; i < blobs.length; i++) { { const bmp = await loadScaled(blobs[i], W, H); images.push(luts ? gradeToCanvas(bmp, luts[i]) : bmp); if (luts) bmp.close(); } onProgress(0.1 * (i + 1) / blobs.length, 'กำลังเตรียมรูป'); }
 
-  if (sceneOpt && sceneOpt.scene) images.splice(Math.min(sceneOpt.at, images.length), 0, sceneOpt.scene);
+  if (sceneOpt && sceneOpt.length) sceneOpt.forEach(o => images.splice(Math.min(o.at, images.length), 0, o.scene)); // เรียงจากท้ายไปต้น ดัชนีจึงไม่เลื่อน
   const muxer = new Mp4Muxer.Muxer({ target: new Mp4Muxer.ArrayBufferTarget(), video: { codec: 'avc', width: W, height: H }, fastStart: 'in-memory' });
   let encErr = null;
   const enc = new VideoEncoder({ output: (c, m) => muxer.addVideoChunk(c, m), error: e => { encErr = e; } });

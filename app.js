@@ -253,6 +253,10 @@ function scriptBarHtml(sl) {
   return `<div class="sbar ${has ? 'ok' : 'no'}"><i style="width:${has ? Math.max(pct, 8) : 100}%"></i></div><small class="sbl ${has ? 'ok' : 'no'}">📝 ${has ? `เขียนสคริปต์แล้ว ~${sec} วิ${sl.cat && sl.cat !== 'lifestyle' ? ' (ใช้ร่วมกันทั้งทำเล)' : ''}` : 'ยังไม่ได้เขียนสคริปต์'}</small>`;
 }
 
+const sceneModeHtml = sl => `<label class="sw"><input type="radio" name="tmode" value="builtin" ${lib[sl.id + 'Builtin'] ? 'checked' : ''}> 🎬 ใช้${sl.id === 'title' ? 'ไตเติล' : 'เครดิตปิด'}ของแอป (มาสคอต Huahin Properties)</label>
+  <label class="sw"><input type="radio" name="tmode" value="custom" ${lib[sl.id + 'Builtin'] ? '' : 'checked'}> ใช้ไฟล์ของฉันเอง</label>
+  ${lib[sl.id + 'Builtin'] ? `<canvas id="scenePrev" class="rprev"></canvas><p class="hint">${sl.id === 'title' ? 'มาสคอตโผล่มาโบกมือ พร้อมชื่อแบรนด์ สโลแกน และชื่อโครงการ (จาก 🏠 ข้อมูลบ้าน)' : 'มาสคอตส่งกุญแจบ้าน พร้อมเบอร์โทร/LINE ตามที่ตั้งในแท็บ ☎️ ติดต่อ'} · ต่อเข้า MP4 ให้อัตโนมัติ</p>` : '<p class="hint">ไฟล์รูปจะถูกต่อเข้า MP4 (คลิปวิดีโอยังไม่รองรับ)</p>'}`;
+
 function openSlot(id) {
   document.querySelector('#slotSheet')?.remove();
   const sl = SLOTS.find(x => x.id === id); if (!sl) return;
@@ -265,7 +269,8 @@ function openSlot(id) {
     ${sl.id === 'map' ? `<button class="btn alt" data-a="genmap">🗺️ สร้างแผนที่จากพิกัดบ้านอัตโนมัติ</button><p class="hint" id="genStat">สร้างให้ 2 ภาพ: 🗺️ ภาพรวม + ระยะทาง และ 📍 ซูมที่บ้าน (ต้องมีพิกัดบ้านและต่อเน็ต) · แยกจากคลิปรถวิ่ง 🚗 ที่อยู่ด้านล่าง</p><button class="btn" data-a="genroute">🚗 สร้างคลิปรถวิ่งเข้าบ้านอัตโนมัติ</button><p class="hint" id="routeStat">${state.routeData ? (state.routeData.size === state.size ? `✅ มีคลิปเส้นทางแล้ว (~${(state.routeData.meters / 1000).toFixed(1)} กม.${state.routeData.real ? '' : ' · เส้นตรง'}) ต่อเข้า MP4 ให้อัตโนมัติ` : '⚠️ คลิปเส้นทางสร้างไว้สำหรับขนาดคลิปอื่น กดสร้างใหม่') : 'รถวิ่งตามถนนจริงจากถนนเพชรเกษม/ปากซอยเข้าบ้าน ต้องมีพิกัดบ้าน และต่อเน็ตตอนสร้าง'}</p>
       ${state.routeData ? '<canvas id="routePrev" class="rprev"></canvas><button class="btn alt" data-a="rmroute">🗑️ ลบคลิปเส้นทาง</button>' : ''}
       <label class="sw"><input type="checkbox" id="skipMap" ${state.skipMap ? 'checked' : ''}> คลิปนี้ไม่ใช้แผนที่ (ข้าม)</label>` : ''}
-    ${sl.kind === 'contact' ? contactCardHtml() : `<button class="btn" data-a="add">${sl.max1 && items.length ? '↻ เปลี่ยนไฟล์' : '+ เพิ่มรูป / คลิป'}</button>
+    ${sl.id === 'title' || sl.id === 'close' ? sceneModeHtml(sl) : ''}
+    ${sl.kind === 'contact' ? contactCardHtml() : ((sl.id === 'title' || sl.id === 'close') && lib[sl.id + 'Builtin']) ? '' : `<button class="btn" data-a="add">${sl.max1 && items.length ? '↻ เปลี่ยนไฟล์' : '+ เพิ่มรูป / คลิป'}</button>
       ${items.length ? `<div class="sgrid" id="pgrid">${items.map(it => thumbHtml(it, true)).join('')}</div>` : ''}`}
     ${sc !== null ? `<label class="sl"><span>📝 สคริปต์ของช่วงนี้${sl.cat && sl.cat !== 'lifestyle' ? ' (ใช้ร่วมกันทั้ง 4 แท็บทำเล)' : ''}</span></label><textarea class="sct" id="slotScript" rows="3" placeholder="พิมพ์เรื่องเล่าของช่วงนี้ (ไม่ใส่ก็ได้ เขียนทีหลังได้ที่ขั้น 4)">${sc.replace(/</g, '&lt;')}</textarea>` : ''}
     <button class="btn" data-a="x">เสร็จ</button>`;
@@ -278,9 +283,10 @@ function openSlot(id) {
     const b = e.target.closest('[data-del]'); if (b && confirm('ลบไฟล์นี้ใช่ไหม?')) { await removeFromSlot(sl, +b.dataset.del); updateSb(); openSlot(id); }
   };
   d.addEventListener('input', e => { if (e.target.id === 'slotScript') setSlotScript(sl, e.target.value); });
-  d.addEventListener('change', e => { if (e.target.id === 'skipMap') { state.skipMap = e.target.checked; save(); updateSb(); } });
+  d.addEventListener('change', async e => { if (e.target.name === 'tmode') { lib[id + 'Builtin'] = e.target.value === 'builtin'; await saveLib(); updateSb(); openSlot(id); return; } if (e.target.id === 'skipMap') { state.skipMap = e.target.checked; save(); updateSb(); } });
   if (sl.kind === 'contact') bindContact(d, () => openSlot(id));
   document.body.appendChild(d);
+  const sp = d.querySelector('#scenePrev'); if (sp) { const z = sizeInfo(); sp.width = Math.round(z.w / 3); sp.height = Math.round(z.h / 3); previewScene(sp, id); }
   const rp = d.querySelector('#routePrev');
   if (rp && state.routeData && state.routeData.size === state.size) {
     const rd = state.routeData; rp.width = rd.W / 3; rp.height = rd.H / 3; const cx = rp.getContext('2d');
@@ -313,6 +319,9 @@ function viewSlots() {
         if (ok) done.push(`<div class="gsec" data-sec="${sl.id}"><div class="gh"><b>${sl.ico} ${sl.short}</b><button class="ib sm" data-open="${sl.id}">แก้ไข</button></div><p class="hint">${slotInfo(sl, ok)}</p></div>`);
         return;
       }
+      if ((sl.id === 'title' || sl.id === 'close') && lib[sl.id + 'Builtin']) {
+        done.push(`<div class="gsec" data-sec="${sl.id}"><div class="gh"><b>${sl.ico} ${sl.id === 'title' ? 'ไตเติลของแอป (มาสคอต)' : 'เครดิตปิดของแอป (มาสคอต)'}</b><button class="ib sm" data-open="${sl.id}">จัดการ</button></div><canvas class="sprev" data-scene="${sl.id}"></canvas></div>`); return;
+      }
       const items = slotItems(sl);
       if (!items.length) return;
       const sc = getSlotScript(sl), noScript = sc !== null && secOf(sc) === 0;
@@ -328,6 +337,7 @@ function viewSlots() {
     const html = (todo.length ? `<h3 class="gtitle todo">⏳ ยังไม่เรียบร้อย (${todo.length})</h3>${todo.join('')}` : '')
       + (done.length ? `<h3 class="gtitle done">✅ เรียบร้อยแล้ว (${done.length})</h3>${done.join('')}` : '');
     g.innerHTML = html || '<div class="soon">ยังไม่มีไฟล์ แตะแท็บด้านบนเพื่อเริ่มเพิ่มรูป/คลิป</div>';
+    g.querySelectorAll('[data-scene]').forEach(cv => { const z = sizeInfo(); cv.width = Math.round(z.w / 5); cv.height = Math.round(z.h / 5); paintSceneFrame(cv, cv.dataset.scene, cv.dataset.scene === 'title' ? 3.5 : 4); });
     SLOTS.filter(sl => sl.kind === 'room').forEach(sl => { const grid = g.querySelector(`[data-grid="${sl.id}"]`); if (!grid) return;
       enableDrag(grid, { itemSel: '.th', grid: true, onEnd: async els => {
         const ids = els.map(c => +c.dataset.id), slots = [];
@@ -619,14 +629,16 @@ async function viewColor() {
 
 function viewRender() {
   organizeItems(); save();
-  const imgs = [...areaLibOrdered().filter(i => i.type === 'image'), ...state.items.filter(i => i.type === 'image'), ...lifeItems().filter(i => i.type === 'image')], s = sizeInfo();
+  const titleImg = (!lib.titleBuiltin && lib.title && lib.title.type === 'image') ? lib.title : null, closeImg = (!lib.closeBuiltin && lib.close && lib.close.type === 'image') ? lib.close : null;
+  const pre = titleImg ? [titleImg] : [], post = closeImg ? [closeImg] : [];
+  const imgs = [...pre, ...areaLibOrdered().filter(i => i.type === 'image'), ...state.items.filter(i => i.type === 'image'), ...lifeItems().filter(i => i.type === 'image'), ...post], s = sizeInfo();
   const blockers = sbBlockers();
   const skipped = state.items.length - imgs.length;
   const routeOk = !!(state.routeData && state.routeData.size === state.size);
-  const routeAt = areaLibOrdered().filter(i => i.type === 'image').length + state.items.filter(i => i.type === 'image' && (i.room === AREA_ROOM || i.room === MAP_ROOM)).length;
+  const routeAt = pre.length + areaLibOrdered().filter(i => i.type === 'image').length + state.items.filter(i => i.type === 'image' && (i.room === AREA_ROOM || i.room === MAP_ROOM)).length;
   $('#view').innerHTML = `
     <h2>เรนเดอร์เป็น MP4</h2>
-    <p class="hint">ขนาด ${s.name} (${s.w}×${s.h}) · ${imgs.length} รูป · ยาวประมาณ ${(totalDuration(imgs.length) + (routeOk ? ROUTE_DUR : 0)).toFixed(1)} วินาที${routeOk ? ' (รวมคลิปรถวิ่งเข้าบ้าน)' : ''}${skipped ? ` · คลิปสั้น ${skipped} ไฟล์ยังไม่ถูกใช้ (รอบหน้า)` : ''}</p>
+    <p class="hint">ขนาด ${s.name} (${s.w}×${s.h}) · ${imgs.length} รูป · ยาวประมาณ ${(totalDuration(imgs.length) + (routeOk ? ROUTE_DUR : 0) + (lib.titleBuiltin ? TITLE_DUR : 0) + (lib.closeBuiltin ? CLOSE_DUR : 0)).toFixed(1)} วินาที (รวมฉากมาสคอต/คลิปรถวิ่งที่เปิดใช้)${skipped ? ` · คลิปสั้น ${skipped} ไฟล์ยังไม่ถูกใช้ (รอบหน้า)` : ''}</p>
     ${blockers.length ? `<div class="soon" style="border-color:#b00020;color:#b00020;text-align:left">❌ ยังเรนเดอร์ไม่ได้ เพราะผังเรื่องยังขาด:<br>${blockers.map(b => '• ' + b.label.replace(/^\d+\. /, '') + ' — ' + b.info).join('<br>')}<br><br><button class="btn alt" id="openSb">📋 เปิดผังเรื่อง</button></div>` : ''}
     <p class="hint">หมายเหตุ: ไตเติลและหน้าปิดจากคลังกลางจะถูกต่อเข้าไฟล์ MP4 ในรอบถัดไป (ตอนนี้เรนเดอร์ภาพทำเลและรูปบ้าน)</p>
     <p class="hint">ปรับสี: ${isNeutral(state.color) ? 'ปิด' : (state.color.auto ? 'อัตโนมัติ' : 'ตั้งเอง')}</p>
@@ -646,7 +658,11 @@ function viewRender() {
         for (const it of imgs) { if (!statCache.has(it.id)) statCache.set(it.id, imageStats(await getSmall(it))); stats.push(statCache.get(it.id)); }
         luts = makeLuts(stats, state.color);
       }
-      const blob = await renderMp4(imgs.map(i => i.blob), s.w, s.h, (p, msg) => { $('#prog').textContent = `${msg} ${Math.round(p * 100)}%`; }, luts, routeOk ? { at: routeAt, scene: await routeScene(state.routeData) } : null);
+      const sceneList = [];
+      if (lib.closeBuiltin) sceneList.push({ at: imgs.length, scene: await closeScene() });
+      if (routeOk) sceneList.push({ at: routeAt, scene: await routeScene(state.routeData) });
+      if (lib.titleBuiltin) sceneList.push({ at: 0, scene: await titleScene() });
+      const blob = await renderMp4(imgs.map(i => i.blob), s.w, s.h, (p, msg) => { $('#prog').textContent = `${msg} ${Math.round(p * 100)}%`; }, luts, sceneList);
       const url = URL.createObjectURL(blob);
       $('#prog').textContent = `เสร็จใน ${((performance.now() - t0) / 1000).toFixed(0)} วินาที · ขนาดไฟล์ ${(blob.size / 1048576).toFixed(1)} MB`;
       $('#out').innerHTML = `<video src="${url}" controls playsinline style="width:100%;max-height:60vh;background:#000;border-radius:12px"></video><a class="btn" download="huahin-clip.mp4" href="${url}" style="text-decoration:none;text-align:center">⬇ บันทึกไฟล์ MP4</a>`;
