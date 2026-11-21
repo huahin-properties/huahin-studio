@@ -187,6 +187,7 @@ function scriptSegments() {
   const segs = [];
   if (areaItems().length) segs.push({ no: 1, key: 'area', label: 'ทำเล หัวหิน', text: state.script.area || '' });
   rooms.forEach(r => segs.push({ no: segs.length + 1, key: 'room:' + r, label: r, room: r, text: state.script.rooms[r] || '' }));
+  if (lifeItems().length) segs.push({ no: segs.length + 1, key: 'life', label: 'ไลฟ์สไตล์', text: state.script.life || '' });
   return segs;
 }
 async function copyText(t) {
@@ -197,10 +198,10 @@ async function copyText(t) {
 function viewScript() {
   organizeItems(); save();
   const segs = scriptSegments(), no2 = n => String(n).padStart(2, '0');
-  const setText = (seg, v) => { if (seg.key === 'area') state.script.area = v; else state.script.rooms[seg.room] = v; };
+  const setText = (seg, v) => { if (seg.key === 'life') state.script.life = v; else if (seg.key === 'area') state.script.area = v; else state.script.rooms[seg.room] = v; };
   const total = () => scriptSegments().reduce((a, g) => a + secOf(g.text), 0);
   const card = g => {
-    const its = g.key === 'area' ? areaItems() : state.items.filter(i => i.room === g.room);
+    const its = g.key === 'life' ? lifeItems() : g.key === 'area' ? areaItems() : state.items.filter(i => i.room === g.room);
     return `<div class="seg" data-key="${g.key}">
       <div class="seg-h"><b>${no2(g.no)} · ${g.label}</b><span class="badge" data-t="${g.key}">~${secOf(g.text)} วิ</span><button class="ib sm" data-cp="${g.key}" title="คัดลอกท่อนนี้" aria-label="คัดลอกท่อนนี้">📋</button></div>
       ${its.length ? `<div class="mini">${its.slice(0, 4).map(i => i.type === 'image' ? `<img src="${urlOf(i)}" alt="">` : '<span>🎬</span>').join('')}<small>${its.length} รูป/คลิป</small></div>` : ''}
@@ -342,7 +343,7 @@ async function viewColor() {
 
 function viewRender() {
   organizeItems(); save();
-  const imgs = [...areaLibOrdered().filter(i => i.type === 'image'), ...state.items.filter(i => i.type === 'image')], s = sizeInfo();
+  const imgs = [...areaLibOrdered().filter(i => i.type === 'image'), ...state.items.filter(i => i.type === 'image'), ...lifeItems().filter(i => i.type === 'image')], s = sizeInfo();
   const blockers = sbBlockers();
   const skipped = state.items.length - imgs.length;
   $('#view').innerHTML = `

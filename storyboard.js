@@ -24,6 +24,7 @@ const SLOTS = [
   { id: 'bath', ico: '🚿', short: 'ห้องน้ำ', label: 'ห้องน้ำ', kind: 'room', rooms: ['ห้องน้ำ'], room: 'ห้องน้ำ', min: 0, rec: 1, hint: 'ห้องน้ำ 1–3 ภาพ' },
   { id: 'pool', ico: '🏊', short: 'สระ', label: 'สระว่ายน้ำ (ถ้ามี)', kind: 'room', rooms: ['สระว่ายน้ำ'], room: 'สระว่ายน้ำ', min: 0, rec: 0, hint: 'สระว่ายน้ำ 1–4 ภาพ · ไม่มีก็ข้ามได้' },
   { id: 'garden', ico: '🌴', short: 'สวน', label: 'สวน / ระเบียง (ถ้ามี)', kind: 'room', rooms: ['สวน/ระเบียง'], room: 'สวน/ระเบียง', min: 0, rec: 0, hint: 'สวน ระเบียง มุมพักผ่อน 1–3 ภาพ · ไม่มีก็ข้ามได้' },
+  { id: 'cat-lifestyle', ico: '👨‍👩‍👧', short: 'ไลฟ์สไตล์', label: 'ไลฟ์สไตล์ (ครอบครัว / ออกกำลังกาย / ไปตลาด)', kind: 'lib', cat: 'lifestyle', min: 0, rec: 1, hint: 'ภาพหรือคลิปครอบครัวอยู่ด้วยกัน ออกกำลังกาย ไปตลาด 1–4 ภาพ · ใส่ครั้งเดียวใช้ซ้ำทุกคลิป' },
   { id: 'contact', ico: '☎️', short: 'ติดต่อ', label: 'เบอร์โทร / ข้อมูลติดต่อ', kind: 'contact', min: 1, rec: 1, hint: 'เลือกใช้เบอร์มาตรฐาน พิมพ์เบอร์ใหม่ หรือไม่แสดงเบอร์' },
   { id: 'close', ico: '🏁', short: 'เครดิตปิด', label: 'เครดิตปิดท้าย (คลิปประจำ)', kind: 'lib', min: 1, rec: 1, max1: true, hint: 'คลิปเครดิต/ข้อมูลติดต่อปิดท้าย · 1 ไฟล์ · ใส่ครั้งเดียวใช้ซ้ำทุกคลิป' },
 ];
@@ -36,7 +37,8 @@ async function loadLib() {
   libSeq = Math.max(libSeq, ...lib.area.map(a => a.id || 0), (lib.title && lib.title.id) || 0, (lib.close && lib.close.id) || 0) + 1;
 }
 const libArea = cat => lib.area.filter(x => x.cat === cat);
-const areaLibOrdered = () => [...AREA_CATS.flatMap(c => libArea(c.id)), ...lib.area.filter(x => !AREA_CATS.some(c => c.id === x.cat))];
+const areaLibOrdered = () => [...AREA_CATS.flatMap(c => libArea(c.id)), ...lib.area.filter(x => !AREA_CATS.some(c => c.id === x.cat) && x.cat !== 'lifestyle')];
+const lifeItems = () => libArea('lifestyle');
 const areaItems = () => [...areaLibOrdered(), ...state.items.filter(i => i.room === AREA_ROOM)];
 function activeContact() { const m = state.contact.mode; return m === 'none' ? null : m === 'custom' ? state.contact.custom : lib.contact; }
 const mediaOf = f => ({ blob: f, type: f.type.startsWith('video') ? 'video' : 'image', name: f.name });
