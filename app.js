@@ -35,7 +35,28 @@ async function addFiles(files) {
   }
   await save();
 }
+let selMode = false; const picked = new Set();
+function selBarHtml() {
+  return selMode
+    ? `<div class="row2"><button class="btn alt" data-sa="all">เลือกทั้งหมด</button><button class="btn alt" data-sa="off">ยกเลิก</button></div><button class="btn" data-sa="del" ${picked.size ? '' : 'disabled'}>🗑️ ลบที่เลือก (${picked.size})</button>`
+    : `<button class="btn alt" data-sa="on">☑ เลือกหลายรูปเพื่อลบ</button>`;
+}
+function bindSelBar(bar, allIds, refresh) {
+  bar.innerHTML = selBarHtml();
+  bar.onclick = async e => {
+    const b = e.target.closest('button'); if (!b || b.disabled) return; const a = b.dataset.sa;
+    if (a === 'on') { selMode = true; picked.clear(); }
+    else if (a === 'off') { selMode = false; picked.clear(); }
+    else if (a === 'all') allIds().forEach(id => picked.add(id));
+    else if (a === 'del') {
+      if (!picked.size || !confirm(`ลบ ${picked.size} รูปที่เลือกใช่ไหม?`)) return;
+      [...picked].forEach(removeItem); picked.clear(); selMode = false; await save(); refresh(true); return;
+    }
+    bar.innerHTML = selBarHtml(); refresh(false);
+  };
+}
 function removeItem(id) {
+  picked.delete(id);
   const i = state.items.findIndex(x => x.id === id); if (i < 0) return;
   if (urlCache.has(id)) { URL.revokeObjectURL(urlCache.get(id)); urlCache.delete(id); }
   if (typeof smallCache !== 'undefined') { smallCache.get(id)?.close?.(); smallCache.delete(id); statCache.delete(id); }
@@ -64,7 +85,8 @@ function viewSize() {
 
 function viewMedia() {
   const list = state.items.map((it, i) => `
-    <div class="item" data-id="${it.id}">
+    <div class="item${selMode && picked.has(it.id) ? ' picked' : ''}" data-id="${it.id}">
+      ${selMode ? `<input type="checkbox" class="ck" ${picked.has(it.id) ? 'checked' : ''}>` : ''}
       ${it.type === 'video' ? `<video src="${urlOf(it)}#t=0.1" muted playsinline></video>` : `<img src="${urlOf(it)}" alt="">`}
       <div class="col">
         <span class="badge">☰ ${i + 1}. ${it.type === 'video' ? '🎬 คลิปสั้น' : '🖼️ รูป'} · กดค้างแล้วลาก</span>
@@ -77,14 +99,25 @@ function viewMedia() {
     <p class="hint">เลือกได้ทีละหลายไฟล์ แล้วติดแท็กห้อง · กดค้างที่การ์ดแล้วลากเพื่อสลับลำดับ</p>
     <input type="file" id="file" accept="image/*,video/*" multiple hidden>
     <button class="btn" id="add">+ เพิ่มรูป / คลิป</button>
-    <div class="items">${list || '<div class="soon">ยังไม่มีรูป กดปุ่มด้านบนเพื่อเพิ่ม</div>'}</div>
+    ${state.items.length ? '<div id="selbar"></div>' : ''}
+    <div class="items${selMode ? ' selmode' : ''}">${list || '<div class="soon">ยังไม่มีรูป กดปุ่มด้านบนเพื่อเพิ่ม</div>'}</div>
     ${state.items.some(i => i.type === 'image') ? `<h2>พรีวิวสไตล์ v3</h2><canvas id="pv"></canvas><button class="btn alt" id="play">▶ เล่นพรีวิวอีกครั้ง</button>` : ''}
     ${state.items.length ? '<button class="btn" id="toNext">ถัดไป: ขั้น 3 ปรับสี →</button>' : ''}
     `;
   $('#add').onclick = () => $('#file').click();
   $('#file').onchange = async e => { await addFiles(e.target.files); viewMedia(); };
   $('.items').onchange = e => { if (e.target.dataset.act === 'room') { const it = state.items.find(x => x.id == e.target.closest('.item').dataset.id); it.room = e.target.value; save(); } };
+  if ($('#selbar')) bindSelBar($('#selbar'), () => state.items.map(x => x.id), () => viewMedia());
   $('.items').onclick = async e => {
+    if (selMode) {
+      const el = e.target.closest('.item');
+      if (el) {
+        const id = +el.dataset.id; picked.has(id) ? picked.delete(id) : picked.add(id);
+        el.classList.toggle('picked', picked.has(id)); el.querySelector('.ck').checked = picked.has(id);
+        $('#selbar').innerHTML = selBarHtml();
+      }
+      return;
+    }
     const act = e.target.dataset.act, el = e.target.closest('.item');
     if (!el || act === 'room') return;
     const i = state.items.findIndex(x => x.id == el.dataset.id);
@@ -100,7 +133,7 @@ function viewMedia() {
   if ($('#pv')) { startPreview(); $('#play').onclick = startPreview; }
 }
 
-function go(n) { state.step = n; render(); window.scrollTo(0, 0); }
+function go(n) { selMode = false; picked.clear(); state.step = n; render(); window.scrollTo(0, 0); }
 
 const COMING = {
   3: ['สคริปต์เรื่องราว', 'พิมพ์เรื่องราวเล่าตามแต่ละห้อง'],
@@ -145,6 +178,7 @@ async function viewColor() {
     <div class="ba"><div><canvas id="cb"></canvas><small>ก่อน</small></div><div><canvas id="ca"></canvas><small>หลัง</small></div></div>
     <p class="hint" id="cap"></p>
     <input type="file" id="file3" accept="image/*,video/*" multiple hidden>
+    <div id="selbar"></div>
     <div class="row2"><button class="btn alt" id="del3">🗑️ ลบรูปนี้</button><button class="btn alt" id="add3">+ เพิ่มรูป</button></div>
     <p class="hint">แตะรูปเล็กเพื่อเลือกดูเทียบ ก่อน/หลัง · กดค้างแล้วลากเพื่อสลับตำแหน่ง</p>
     <div class="thumbs" id="th">${imgs.map((_, i) => `<canvas data-i="${i}" data-id="${imgs[i].id}"></canvas>`).join('')}</div>
@@ -155,7 +189,15 @@ async function viewColor() {
     const put = (cv, bmp, lut, w) => { const h = Math.round(w * bmp.height / bmp.width); cv.width = w; cv.height = h; cv.getContext('2d').drawImage(gradeToCanvas(bmp, lut, w, h), 0, 0); };
     $('#cap').textContent = `รูปที่ ${sel + 1} จาก ${imgs.length} · ห้อง: ${imgs[sel].room}`;
     put($('#cb'), smalls[sel], null, 240); put($('#ca'), smalls[sel], luts && luts[sel], 240);
-    document.querySelectorAll('#th canvas').forEach(cv => { const i = +cv.dataset.i; put(cv, smalls[i], luts && luts[i], 110); cv.classList.toggle('on', i === sel); });
+    document.querySelectorAll('#th canvas').forEach(cv => {
+      const i = +cv.dataset.i; put(cv, smalls[i], luts && luts[i], 110); cv.classList.toggle('on', !selMode && i === sel);
+      if (selMode) {
+        const x = cv.getContext('2d'), on = picked.has(imgs[i].id);
+        if (on) { x.fillStyle = 'rgba(122,31,43,.45)'; x.fillRect(0, 0, cv.width, cv.height); }
+        x.beginPath(); x.arc(18, 18, 12, 0, 7); x.fillStyle = on ? '#fff' : 'rgba(0,0,0,.35)'; x.fill(); x.lineWidth = 2; x.strokeStyle = '#fff'; x.stroke();
+        if (on) { x.fillStyle = '#7a1f2b'; x.font = 'bold 16px sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('✓', 18, 19); }
+      }
+    });
   };
   draw();
   let raf = 0; const redraw = () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(draw); };
@@ -170,7 +212,13 @@ async function viewColor() {
     state.items = next; colorSel = ids.indexOf(+moved.dataset.id);
     await save(); viewColor();
   } });
-  $('#th').onclick = e => { const cv = e.target.closest('canvas'); if (cv) { sel = +cv.dataset.i; redraw(); } };
+  $('#th').onclick = e => {
+    const cv = e.target.closest('canvas'); if (!cv) return;
+    sel = +cv.dataset.i;
+    if (selMode) { const id = imgs[sel].id; picked.has(id) ? picked.delete(id) : picked.add(id); $('#selbar').innerHTML = selBarHtml(); }
+    redraw();
+  };
+  bindSelBar($('#selbar'), () => imgs.map(x => x.id), full => full ? viewColor() : redraw());
   $('#del3').onclick = async () => { if (!confirm('ลบรูปที่ ' + (sel + 1) + ' ใช่ไหม?')) return; removeItem(imgs[sel].id); await save(); viewColor(); };
   $('#add3').onclick = () => $('#file3').click();
   $('#file3').onchange = async e => { await addFiles(e.target.files); viewColor(); };
@@ -214,7 +262,7 @@ function enableDrag(box, opt) {
   let timer = null, item = null, gx = 0, gy = 0, lx = 0, ly = 0, scroller = null;
   const down = e => {
     const el = e.target.closest(itemSel);
-    if (!el || e.target.closest('select,button')) return;
+    if (selMode || !el || e.target.closest('select,button')) return;
     const x0 = e.clientX, y0 = e.clientY;
     const clear = () => { clearTimeout(timer); document.removeEventListener('pointermove', cancel); document.removeEventListener('pointerup', clear); };
     const cancel = ev => { if (Math.hypot(ev.clientX - x0, ev.clientY - y0) > 10) clear(); };
