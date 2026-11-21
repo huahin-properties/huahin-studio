@@ -1287,7 +1287,7 @@ async function viewMascot() {
     ${segs.map(g => { const cur = poseForSeg(g.key); return `<div class="seg"><div class="seg-h"><b>${String(g.no).padStart(2, '0')} · ${g.label}</b></div><div class="mrow"><canvas class="mth" data-pk="${g.key}" width="90" height="130"></canvas><button class="btn alt pickp" data-pose="${g.key}">${POSES[cur].label} ▾<small>แตะเพื่อเลือกจากรูป</small></button></div></div>`; }).join('') || '<div class="soon">ยังไม่มีท่อนเล่าเรื่อง</div>'}
     <p class="hint">ปากขยับตามความดังของเสียงพากย์จริง ตอนเรนเดอร์ (ถ้ายังไม่ใส่เสียง ปากจะปิด) · มาสคอตกระโดดเข้าจอทุกครั้งที่เริ่มท่อนใหม่ · มาสคอตเดินข้ามจอ นั่ง นอน สลับไปในแต่ละท่อน</p>
     <button class="btn" id="nx">ถัดไป: 7 เรนเดอร์ →</button><button class="btn alt" id="bk">← ย้อนกลับ</button>`;
-  const thumb = (cv, pose) => { const x = cv.getContext('2d'), img = MASCOT_IMG[pose]; x.clearRect(0, 0, cv.width, cv.height); if (!img) return; const cw = cv.width, ch = cv.height; if (POSES[pose] && POSES[pose].custom) { const s = Math.min((ch - 6) * (typeof ARTF !== 'undefined' && ARTF[pose] || 1) / img.height, (cw - 6) / img.width); x.drawImage(img, (cw - img.width * s) / 2, ch - 3 - img.height * s, img.width * s, img.height * s); } else drawMascotTalking(x, pose, cw / 2, ch - 3, ch - 6, { mouth: 0.45, wf: 1, blink: 0 }); };
+  const thumb = (cv, pose) => { const x = cv.getContext('2d'), img = MASCOT_IMG[pose]; x.clearRect(0, 0, cv.width, cv.height); if (!img) return; const cw = cv.width, ch = cv.height; if (POSES[pose] && POSES[pose].custom) { const s = Math.min(124 * (typeof ARTF !== 'undefined' && ARTF[pose] || 1) / img.height, (cw - 4) / img.width); x.drawImage(img, (cw - img.width * s) / 2, ch - 3 - img.height * s, img.width * s, img.height * s); } else drawMascotTalking(x, pose, cw / 2, ch - 3, ch - 6, { mouth: 0.45, wf: 1, blink: 0 }); };
   const paint = cv => thumb(cv, poseForSeg(cv.dataset.pk));
   document.querySelectorAll('.mth[data-pk]').forEach(paint);
   document.querySelectorAll('.myth').forEach(cv => thumb(cv, cv.dataset.my));
@@ -1296,7 +1296,7 @@ async function viewMascot() {
     d.innerHTML = '<div class="sh-head"><b>เลือกท่ามาสคอต</b><button class="ib" id="pcl">✕</button></div><p class="hint">กำลังโหลดรูปท่าทั้งหมด...</p>'; document.body.appendChild(d);
     d.querySelector('#pcl').onclick = () => d.remove();
     await loadPoses(Object.keys(POSES));
-    const cells = ks => ks.map(k => `<button class="pcell ${k === poseForSeg(key) ? 'on' : ''}" data-k="${k}"><canvas width="90" height="130"></canvas><span>${POSES[k].label}</span></button>`).join('');
+    const cells = ks => ks.map(k => `<button class="pcell ${k === poseForSeg(key) ? 'on' : ''}" data-k="${k}"><canvas width="${POSES[k].custom ? 150 : 90}" height="${POSES[k].custom ? Math.max(130, Math.round(124 * (ARTF[k] || 1)) + 8) : 130}" class="${POSES[k].custom ? 'wide' : ''}"></canvas><span>${POSES[k].label}</span></button>`).join('');
     const std = Object.keys(POSES).filter(k => !POSES[k].custom), mine = Object.keys(POSES).filter(k => POSES[k].custom && !POSES[k].sticker && !POSES[k].art), art = Object.keys(POSES).filter(k => POSES[k].art), stk = Object.keys(POSES).filter(k => POSES[k].sticker);
     d.innerHTML = `<div class="sh-head"><b>เลือกท่ามาสคอต</b><button class="ib" id="pcl">✕</button></div>
       <p class="hint"><b>ท่าปากขยับตามเสียง</b></p><div class="pgrid">${cells(std)}</div>

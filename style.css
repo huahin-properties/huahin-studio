@@ -121,3 +121,6 @@ header{display:flex;align-items:center;gap:8px;flex-wrap:wrap}header small{font-
 .pact{display:flex;flex-wrap:wrap;gap:6px;padding:8px 12px 12px}.pcard .ib.wide{flex:1 1 auto}
 @media(min-width:700px){.pcards{grid-template-columns:repeat(3,1fr)}}
 .pinfo{padding:8px 9px 2px}.pinfo b{font-size:15px;line-height:1.25}.pinfo small{font-size:12px}.pact{padding:6px 9px 10px;gap:5px}.pcard .ib.wide{padding:6px 8px;font-size:13px}.pbadge{font-size:11px;padding:2px 7px}
+
+.pcell canvas.wide{width:120px;height:auto}
+.pgrid .pcell{min-width:0}
