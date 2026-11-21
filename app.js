@@ -184,6 +184,38 @@ function expandMsg(n) {
   return (n ? `เติมสคริปต์ให้ ${n} ช่วง · รวมตอนนี้ ~${mmss(tot)} จากเป้า ${mmss(tgt)}` : `ไม่มีช่วงที่เติมได้เพิ่ม · รวมตอนนี้ ~${mmss(tot)} จากเป้า ${mmss(tgt)}`)
     + (short ? '\n\nยังไม่ถึงเป้า วิธีเพิ่มเนื้อหา: (1) ใส่รูปห้องเพิ่มและกรอก 🏠 ข้อมูลบ้านให้ครบ (2) เขียนเพิ่มเอง (3) กด 🤖 คัดลอกคำสั่งให้ AI ใน Google AI Studio เขียนให้ยาวและละเอียดขึ้น แล้วกด 📥 วางสคริปต์จาก AI' : '');
 }
+// ตรวจตัวเลขในสคริปต์เทียบกับ 🏠 ข้อมูลบ้านและระยะทางที่คำนวณจากพิกัด (จับข้อมูลที่ AI อาจแต่งเอง)
+const numOf = v => parseFloat(String(v).replace(/,/g, ''));
+function checkScriptFacts() {
+  const f = state.facts, fv = k => String(f[k] || '').trim(), issues = [], seen = [];
+  const priceM = (() => { const x = numOf(fv('price')); return isNaN(x) ? null : (x < 1000 ? x : x / 1e6); })();
+  const dist = typeof placeDistances === 'function' ? placeDistances() : [];
+  scriptSegments().forEach(g => {
+    const t = g.text || '', tag = `ท่อน ${String(g.no).padStart(2, '0')} ${g.label}`;
+    const chk = (m, key, label) => { seen.push(m[0]); if (!fv(key)) issues.push(`${tag}: พูดถึง "${m[0]}" แต่ไม่ได้กรอก${label}ใน 🏠 ข้อมูลบ้าน (อาจเป็นข้อมูลที่ AI แต่งเอง)`); else if (numOf(m[1]) !== numOf(fv(key))) issues.push(`${tag}: "${m[0]}" ไม่ตรงกับข้อมูลบ้าน (${label} = ${fv(key)})`); };
+    for (const m of t.matchAll(/(\d+(?:\.\d+)?)\s*ห้องนอน/g)) chk(m, 'beds', 'จำนวนห้องนอน');
+    for (const m of t.matchAll(/(\d+(?:\.\d+)?)\s*ห้องน้ำ/g)) chk(m, 'baths', 'จำนวนห้องน้ำ');
+    for (const m of t.matchAll(/(\d[\d,.]*)\s*(?:ตารางเมตร|ตร\.?\s?ม\.?)/g)) chk(m, 'usable', 'พื้นที่ใช้สอย');
+    for (const m of t.matchAll(/(\d[\d,.]*)\s*(?:ตารางวา|ตร\.?\s?ว\.?)/g)) chk(m, 'land', 'ขนาดที่ดิน');
+    const price = (m, v) => { seen.push(m[0]); if (priceM == null) issues.push(`${tag}: พูดถึงราคา "${m[0]}" แต่ไม่ได้กรอกราคาใน 🏠 ข้อมูลบ้าน (อาจเป็นข้อมูลที่ AI แต่งเอง)`); else if (Math.abs(v - priceM) > 0.011) issues.push(`${tag}: ราคา "${m[0]}" ไม่ตรงกับข้อมูลบ้าน (${priceM} ล้านบาท)`); };
+    for (const m of t.matchAll(/(\d[\d,.]*)\s*ล้าน(?:บาท)?/g)) price(m, numOf(m[1]));
+    for (const m of t.matchAll(/(\d[\d,]{4,})\s*บาท/g)) price(m, numOf(m[1]) / 1e6);
+    for (const m of t.matchAll(/(\d+(?:\.\d+)?)\s*กิโลเมตร/g)) { seen.push(m[0]); if (!dist.some(d => Math.abs(d.km - numOf(m[1])) <= 0.3)) issues.push(`${tag}: ระยะ "${m[0]}" ไม่ตรงกับระยะที่คำนวณจากพิกัด ตรวจเองจาก Google Maps`); }
+    for (const m of t.matchAll(/(\d+)\s*นาที/g)) { seen.push(m[0]); if (!dist.some(d => Math.abs(d.min - numOf(m[1])) <= 2)) issues.push(`${tag}: เวลาเดินทาง "${m[0]}" ไม่ตรงกับที่คำนวณจากพิกัด ตรวจเอง`); }
+  });
+  return { issues, seen };
+}
+function openFactCheck() {
+  const { issues, seen } = checkScriptFacts(), d = document.createElement('div'); d.className = 'sheet tall'; d.id = 'checkSheet';
+  d.innerHTML = `<div class="sh-head"><b>🔍 ตรวจข้อมูลในสคริปต์</b><button class="ib" data-a="x" aria-label="ปิด">✕</button></div>
+    <p class="hint">ตรวจตัวเลข (ห้องนอน ห้องน้ำ พื้นที่ ที่ดิน ราคา ระยะทาง เวลาเดินทาง) เทียบกับ 🏠 ข้อมูลบ้านและพิกัดที่คุณกรอก · พบตัวเลข ${seen.length} จุด</p>
+    ${issues.length ? `<div class="soon" style="text-align:left;border-color:#b00020">${issues.map(x => '⚠️ ' + x).join('<br><br>')}</div>` : '<div class="soon" style="text-align:left;border-color:#2e7d4f;color:#1e6b3a">✅ ไม่พบตัวเลขที่ขัดกับข้อมูลบ้านที่กรอกไว้</div>'}
+    <p class="hint"><b>สิ่งที่ปุ่มนี้ตรวจไม่ได้ ต้องอ่านตรวจเอง:</b> ชื่อสถานที่ จุดเด่นหรือสิ่งอำนวยความสะดวกที่ไม่มีตัวเลข (เช่น "สระส่วนตัว" "วิวภูเขา") ตัวเลขที่เขียนเป็นคำ (เช่น "สามห้องนอน") และข้อความโฆษณาเกินจริง</p>
+    <button class="btn" data-a="x">ปิด</button>`;
+  d.onclick = e => { if (e.target.closest('[data-a=x]')) d.remove(); };
+  document.body.appendChild(d);
+}
+
 // คำสั่งสำหรับ AI (Google AI Studio) เขียนสคริปต์ยาวตามเป้า
 function buildAiPrompt() {
   const f = state.facts, T = segTargets(), lines = [];
@@ -463,7 +495,8 @@ function viewScript() {
       <div class="tgt"><input class="ct" id="tgt" type="number" inputmode="numeric" min="60" max="900" value="${state.clipSec}"><span>วินาที (<b id="tgtTxt">${mmss(state.clipSec)}</b>) · เสียงพากย์ที่ต้องมี ~<b id="narrTxt">${narrTarget()}</b> วิ (หักไตเติล/เครดิต/รถวิ่งแล้ว)</span></div>
       <div class="sbar ok" id="totBar" style="height:10px"><i style="width:0%"></i></div><small class="sbl" id="totTxt"></small>
       <div class="tools"><button class="ib wide danger" id="s4Draft">✨ เติมให้ครบเวลา</button><button class="ib wide" id="s4Facts">🏠 ข้อมูลบ้าน</button></div>
-      <div class="tools"><button class="ib wide" id="aiCopy">🤖 คัดลอกคำสั่งให้ AI เขียน</button><button class="ib wide" id="aiPaste">📥 วางสคริปต์จาก AI</button></div></div>
+      <div class="tools"><button class="ib wide" id="aiCopy">🤖 คัดลอกคำสั่งให้ AI เขียน</button><button class="ib wide" id="aiPaste">📥 วางสคริปต์จาก AI</button></div>
+      <div class="tools"><button class="ib wide" id="chk">🔍 ตรวจข้อมูลในสคริปต์</button></div></div>
     <div class="tools"><button class="ib wide" id="trAll">🌐 แปลทั้งหมด</button><button class="ib wide" data-all="th">📋 ไทยทั้งหมด</button><button class="ib wide" data-all="en">📋 EN ทั้งหมด</button></div>
     <p class="hint" id="saved">💾 บันทึกอัตโนมัติทุกครั้งที่พิมพ์</p>
     <p class="hint">เวลารวมโดยประมาณ <b id="tot">${mmss(total())}</b> (เป้าหมายประมาณ 3:00) · ไตเติลและหน้าปิดเป็นคลิปประจำ ไม่ต้องเขียนสคริปต์</p>
@@ -522,6 +555,7 @@ function viewScript() {
   $('#s4Facts').onclick = () => openFacts(() => viewScript());
   $('#tgt').oninput = e => { const v = Math.max(60, Math.min(900, +e.target.value || 180)); state.clipSec = v; $('#tgtTxt').textContent = mmss(v); $('#narrTxt').textContent = narrTarget(); save(); segT = segTargets(); document.querySelectorAll('[data-t]').forEach(b => { const g = scriptSegments().find(x => x.key === b.dataset.t); if (g) b.textContent = `~${secOf(g.text)} / เป้า ${segT[g.key]} วิ`; }); updTot(); };
   $('#s4Draft').onclick = () => { const n = draftAll(); alert(expandMsg(n)); viewScript(); };
+  $('#chk').onclick = openFactCheck;
   $('#aiCopy').onclick = async e => { flash(e.currentTarget, await copyText(buildAiPrompt())); };
   $('#aiPaste').onclick = () => {
     const d = document.createElement('div'); d.className = 'sheet tall'; d.id = 'pasteSheet';
