@@ -9,7 +9,7 @@ const SIZES = [
 const ROOMS = [AREA_ROOM, MAP_ROOM, 'หน้าบ้าน/ภายนอก','ที่จอดรถ','ห้องนั่งเล่น','ห้องทานอาหาร','ครัว','ห้องนอนใหญ่','ห้องนอน','ห้องน้ำ','สระว่ายน้ำ','สวน/ระเบียง','วิวรอบๆ','อื่นๆ'];
 const STEPS = ['1 ขนาด','2 ใส่รูป/คลิป','3 สี','4 สคริปต์','5 เสียง','6 มาสคอต','7 เรนเดอร์'];
 
-const state = { targetSec: 150, routeData: null, skipMap: false, facts: { name: '', beds: '', baths: '', usable: '', land: '', price: '', travel: '', coord: '', routeStart: '', routeLabel: '', highlights: '' }, slot: 'title', step: 0, size: '4:5', items: [], color: { ...COLOR_DEFAULT }, useArea: true, contact: { mode: 'std', custom: { name: '', phone: '', line: '' } }, script: { area: '', rooms: {}, en: {}, enSrc: {} } };
+const state = { stretch: true, targetSec: 150, routeData: null, skipMap: false, facts: { name: '', beds: '', baths: '', usable: '', land: '', price: '', travel: '', coord: '', routeStart: '', routeLabel: '', highlights: '' }, slot: 'title', step: 0, size: '4:5', items: [], color: { ...COLOR_DEFAULT }, useArea: true, contact: { mode: 'std', custom: { name: '', phone: '', line: '' } }, script: { area: '', rooms: {}, en: {}, enSrc: {} } };
 let nextId = 1;
 
 // ---- เก็บงานไว้ในเครื่อง (IndexedDB) ปิดแอปแล้วงานไม่หาย ----
@@ -22,10 +22,10 @@ const DB = {
   async get(k) { const db = await this.open(); return new Promise(res => { const q = db.transaction('kv').objectStore('kv').get(k); q.onsuccess = () => res(q.result); }); },
   async set(k, v) { const db = await this.open(); return new Promise(res => { const tx = db.transaction('kv', 'readwrite'); tx.objectStore('kv').put(v, k); tx.oncomplete = res; }); },
 };
-const save = () => (typeof updateSb === 'function' && updateSb(), DB.set('project', { v: 2, targetSec: state.targetSec, routeData: state.routeData, skipMap: state.skipMap, facts: state.facts, useArea: state.useArea, contact: state.contact, size: state.size, color: state.color, script: state.script, items: state.items.map(({ id, blob, type, room, name }) => ({ id, blob, type, room, name })) }));
+const save = () => (typeof updateSb === 'function' && updateSb(), DB.set('project', { v: 2, stretch: state.stretch, targetSec: state.targetSec, routeData: state.routeData, skipMap: state.skipMap, facts: state.facts, useArea: state.useArea, contact: state.contact, size: state.size, color: state.color, script: state.script, items: state.items.map(({ id, blob, type, room, name }) => ({ id, blob, type, room, name })) }));
 async function load() {
   await loadLib(); const p = await DB.get('project');
-  if (p) { if (!p.v) p.items.forEach(i => { if (i.room === 'หน้าบ้าน/ภายนอก') i.room = ''; }); state.size = p.size; state.color = { ...COLOR_DEFAULT, ...(p.color || {}) }; state.script = { area: '', rooms: {}, en: {}, enSrc: {}, ...(p.script || {}) }; state.skipMap = !!p.skipMap; state.targetSec = p.targetSec || 150; state.routeData = p.routeData || null; state.facts = { ...state.facts, ...(p.facts || {}) }; state.useArea = true; state.contact = { mode: 'std', ...(p.contact || {}), custom: { name: '', phone: '', line: '', ...((p.contact || {}).custom || {}) } }; state.items = p.items; nextId = Math.max(0, ...p.items.map(i => i.id)) + 1; }
+  if (p) { if (!p.v) p.items.forEach(i => { if (i.room === 'หน้าบ้าน/ภายนอก') i.room = ''; }); state.size = p.size; state.color = { ...COLOR_DEFAULT, ...(p.color || {}) }; state.script = { area: '', rooms: {}, en: {}, enSrc: {}, ...(p.script || {}) }; state.skipMap = !!p.skipMap; state.targetSec = p.targetSec || 150; state.stretch = p.stretch !== false; state.routeData = p.routeData || null; state.facts = { ...state.facts, ...(p.facts || {}) }; state.useArea = true; state.contact = { mode: 'std', ...(p.contact || {}), custom: { name: '', phone: '', line: '', ...((p.contact || {}).custom || {}) } }; state.items = p.items; nextId = Math.max(0, ...p.items.map(i => i.id)) + 1; }
 }
 
 const $ = s => document.querySelector(s);
@@ -630,6 +630,14 @@ async function viewColor() {
   $('#nx').onclick = () => go(3); $('#bk').onclick = () => go(1);
 }
 
+// เวลาแสดงรูปแต่ละรูป: ยืดให้พอดีกับความยาวสคริปต์ของช่วงนั้น (รูปละไม่เกิน 9 วินาที · อย่างน้อย 2 วินาที)
+function imageDurations(imgs) {
+  const segs = scriptSegments(), idToKey = new Map(), sec = {}, count = {};
+  segs.forEach(g => { sec[g.key] = secOf(g.text); (g.key === 'life' ? lifeItems() : g.key === 'area' ? areaItems() : state.items.filter(i => i.room === g.room)).forEach(i => idToKey.set(i.id, g.key)); });
+  imgs.forEach(i => { const k = idToKey.get(i.id); if (k) count[k] = (count[k] || 0) + 1; });
+  return imgs.map(i => { const k = idToKey.get(i.id); if (!k || !state.stretch) return STYLE.secPerImage; const d = sec[k] / count[k]; return d > STYLE.secPerImage ? Math.min(9, d) : STYLE.secPerImage; });
+}
+
 function viewRender() {
   organizeItems(); save();
   const titleImg = (!lib.titleBuiltin && lib.title && lib.title.type === 'image') ? lib.title : null, closeImg = (!lib.closeBuiltin && lib.close && lib.close.type === 'image') ? lib.close : null;
@@ -641,14 +649,16 @@ function viewRender() {
   const routeAt = pre.length + areaLibOrdered().filter(i => i.type === 'image').length + state.items.filter(i => i.type === 'image' && (i.room === AREA_ROOM || i.room === MAP_ROOM)).length;
   $('#view').innerHTML = `
     <h2>เรนเดอร์เป็น MP4</h2>
-    <p class="hint">ขนาด ${s.name} (${s.w}×${s.h}) · ${imgs.length} รูป · ยาวประมาณ ${(totalDuration(imgs.length) + (routeOk ? ROUTE_DUR : 0) + (lib.titleBuiltin ? TITLE_DUR : 0) + (lib.closeBuiltin ? CLOSE_DUR : 0)).toFixed(1)} วินาที (รวมฉากมาสคอต/คลิปรถวิ่งที่เปิดใช้)${skipped ? ` · คลิปสั้น ${skipped} ไฟล์ยังไม่ถูกใช้ (รอบหน้า)` : ''}</p>
+    <p class="hint">ขนาด ${s.name} (${s.w}×${s.h}) · ${imgs.length} รูป · ยาวประมาณ ${(imageDurations(imgs).reduce((a, b) => a + b, 0) + STYLE.fade + (routeOk ? ROUTE_DUR : 0) + (lib.titleBuiltin ? TITLE_DUR : 0) + (lib.closeBuiltin ? CLOSE_DUR : 0)).toFixed(1)} วินาที (รวมฉากมาสคอต/คลิปรถวิ่งที่เปิดใช้)${skipped ? ` · คลิปสั้น ${skipped} ไฟล์ยังไม่ถูกใช้ (รอบหน้า)` : ''}</p>
     ${blockers.length ? `<div class="soon" style="border-color:#b00020;color:#b00020;text-align:left">❌ ยังเรนเดอร์ไม่ได้ เพราะผังเรื่องยังขาด:<br>${blockers.map(b => '• ' + b.label.replace(/^\d+\. /, '') + ' — ' + b.info).join('<br>')}<br><br><button class="btn alt" id="openSb">📋 เปิดผังเรื่อง</button></div>` : ''}
     <p class="hint">หมายเหตุ: ไตเติลและหน้าปิดจากคลังกลางจะถูกต่อเข้าไฟล์ MP4 ในรอบถัดไป (ตอนนี้เรนเดอร์ภาพทำเลและรูปบ้าน)</p>
+    <label class="sw"><input type="checkbox" id="stretch" ${state.stretch ? 'checked' : ''}> ยืดเวลาแสดงรูปตามความยาวสคริปต์ (คลิปยาวขึ้นให้ใกล้เป้าหมายเสียงพากย์ · ปิด = รูปละ 2 วินาทีตามสไตล์เดิม)</label>
     <p class="hint">ปรับสี: ${isNeutral(state.color) ? 'ปิด' : (state.color.auto ? 'อัตโนมัติ' : 'ตั้งเอง')}</p>
     <p class="hint">ระหว่างเรนเดอร์ ให้เปิดหน้าจอค้างไว้ อย่าสลับแอป</p>
     <button class="btn" id="go" ${imgs.length && !blockers.length ? '' : 'disabled'}>🎬 เริ่มเรนเดอร์</button>
     <div id="prog" class="hint"></div><div id="out"></div>
     <button class="btn alt" id="bk">← ย้อนกลับ</button>`;
+  $('#stretch').onchange = e => { state.stretch = e.target.checked; save(); viewRender(); };
   $('#bk').onclick = () => go(5);
   if ($('#openSb')) $('#openSb').onclick = openSb;
   $('#go').onclick = async () => {
@@ -665,7 +675,7 @@ function viewRender() {
       if (lib.closeBuiltin) sceneList.push({ at: imgs.length, scene: await closeScene() });
       if (routeOk) sceneList.push({ at: routeAt, scene: await routeScene(state.routeData) });
       if (lib.titleBuiltin) sceneList.push({ at: 0, scene: await titleScene() });
-      const blob = await renderMp4(imgs.map(i => i.blob), s.w, s.h, (p, msg) => { $('#prog').textContent = `${msg} ${Math.round(p * 100)}%`; }, luts, sceneList);
+      const blob = await renderMp4(imgs.map(i => i.blob), s.w, s.h, (p, msg) => { $('#prog').textContent = `${msg} ${Math.round(p * 100)}%`; }, luts, sceneList, imageDurations(imgs));
       const url = URL.createObjectURL(blob);
       $('#prog').textContent = `เสร็จใน ${((performance.now() - t0) / 1000).toFixed(0)} วินาที · ขนาดไฟล์ ${(blob.size / 1048576).toFixed(1)} MB`;
       $('#out').innerHTML = `<video src="${url}" controls playsinline style="width:100%;max-height:60vh;background:#000;border-radius:12px"></video><a class="btn" download="huahin-clip.mp4" href="${url}" style="text-decoration:none;text-align:center">⬇ บันทึกไฟล์ MP4</a>`;

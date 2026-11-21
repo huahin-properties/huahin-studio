@@ -3,7 +3,7 @@
 // รายการในไทม์ไลน์ = รูป (ImageBitmap/canvas) หรือ "ฉาก" ที่มี { dur, draw(ctx,W,H,tวินาทีในฉาก) }
 const STYLE = { secPerImage: 2, fade: 0.5, zoom: 0.08 };
 
-const itemDur = it => (it && it.draw ? it.dur : STYLE.secPerImage);
+const itemDur = it => (it && it.dur != null ? it.dur : STYLE.secPerImage); // รูปอาจมี .dur ของตัวเอง (ยืดตามสคริปต์/เสียง)
 function totalDuration(arg) {
   if (typeof arg === 'number') return arg > 0 ? arg * STYLE.secPerImage + STYLE.fade : 0;
   return arg.length ? arg.reduce((a, it) => a + itemDur(it), 0) + STYLE.fade : 0;
