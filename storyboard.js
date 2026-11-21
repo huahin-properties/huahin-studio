@@ -238,7 +238,8 @@ async function generateMapImages(statusEl) {
     if (near.length) blobs.push(await renderMap(sz.w, sz.h, [{ ...home, home: true, label: 'บ้านหลังนี้' }, ...near]));
     blobs.push(await renderMap(sz.w, sz.h, [{ ...home, home: true, label: 'บ้านหลังนี้' }], 16));
     state.items.filter(i => i.name && i.name.startsWith('map-auto-')).map(i => i.id).forEach(removeItem);
-    blobs.forEach((b, i) => state.items.push({ id: nextId++, blob: b, type: 'image', room: MAP_ROOM, name: `map-auto-${i + 1}.png` }));
+    const names = near.length ? ['map-auto-overview.png', 'map-auto-zoom.png'] : ['map-auto-zoom.png'];
+    blobs.forEach((b, i) => state.items.push({ id: nextId++, blob: b, type: 'image', room: MAP_ROOM, name: names[i] }));
     await save(); state.skipMap = false; return blobs.length;
   } catch (e) { statusEl.textContent = '❌ โหลดแผนที่ไม่สำเร็จ (ต่อเน็ตอยู่ไหม?) ' + (e.message || e) + ' · หรือแคปหน้า Google Maps แล้วเพิ่มรูปเองแทนได้'; return false; }
 }
