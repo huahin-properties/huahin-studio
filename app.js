@@ -426,26 +426,29 @@ async function viewColor() {
     </div>`;
   const draw = () => {
     const luts = isNeutral(c) ? null : makeLuts(stats, c);
-    const put = (cv, bmp, lut, w) => { const h = Math.round(w * bmp.height / bmp.width); cv.width = w; cv.height = h; cv.getContext('2d').drawImage(gradeToCanvas(bmp, lut, w, h), 0, 0); };
+    // แสดงตามกรอบคลิปที่เลือก (ภาพเต็มกรอบ ตัดส่วนเกิน) ให้ตรงกับที่จะออกในคลิปจริง
+    const put = (cv, bmp, lut, w) => { const z = sizeInfo(), h = Math.round(w * z.h / z.w), t = document.createElement('canvas'); t.width = w; t.height = h; drawCover(t.getContext('2d'), bmp, w, h, 1); cv.width = w; cv.height = h; cv.getContext('2d').drawImage(gradeToCanvas(t, lut), 0, 0); };
     { const un = imgs.filter(x => !x.room).length;
       $('#prog3').innerHTML = un ? `🟧 ยังไม่ตั้งห้อง <b>${un}</b> จาก ${imgs.length} รูป · <button class="lnk" id="pickUn">เลือกที่ยังไม่ตั้งห้อง</button>` : `🟩 ตั้งห้องครบทั้ง ${imgs.length} รูปแล้ว`;
       const pu = $('#pickUn'); if (pu) pu.onclick = () => { selMode = true; picked.clear(); imgs.filter(x => !x.room).forEach(x => picked.add(x.id)); $('#selbar').innerHTML = selBarHtml(); draw(); }; }
     $('#cap').textContent = `รูปที่ ${sel + 1} จาก ${imgs.length} · ห้อง: ${imgs[sel].room || 'ยังไม่ตั้งห้อง'} · ปรับสี: ${c.auto ? 'อัตโนมัติ' : 'ปิด'}${(c.bright || c.contrast || c.warm) ? ' + ตั้งเอง' : ''}`;
     put($('#cb'), smalls[sel], null, 240); put($('#ca'), smalls[sel], luts && luts[sel], 240);
     document.querySelectorAll('#th canvas').forEach(cv => {
-      const i = +cv.dataset.i; put(cv, smalls[i], luts && luts[i], 110); cv.classList.toggle('on', !selMode && i === sel);
+      const i = +cv.dataset.i; put(cv, smalls[i], luts && luts[i], 220); cv.classList.toggle('on', !selMode && i === sel);
+      const kk = cv.width / 110, cw = 110, ch = cv.height / kk; cv.getContext('2d').save(); cv.getContext('2d').scale(kk, kk);
       { const x = cv.getContext('2d'), rm = imgs[i].room;
-        x.fillStyle = rm ? 'rgba(30,110,60,.92)' : 'rgba(224,138,0,.95)'; x.fillRect(0, cv.height - 18, cv.width, 18);
+        x.fillStyle = rm ? 'rgba(30,110,60,.92)' : 'rgba(224,138,0,.95)'; x.fillRect(0, ch - 18, cw, 18);
         x.fillStyle = '#fff'; x.font = 'bold 11px sans-serif'; x.textAlign = 'left'; x.textBaseline = 'middle';
-        x.fillText(rm ? '✓ ' + rm : '⚠ ยังไม่ตั้งห้อง', 5, cv.height - 8, cv.width - 10); }
+        x.fillText(rm ? '✓ ' + rm : '⚠ ยังไม่ตั้งห้อง', 5, ch - 8, cw - 10); }
       cv.classList.toggle('ok', !!imgs[i].room); cv.classList.toggle('un', !imgs[i].room);
       if (selMode) {
         const x = cv.getContext('2d'), on = picked.has(imgs[i].id);
-        if (on) { x.fillStyle = 'rgba(122,31,43,.55)'; x.fillRect(0, 0, cv.width, cv.height); x.lineWidth = 5; x.strokeStyle = '#fff'; x.strokeRect(2.5, 2.5, cv.width - 5, cv.height - 5); }
+        if (on) { x.fillStyle = 'rgba(122,31,43,.55)'; x.fillRect(0, 0, cw, ch); x.lineWidth = 5; x.strokeStyle = '#fff'; x.strokeRect(2.5, 2.5, cw - 5, ch - 5); }
         x.beginPath(); x.arc(20, 20, 13, 0, 7);
         if (on) { x.fillStyle = '#fff'; x.fill(); x.fillStyle = '#7a1f2b'; x.font = 'bold 18px sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('✓', 20, 21); }
         else { x.lineWidth = 2; x.strokeStyle = 'rgba(255,255,255,.9)'; x.stroke(); }
       }
+      cv.getContext('2d').restore();
     });
   };
   draw();
