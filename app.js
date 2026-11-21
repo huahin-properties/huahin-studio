@@ -23,17 +23,17 @@ const DB = {
   async get(k) { const db = await this.open(); return new Promise(res => { const q = db.transaction('kv').objectStore('kv').get(k); q.onsuccess = () => res(q.result); }); },
   async set(k, v) { const db = await this.open(); return new Promise(res => { const tx = db.transaction('kv', 'readwrite'); tx.objectStore('kv').put(v, k); tx.oncomplete = res; }); },
 };
-const save = () => DB.set('project', { size: state.size, color: state.color, script: state.script, items: state.items.map(({ id, blob, type, room, name }) => ({ id, blob, type, room, name })) });
+const save = () => DB.set('project', { v: 2, size: state.size, color: state.color, script: state.script, items: state.items.map(({ id, blob, type, room, name }) => ({ id, blob, type, room, name })) });
 async function load() {
   const p = await DB.get('project');
-  if (p) { state.size = p.size; state.color = { ...COLOR_DEFAULT, ...(p.color || {}) }; state.script = { title: DEFAULT_TITLE, close: DEFAULT_CLOSE, rooms: {}, ...(p.script || {}) }; state.items = p.items; nextId = Math.max(0, ...p.items.map(i => i.id)) + 1; }
+  if (p) { if (!p.v) p.items.forEach(i => { if (i.room === 'หน้าบ้าน/ภายนอก') i.room = ''; }); state.size = p.size; state.color = { ...COLOR_DEFAULT, ...(p.color || {}) }; state.script = { title: DEFAULT_TITLE, close: DEFAULT_CLOSE, rooms: {}, ...(p.script || {}) }; state.items = p.items; nextId = Math.max(0, ...p.items.map(i => i.id)) + 1; }
 }
 
 const $ = s => document.querySelector(s);
 async function addFiles(files) {
   for (const f of files) {
     const type = f.type.startsWith('video') ? 'video' : 'image';
-    state.items.push({ id: nextId++, blob: f, type, room: ROOMS[0], name: f.name });
+    state.items.push({ id: nextId++, blob: f, type, room: '', name: f.name });
   }
   await save();
 }
@@ -107,12 +107,12 @@ function viewSize() {
 function viewMedia() {
   selExtra = ''; selPre = '';
   const list = state.items.map((it, i) => `
-    <div class="item${selMode && picked.has(it.id) ? ' picked' : ''}" data-id="${it.id}">
+    <div class="item ${it.room ? 'ok' : 'un'}${selMode && picked.has(it.id) ? ' picked' : ''}" data-id="${it.id}">
       ${selMode ? `<input type="checkbox" class="ck" ${picked.has(it.id) ? 'checked' : ''}>` : ''}
       ${it.type === 'video' ? `<video src="${urlOf(it)}#t=0.1" muted playsinline></video>` : `<img src="${urlOf(it)}" alt="">`}
       <div class="col">
         <span class="badge">☰ ${i + 1}. ${it.type === 'video' ? '🎬 คลิปสั้น' : '🖼️ รูป'} · กดค้างแล้วลาก</span>
-        <select data-act="room">${ROOMS.map(r => `<option ${r === it.room ? 'selected' : ''}>${r}</option>`).join('')}</select>
+        <select data-act="room">${['', ...ROOMS].map(r => `<option value="${r}" ${r === it.room ? 'selected' : ''}>${r || '⚠ ยังไม่ตั้งห้อง'}</option>`).join('')}</select>
         <div class="row"><button data-act="del">🗑️ ลบ</button></div>
       </div>
     </div>`).join('');
@@ -128,7 +128,7 @@ function viewMedia() {
     `;
   $('#add').onclick = () => $('#file').click();
   $('#file').onchange = async e => { await addFiles(e.target.files); viewMedia(); };
-  $('.items').onchange = e => { if (e.target.dataset.act === 'room') { const it = state.items.find(x => x.id == e.target.closest('.item').dataset.id); it.room = e.target.value; save(); } };
+  $('.items').onchange = e => { if (e.target.dataset.act === 'room') { const it = state.items.find(x => x.id == e.target.closest('.item').dataset.id); it.room = e.target.value; e.target.closest('.item').className = 'item ' + (it.room ? 'ok' : 'un'); save(); } };
   if ($('#selbar')) bindSelBar($('#selbar'), () => state.items.map(x => x.id), () => viewMedia());
   $('.items').onclick = async e => {
     if (selMode) {
@@ -178,7 +178,7 @@ const cleanLen = t => (t || '').replace(/\s+/g, '').length;
 const secOf = t => Math.round(cleanLen(t) / SPEAK_CPS);
 const mmss = n => `${Math.floor(n / 60)}:${String(n % 60).padStart(2, '0')}`;
 function scriptSegments() {
-  const rooms = []; state.items.forEach(it => { if (!rooms.includes(it.room)) rooms.push(it.room); });
+  const rooms = []; state.items.forEach(it => { if (it.room && !rooms.includes(it.room)) rooms.push(it.room); });
   const segs = [{ no: 1, key: 'title', label: 'ไตเติล', text: state.script.title }];
   rooms.forEach((r, i) => segs.push({ no: i + 2, key: 'room:' + r, label: r, room: r, text: state.script.rooms[r] || '' }));
   segs.push({ no: segs.length + 1, key: 'close', label: 'หน้าปิด (ข้อมูลติดต่อ)', text: state.script.close });
@@ -213,6 +213,8 @@ function viewScript() {
   const warn = () => {
     const all = scriptSegments(), msgs = [];
     const empty = all.filter(g => !g.text.trim()).map(g => no2(g.no));
+    const noRoom = state.items.filter(i => !i.room).length;
+    if (noRoom) msgs.push(`⚠️ มี ${noRoom} รูปที่ยังไม่ตั้งห้อง (ย้อนกลับไปขั้น 3 เพื่อตั้งห้อง)`);
     if (empty.length) msgs.push('ท่อนที่ยังว่าง: ' + empty.join(', '));
     if (all.some(g => /\[[^\]]*\]/.test(g.text))) msgs.push('⚠️ ยังมีข้อความในวงเล็บ [ ] ให้แก้เป็นข้อมูลจริงก่อนทำเสียงพากย์');
     $('#warn').innerHTML = msgs.join('<br>');
@@ -260,6 +262,7 @@ async function viewColor() {
     <div class="ba"><div><canvas id="cb"></canvas><small>ก่อน</small></div><div><canvas id="ca"></canvas><small>หลัง</small></div></div>
     <p class="hint" id="cap"></p>
     <input type="file" id="file3" accept="image/*,video/*" multiple hidden>
+    <p class="hint" id="prog3"></p>
     <p class="hint">แตะรูปเล็กเพื่อเลือกดูเทียบ ก่อน/หลัง · กดค้างแล้วลากเพื่อสลับตำแหน่ง</p>
     <div class="thumbs" id="th">${imgs.map((_, i) => `<canvas data-i="${i}" data-id="${imgs[i].id}"></canvas>`).join('')}</div>
     <button class="btn" id="nx">ถัดไป: 4 สคริปต์ →</button>
@@ -274,17 +277,24 @@ async function viewColor() {
   const draw = () => {
     const luts = isNeutral(c) ? null : makeLuts(stats, c);
     const put = (cv, bmp, lut, w) => { const h = Math.round(w * bmp.height / bmp.width); cv.width = w; cv.height = h; cv.getContext('2d').drawImage(gradeToCanvas(bmp, lut, w, h), 0, 0); };
-    $('#cap').textContent = `รูปที่ ${sel + 1} จาก ${imgs.length} · ห้อง: ${imgs[sel].room} · ปรับสี: ${c.auto ? 'อัตโนมัติ' : 'ปิด'}${(c.bright || c.contrast || c.warm) ? ' + ตั้งเอง' : ''}`;
+    { const un = imgs.filter(x => !x.room).length;
+      $('#prog3').innerHTML = un ? `🟧 ยังไม่ตั้งห้อง <b>${un}</b> จาก ${imgs.length} รูป · <button class="lnk" id="pickUn">เลือกที่ยังไม่ตั้งห้อง</button>` : `🟩 ตั้งห้องครบทั้ง ${imgs.length} รูปแล้ว`;
+      const pu = $('#pickUn'); if (pu) pu.onclick = () => { selMode = true; picked.clear(); imgs.filter(x => !x.room).forEach(x => picked.add(x.id)); $('#selbar').innerHTML = selBarHtml(); draw(); }; }
+    $('#cap').textContent = `รูปที่ ${sel + 1} จาก ${imgs.length} · ห้อง: ${imgs[sel].room || 'ยังไม่ตั้งห้อง'} · ปรับสี: ${c.auto ? 'อัตโนมัติ' : 'ปิด'}${(c.bright || c.contrast || c.warm) ? ' + ตั้งเอง' : ''}`;
     put($('#cb'), smalls[sel], null, 240); put($('#ca'), smalls[sel], luts && luts[sel], 240);
     document.querySelectorAll('#th canvas').forEach(cv => {
       const i = +cv.dataset.i; put(cv, smalls[i], luts && luts[i], 110); cv.classList.toggle('on', !selMode && i === sel);
-      { const x = cv.getContext('2d'); x.fillStyle = 'rgba(0,0,0,.55)'; x.fillRect(0, cv.height - 17, cv.width, 17);
-        x.fillStyle = '#fff'; x.font = '11px sans-serif'; x.textAlign = 'left'; x.textBaseline = 'middle'; x.fillText(imgs[i].room, 5, cv.height - 8, cv.width - 10); }
+      { const x = cv.getContext('2d'), rm = imgs[i].room;
+        x.fillStyle = rm ? 'rgba(30,110,60,.92)' : 'rgba(224,138,0,.95)'; x.fillRect(0, cv.height - 18, cv.width, 18);
+        x.fillStyle = '#fff'; x.font = 'bold 11px sans-serif'; x.textAlign = 'left'; x.textBaseline = 'middle';
+        x.fillText(rm ? '✓ ' + rm : '⚠ ยังไม่ตั้งห้อง', 5, cv.height - 8, cv.width - 10); }
+      cv.classList.toggle('ok', !!imgs[i].room); cv.classList.toggle('un', !imgs[i].room);
       if (selMode) {
         const x = cv.getContext('2d'), on = picked.has(imgs[i].id);
-        if (on) { x.fillStyle = 'rgba(122,31,43,.45)'; x.fillRect(0, 0, cv.width, cv.height); }
-        x.beginPath(); x.arc(18, 18, 12, 0, 7); x.fillStyle = on ? '#fff' : 'rgba(0,0,0,.35)'; x.fill(); x.lineWidth = 2; x.strokeStyle = '#fff'; x.stroke();
-        if (on) { x.fillStyle = '#7a1f2b'; x.font = 'bold 16px sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('✓', 18, 19); }
+        if (on) { x.fillStyle = 'rgba(122,31,43,.55)'; x.fillRect(0, 0, cv.width, cv.height); x.lineWidth = 5; x.strokeStyle = '#fff'; x.strokeRect(2.5, 2.5, cv.width - 5, cv.height - 5); }
+        x.beginPath(); x.arc(20, 20, 13, 0, 7);
+        if (on) { x.fillStyle = '#fff'; x.fill(); x.fillStyle = '#7a1f2b'; x.font = 'bold 18px sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('✓', 20, 21); }
+        else { x.lineWidth = 2; x.strokeStyle = 'rgba(255,255,255,.9)'; x.stroke(); }
       }
     });
   };
