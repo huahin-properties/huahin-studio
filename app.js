@@ -36,15 +36,18 @@ async function addFiles(files) {
   await save();
 }
 let selMode = false; const picked = new Set();
+let selExtra = '';
 function selBarHtml() {
   return selMode
-    ? `<div class="row2"><button class="btn alt" data-sa="all">เลือกทั้งหมด</button><button class="btn alt" data-sa="off">ยกเลิก</button></div><button class="btn" data-sa="del" ${picked.size ? '' : 'disabled'}>🗑️ ลบที่เลือก (${picked.size})</button>`
-    : `<button class="btn alt" data-sa="on">☑ เลือกหลายรูปเพื่อลบ</button>`;
+    ? `<button class="ib wide" data-sa="all">ทั้งหมด</button><button class="ib wide" data-sa="off">ยกเลิก</button><button class="ib wide danger" data-sa="del" ${picked.size ? '' : 'disabled'}>🗑️ ลบ (${picked.size})</button>`
+    : `<button class="ib" data-sa="on" title="เลือกหลายรูปเพื่อลบ" aria-label="เลือกหลายรูปเพื่อลบ">☑</button>${selExtra}`;
 }
-function bindSelBar(bar, allIds, refresh) {
+function bindSelBar(bar, allIds, refresh, opt = {}) {
   bar.innerHTML = selBarHtml();
   bar.onclick = async e => {
     const b = e.target.closest('button'); if (!b || b.disabled) return; const a = b.dataset.sa;
+    if (a === 'one') { await opt.delOne(); return; }
+    if (a === 'add') { opt.add(); return; }
     if (a === 'on') { selMode = true; picked.clear(); }
     else if (a === 'off') { selMode = false; picked.clear(); }
     else if (a === 'all') allIds().forEach(id => picked.add(id));
@@ -84,6 +87,7 @@ function viewSize() {
 }
 
 function viewMedia() {
+  selExtra = '';
   const list = state.items.map((it, i) => `
     <div class="item${selMode && picked.has(it.id) ? ' picked' : ''}" data-id="${it.id}">
       ${selMode ? `<input type="checkbox" class="ck" ${picked.has(it.id) ? 'checked' : ''}>` : ''}
@@ -99,7 +103,7 @@ function viewMedia() {
     <p class="hint">เลือกได้ทีละหลายไฟล์ แล้วติดแท็กห้อง · กดค้างที่การ์ดแล้วลากเพื่อสลับลำดับ</p>
     <input type="file" id="file" accept="image/*,video/*" multiple hidden>
     <button class="btn" id="add">+ เพิ่มรูป / คลิป</button>
-    ${state.items.length ? '<div id="selbar"></div>' : ''}
+    ${state.items.length ? '<div id="selbar" class="tools"></div>' : ''}
     <div class="items${selMode ? ' selmode' : ''}">${list || '<div class="soon">ยังไม่มีรูป กดปุ่มด้านบนเพื่อเพิ่ม</div>'}</div>
     ${state.items.some(i => i.type === 'image') ? `<h2>พรีวิวสไตล์ v3</h2><canvas id="pv"></canvas><button class="btn alt" id="play">▶ เล่นพรีวิวอีกครั้ง</button>` : ''}
     ${state.items.length ? '<button class="btn" id="toNext">ถัดไป: ขั้น 3 ปรับสี →</button>' : ''}
@@ -171,6 +175,7 @@ async function viewColor() {
   const slider = (k, label, lo, hi) => `<label class="sl"><span>${label} <b id="v_${k}">${c[k]}</b></span><input type="range" data-k="${k}" min="${lo}" max="${hi}" step="1" value="${c[k]}"></label>`;
   $('#view').innerHTML = `
     <h2>3 สี: ปรับสีให้เข้ากัน</h2>
+    <div id="selbar" class="tools"></div>
     <p class="hint">ปรับแค่ความสว่าง คอนทราสต์ และ white balance แบบนุ่มนวลให้ทุกภาพดูเป็นโทนเดียวกัน ภาพที่เห็นตรงกับตอนเรนเดอร์</p>
     <label class="sw"><input type="checkbox" id="auto" ${c.auto ? 'checked' : ''}> ปรับสีให้เข้ากันอัตโนมัติ</label>
     ${slider('bright', 'ความสว่าง', -30, 30)}${slider('contrast', 'คอนทราสต์', -30, 30)}${slider('warm', 'โทนสี (เย็น ← → อุ่น)', -30, 30)}
@@ -178,8 +183,6 @@ async function viewColor() {
     <div class="ba"><div><canvas id="cb"></canvas><small>ก่อน</small></div><div><canvas id="ca"></canvas><small>หลัง</small></div></div>
     <p class="hint" id="cap"></p>
     <input type="file" id="file3" accept="image/*,video/*" multiple hidden>
-    <div id="selbar"></div>
-    <div class="row2"><button class="btn alt" id="del3">🗑️ ลบรูปนี้</button><button class="btn alt" id="add3">+ เพิ่มรูป</button></div>
     <p class="hint">แตะรูปเล็กเพื่อเลือกดูเทียบ ก่อน/หลัง · กดค้างแล้วลากเพื่อสลับตำแหน่ง</p>
     <div class="thumbs" id="th">${imgs.map((_, i) => `<canvas data-i="${i}" data-id="${imgs[i].id}"></canvas>`).join('')}</div>
     <button class="btn" id="nx">ถัดไป: 4 สคริปต์ →</button>
@@ -218,9 +221,11 @@ async function viewColor() {
     if (selMode) { const id = imgs[sel].id; picked.has(id) ? picked.delete(id) : picked.add(id); $('#selbar').innerHTML = selBarHtml(); }
     redraw();
   };
-  bindSelBar($('#selbar'), () => imgs.map(x => x.id), full => full ? viewColor() : redraw());
-  $('#del3').onclick = async () => { if (!confirm('ลบรูปที่ ' + (sel + 1) + ' ใช่ไหม?')) return; removeItem(imgs[sel].id); await save(); viewColor(); };
-  $('#add3').onclick = () => $('#file3').click();
+  selExtra = '<button class="ib" data-sa="one" title="ลบรูปที่เลือกอยู่" aria-label="ลบรูปที่เลือกอยู่">🗑️</button><button class="ib" data-sa="add" title="เพิ่มรูป" aria-label="เพิ่มรูป">＋</button>';
+  bindSelBar($('#selbar'), () => imgs.map(x => x.id), full => full ? viewColor() : redraw(), {
+    delOne: async () => { if (!confirm('ลบรูปที่ ' + (sel + 1) + ' ใช่ไหม?')) return; removeItem(imgs[sel].id); await save(); viewColor(); },
+    add: () => $('#file3').click(),
+  });
   $('#file3').onchange = async e => { await addFiles(e.target.files); viewColor(); };
   $('#nx').onclick = () => go(3); $('#bk').onclick = () => go(1);
 }
