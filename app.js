@@ -8,7 +8,7 @@ const SIZES = [
 const ROOMS = ['หน้าบ้าน/ภายนอก','สระว่ายน้ำ','ห้องนั่งเล่น','ครัว','ห้องนอนใหญ่','ห้องนอน','ห้องน้ำ','สวน/ระเบียง','วิวรอบๆ','อื่นๆ'];
 const STEPS = ['1 ขนาด','2 รูป/คลิป','3 สี','4 สคริปต์','5 เสียง','6 มาสคอต','7 เรนเดอร์'];
 
-const state = { step: 0, size: '4:5', items: [] };
+const state = { step: 0, size: '4:5', items: [], color: { ...COLOR_DEFAULT } };
 let nextId = 1;
 
 // ---- เก็บงานไว้ในเครื่อง (IndexedDB) ปิดแอปแล้วงานไม่หาย ----
@@ -21,10 +21,10 @@ const DB = {
   async get(k) { const db = await this.open(); return new Promise(res => { const q = db.transaction('kv').objectStore('kv').get(k); q.onsuccess = () => res(q.result); }); },
   async set(k, v) { const db = await this.open(); return new Promise(res => { const tx = db.transaction('kv', 'readwrite'); tx.objectStore('kv').put(v, k); tx.oncomplete = res; }); },
 };
-const save = () => DB.set('project', { size: state.size, items: state.items.map(({ id, blob, type, room, name }) => ({ id, blob, type, room, name })) });
+const save = () => DB.set('project', { size: state.size, color: state.color, items: state.items.map(({ id, blob, type, room, name }) => ({ id, blob, type, room, name })) });
 async function load() {
   const p = await DB.get('project');
-  if (p) { state.size = p.size; state.items = p.items; nextId = Math.max(0, ...p.items.map(i => i.id)) + 1; }
+  if (p) { state.size = p.size; state.color = { ...COLOR_DEFAULT, ...(p.color || {}) }; state.items = p.items; nextId = Math.max(0, ...p.items.map(i => i.id)) + 1; }
 }
 
 const $ = s => document.querySelector(s);
@@ -92,7 +92,6 @@ function viewMedia() {
 function go(n) { state.step = n; render(); window.scrollTo(0, 0); }
 
 const COMING = {
-  2: ['ปรับสีให้เข้ากันอัตโนมัติ', 'ปรับความสว่าง คอนทราสต์ และ white balance ให้ดูเป็นธรรมชาติ และปรับเองได้'],
   3: ['สคริปต์เรื่องราว', 'พิมพ์เรื่องราวเล่าตามแต่ละห้อง'],
   4: ['เสียงพากย์และเพลงประกอบ', 'อัปโหลดไฟล์เสียงพากย์ทีละไฟล์ (01, 02, ...) และเพลง mp3'],
   5: ['มาสคอต', 'ปากขยับตามเสียงพูด กะพริบตา โบกมือ กระโดด เดินสั้นๆ'],
@@ -108,12 +107,57 @@ function viewComing() {
   $('#bk').onclick = () => go(state.step - 1);
 }
 
+// ---- ขั้น 3: ปรับสี ----
+const smallCache = new Map(), statCache = new Map();
+async function getSmall(it) {
+  if (!smallCache.has(it.id)) smallCache.set(it.id, await smallBitmap(it.blob, 480));
+  return smallCache.get(it.id);
+}
+async function viewColor() {
+  const imgs = state.items.filter(i => i.type === 'image');
+  if (!imgs.length) {
+    $('#view').innerHTML = `<h2>3 สี: ปรับสีให้เข้ากัน</h2><div class="soon">ยังไม่มีรูป กลับไปขั้น 2 เพื่อใส่รูปก่อน</div><button class="btn" id="b2">← กลับไปใส่รูป</button>`;
+    $('#b2').onclick = () => go(1); return;
+  }
+  const c = state.color; let sel = 0;
+  $('#view').innerHTML = `<h2>3 สี: ปรับสีให้เข้ากัน</h2><p class="hint">กำลังอ่านรูป...</p>`;
+  const smalls = [];
+  for (const it of imgs) { smalls.push(await getSmall(it)); if (!statCache.has(it.id)) statCache.set(it.id, imageStats(smalls.at(-1))); }
+  const stats = imgs.map(i => statCache.get(i.id));
+  const slider = (k, label, lo, hi) => `<label class="sl"><span>${label} <b id="v_${k}">${c[k]}</b></span><input type="range" data-k="${k}" min="${lo}" max="${hi}" step="1" value="${c[k]}"></label>`;
+  $('#view').innerHTML = `
+    <h2>3 สี: ปรับสีให้เข้ากัน</h2>
+    <p class="hint">ปรับแค่ความสว่าง คอนทราสต์ และ white balance แบบนุ่มนวลให้ทุกภาพดูเป็นโทนเดียวกัน ภาพที่เห็นตรงกับตอนเรนเดอร์</p>
+    <label class="sw"><input type="checkbox" id="auto" ${c.auto ? 'checked' : ''}> ปรับสีให้เข้ากันอัตโนมัติ</label>
+    ${slider('bright', 'ความสว่าง', -30, 30)}${slider('contrast', 'คอนทราสต์', -30, 30)}${slider('warm', 'โทนสี (เย็น ← → อุ่น)', -30, 30)}
+    <button class="btn alt" id="reset">รีเซ็ตเป็นค่าเริ่มต้น</button>
+    <div class="ba"><div><canvas id="cb"></canvas><small>ก่อน</small></div><div><canvas id="ca"></canvas><small>หลัง</small></div></div>
+    <p class="hint">แตะรูปเล็กเพื่อเลือกรูปที่จะดูเทียบ ก่อน/หลัง</p>
+    <div class="thumbs" id="th">${imgs.map((_, i) => `<canvas data-i="${i}"></canvas>`).join('')}</div>
+    <button class="btn" id="nx">ถัดไป: 4 สคริปต์ →</button>
+    <button class="btn alt" id="bk">← ย้อนกลับ</button>`;
+  const draw = () => {
+    const luts = isNeutral(c) ? null : makeLuts(stats, c);
+    const put = (cv, bmp, lut, w) => { const h = Math.round(w * bmp.height / bmp.width); cv.width = w; cv.height = h; cv.getContext('2d').drawImage(gradeToCanvas(bmp, lut, w, h), 0, 0); };
+    put($('#cb'), smalls[sel], null, 240); put($('#ca'), smalls[sel], luts && luts[sel], 240);
+    document.querySelectorAll('#th canvas').forEach(cv => { const i = +cv.dataset.i; put(cv, smalls[i], luts && luts[i], 110); cv.classList.toggle('on', i === sel); });
+  };
+  draw();
+  let raf = 0; const redraw = () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(draw); };
+  $('#auto').onchange = e => { c.auto = e.target.checked; save(); redraw(); };
+  document.querySelectorAll('input[type=range]').forEach(r => r.oninput = () => { c[r.dataset.k] = +r.value; $('#v_' + r.dataset.k).textContent = r.value; save(); redraw(); });
+  $('#reset').onclick = () => { Object.assign(c, COLOR_DEFAULT); save(); viewColor(); };
+  $('#th').onclick = e => { const cv = e.target.closest('canvas'); if (cv) { sel = +cv.dataset.i; redraw(); } };
+  $('#nx').onclick = () => go(3); $('#bk').onclick = () => go(1);
+}
+
 function viewRender() {
   const imgs = state.items.filter(i => i.type === 'image'), s = sizeInfo();
   const skipped = state.items.length - imgs.length;
   $('#view').innerHTML = `
     <h2>เรนเดอร์เป็น MP4</h2>
     <p class="hint">ขนาด ${s.name} (${s.w}×${s.h}) · ${imgs.length} รูป · ยาวประมาณ ${totalDuration(imgs.length).toFixed(1)} วินาที${skipped ? ` · คลิปสั้น ${skipped} ไฟล์ยังไม่ถูกใช้ (รอบหน้า)` : ''}</p>
+    <p class="hint">ปรับสี: ${isNeutral(state.color) ? 'ปิด' : (state.color.auto ? 'อัตโนมัติ' : 'ตั้งเอง')}</p>
     <p class="hint">ระหว่างเรนเดอร์ ให้เปิดหน้าจอค้างไว้ อย่าสลับแอป</p>
     <button class="btn" id="go" ${imgs.length ? '' : 'disabled'}>🎬 เริ่มเรนเดอร์</button>
     <div id="prog" class="hint"></div><div id="out"></div>
@@ -123,7 +167,13 @@ function viewRender() {
     $('#go').disabled = true; $('#out').innerHTML = '';
     const t0 = performance.now();
     try {
-      const blob = await renderMp4(imgs.map(i => i.blob), s.w, s.h, (p, msg) => { $('#prog').textContent = `${msg} ${Math.round(p * 100)}%`; });
+      let luts = null;
+      if (!isNeutral(state.color)) {
+        const stats = [];
+        for (const it of imgs) { if (!statCache.has(it.id)) statCache.set(it.id, imageStats(await getSmall(it))); stats.push(statCache.get(it.id)); }
+        luts = makeLuts(stats, state.color);
+      }
+      const blob = await renderMp4(imgs.map(i => i.blob), s.w, s.h, (p, msg) => { $('#prog').textContent = `${msg} ${Math.round(p * 100)}%`; }, luts);
       const url = URL.createObjectURL(blob);
       $('#prog').textContent = `เสร็จใน ${((performance.now() - t0) / 1000).toFixed(0)} วินาที · ขนาดไฟล์ ${(blob.size / 1048576).toFixed(1)} MB`;
       $('#out').innerHTML = `<video src="${url}" controls playsinline style="width:100%;max-height:60vh;background:#000;border-radius:12px"></video><a class="btn" download="huahin-clip.mp4" href="${url}" style="text-decoration:none;text-align:center">⬇ บันทึกไฟล์ MP4</a>`;
@@ -197,7 +247,7 @@ async function startPreview() {
 function render() {
   clearInterval(previewTimer);
   renderSteps();
-  if (state.step === 0) viewSize(); else if (state.step === 6) viewRender(); else if (state.step === 1) viewMedia(); else viewComing();
+  if (state.step === 0) viewSize(); else if (state.step === 6) viewRender(); else if (state.step === 1) viewMedia(); else if (state.step === 2) viewColor(); else viewComing();
 }
 
 (async () => {

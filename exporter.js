@@ -19,13 +19,13 @@ async function pickCodec(W, H) {
   return null;
 }
 
-async function renderMp4(blobs, W, H, onProgress) {
+async function renderMp4(blobs, W, H, onProgress, luts) {
   if (!('VideoEncoder' in window)) throw new Error('เบราว์เซอร์นี้ยังไม่รองรับการเรนเดอร์ ให้ใช้ Chrome บนมือถือ Android');
   const cfg = await pickCodec(W, H);
   if (!cfg) throw new Error('มือถือเครื่องนี้ไม่รองรับการเข้ารหัสวิดีโอขนาดนี้ ลองเลือกขนาดเล็กลง');
 
   const images = [];
-  for (let i = 0; i < blobs.length; i++) { images.push(await loadScaled(blobs[i], W, H)); onProgress(0.1 * (i + 1) / blobs.length, 'กำลังเตรียมรูป'); }
+  for (let i = 0; i < blobs.length; i++) { { const bmp = await loadScaled(blobs[i], W, H); images.push(luts ? gradeToCanvas(bmp, luts[i]) : bmp); if (luts) bmp.close(); } onProgress(0.1 * (i + 1) / blobs.length, 'กำลังเตรียมรูป'); }
 
   const muxer = new Mp4Muxer.Muxer({ target: new Mp4Muxer.ArrayBufferTarget(), video: { codec: 'avc', width: W, height: H }, fastStart: 'in-memory' });
   let encErr = null;
@@ -45,7 +45,7 @@ async function renderMp4(blobs, W, H, onProgress) {
     if (f % 5 === 0) { onProgress(0.1 + 0.9 * f / frames, 'กำลังเรนเดอร์'); await sleep0(); }
   }
   await enc.flush(); enc.close(); muxer.finalize();
-  images.forEach(b => b.close());
+  images.forEach(b => b.close && b.close());
   onProgress(1, 'เสร็จแล้ว');
   return new Blob([muxer.target.buffer], { type: 'video/mp4' });
 }
