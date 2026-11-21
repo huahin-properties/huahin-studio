@@ -9,7 +9,7 @@ const SIZES = [
 const ROOMS = [AREA_ROOM, MAP_ROOM, 'หน้าบ้าน/ภายนอก','ที่จอดรถ','ห้องนั่งเล่น','ห้องทานอาหาร','ครัว','ห้องนอนใหญ่','ห้องนอน','ห้องน้ำ','สระว่ายน้ำ','สวน/ระเบียง','วิวรอบๆ','อื่นๆ'];
 const STEPS = ['1 ขนาด','2 ใส่รูป/คลิป','3 สี','4 สคริปต์','5 เสียง','6 มาสคอต','7 เรนเดอร์'];
 
-const state = { hookOn: true, hero: null, content: null, trans: 'auto', overlay: true, mascot: { presenter: true, size: 0.28, side: 'left' }, audio: { mode: 'single', single: null, chunks: {}, beatAud: {}, music: null, musicVol: 15, duck: true, duckBoost: 2.5, sfx: true }, stretch: true, clipSec: 180, routeData: null, skipMap: false, facts: { name: '', beds: '', baths: '', usable: '', land: '', price: '', travel: '', coord: '', routeStart: '', routeLabel: '', highlights: '' }, slot: 'title', step: 0, size: '4:5', items: [], color: { ...COLOR_DEFAULT }, useArea: true, contact: { mode: 'std', custom: { name: '', phone: '', line: '' } }, script: { area: '', rooms: {}, en: {}, enSrc: {} } };
+const state = { hookOn: true, hero: null, content: null, stock: { mode: 'auto', ids: null, counted: [] }, trans: 'auto', overlay: true, mascot: { presenter: true, size: 0.28, side: 'left' }, audio: { mode: 'single', single: null, chunks: {}, beatAud: {}, music: null, musicVol: 15, duck: true, duckBoost: 2.5, sfx: true }, stretch: true, clipSec: 180, routeData: null, skipMap: false, facts: { name: '', beds: '', baths: '', usable: '', land: '', price: '', travel: '', coord: '', routeStart: '', routeLabel: '', highlights: '' }, slot: 'title', step: 0, size: '4:5', items: [], color: { ...COLOR_DEFAULT }, useArea: true, contact: { mode: 'std', custom: { name: '', phone: '', line: '' } }, script: { area: '', rooms: {}, en: {}, enSrc: {} } };
 const STATE0 = structuredClone(state);
 let nextId = 1;
 
@@ -24,10 +24,10 @@ const DB = {
   async set(k, v) { const db = await this.open(); return new Promise((res, rej) => { const tx = db.transaction('kv', 'readwrite'); tx.objectStore('kv').put(v, k); tx.oncomplete = res; tx.onerror = tx.onabort = () => rej(tx.error || new Error('บันทึกไม่ได้ (พื้นที่เต็ม?)')); }); },
   async del(k) { const db = await this.open(); return new Promise((res, rej) => { const tx = db.transaction('kv', 'readwrite'); tx.objectStore('kv').delete(k); tx.oncomplete = res; tx.onerror = tx.onabort = () => rej(tx.error); }); },
 };
-const projData = () => ({ v: 2, hookOn: state.hookOn, hero: state.hero, content: state.content, trans: state.trans, overlay: state.overlay, mascot: state.mascot, audio: state.audio, stretch: state.stretch, clipSec: state.clipSec, routeData: state.routeData, skipMap: state.skipMap, facts: state.facts, useArea: state.useArea, contact: state.contact, size: state.size, color: state.color, script: state.script, items: state.items.map(({ id, blob, type, room, name }) => ({ id, blob, type, room, name })) });
+const projData = () => ({ v: 2, hookOn: state.hookOn, hero: state.hero, content: state.content, stock: state.stock, trans: state.trans, overlay: state.overlay, mascot: state.mascot, audio: state.audio, stretch: state.stretch, clipSec: state.clipSec, routeData: state.routeData, skipMap: state.skipMap, facts: state.facts, useArea: state.useArea, contact: state.contact, size: state.size, color: state.color, script: state.script, items: state.items.map(({ id, blob, type, room, name }) => ({ id, blob, type, room, name })) });
 const save = () => { if (typeof updateSb === 'function') updateSb(); if (!state.pid) return Promise.resolve(); if (typeof schedMeta === 'function') schedMeta(); return DB.set('project:' + state.pid, projData()).catch(() => {}); };
 function applyProject(p) {
-  if (p) { if (!p.v) p.items.forEach(i => { if (i.room === 'หน้าบ้าน/ภายนอก') i.room = ''; }); state.size = p.size; state.hookOn = p.hookOn !== false; state.hero = p.hero || null; state.content = p.content || null; state.trans = p.trans || 'auto'; state.overlay = p.overlay !== false; state.color = { ...COLOR_DEFAULT, ...(p.color || {}) }; state.script = { area: '', rooms: {}, en: {}, enSrc: {}, ...(p.script || {}) }; state.skipMap = !!p.skipMap; state.clipSec = p.clipSec || 180; state.audio = { mode: 'single', single: null, chunks: {}, beatAud: {}, music: null, musicVol: 15, duck: true, duckBoost: 2.5, sfx: true, ...(p.audio || {}) }; state.mascot = { presenter: true, size: 0.28, side: 'left', ...(p.mascot || {}) }; state.stretch = p.stretch !== false; state.routeData = p.routeData || null; state.facts = { ...state.facts, ...(p.facts || {}) }; state.useArea = true; state.contact = { mode: 'std', ...(p.contact || {}), custom: { name: '', phone: '', line: '', ...((p.contact || {}).custom || {}) } }; state.items = p.items; nextId = Math.max(0, ...p.items.map(i => i.id)) + 1; }
+  if (p) { if (!p.v) p.items.forEach(i => { if (i.room === 'หน้าบ้าน/ภายนอก') i.room = ''; }); state.size = p.size; state.hookOn = p.hookOn !== false; state.hero = p.hero || null; state.content = p.content || null; state.stock = p.stock || { mode: 'all', ids: null, counted: [] }; state.trans = p.trans || 'auto'; state.overlay = p.overlay !== false; state.color = { ...COLOR_DEFAULT, ...(p.color || {}) }; state.script = { area: '', rooms: {}, en: {}, enSrc: {}, ...(p.script || {}) }; state.skipMap = !!p.skipMap; state.clipSec = p.clipSec || 180; state.audio = { mode: 'single', single: null, chunks: {}, beatAud: {}, music: null, musicVol: 15, duck: true, duckBoost: 2.5, sfx: true, ...(p.audio || {}) }; state.mascot = { presenter: true, size: 0.28, side: 'left', ...(p.mascot || {}) }; state.stretch = p.stretch !== false; state.routeData = p.routeData || null; state.facts = { ...state.facts, ...(p.facts || {}) }; state.useArea = true; state.contact = { mode: 'std', ...(p.contact || {}), custom: { name: '', phone: '', line: '', ...((p.contact || {}).custom || {}) } }; state.items = p.items; nextId = Math.max(0, ...p.items.map(i => i.id)) + 1; }
 }
 
 const $ = s => document.querySelector(s);
@@ -305,6 +305,37 @@ function openFacts(after) {
 }
 
 // ---- ขั้น 2: เช็กลิสต์แท็บ — แตะแท็บเพื่อเพิ่มไฟล์ในป๊อปอัพ ไฟล์ที่ใส่แล้วแสดงด้านล่างหน้าเดียวกัน ----
+
+// ---- สต็อกภาพทำเล: แผงตั้งค่า + เลือก/เอาออกรายรูป ----
+const selectedStockIds = () => [...AREA_CATS.flatMap(c => libArea(c.id)), ...libArea('lifestyle')].filter(stockSel).map(i => i.id);
+function toggleStock(id) { const cur = new Set(selectedStockIds()); if (cur.has(id)) cur.delete(id); else cur.add(id); state.stock = { mode: 'manual', ids: [...cur], counted: (state.stock && state.stock.counted) || [] }; save(); }
+function stockPanelHtml() {
+  const C = stockCounts(); if (!C.total) return '';
+  const m = (state.stock && state.stock.mode) || 'all', sel = selectedStockIds().length;
+  let T = {}; stockBusy = true; try { T = segTargets(); } catch (e) {} stockBusy = false;
+  const sec = Math.round((T.area || 0) + (T.life || 0));
+  const parts = [...C.raw.filter(r => r[1].length).map(r => `${r[0].label.split(' ')[0]} ${r[1].length}`), ...(C.life.length ? [`ไลฟ์สไตล์ ${C.life.length}`] : [])].join(' · ');
+  const used = usedCount => usedCount;
+  return `<div class="seg" id="stockPanel"><b>🗂️ สต็อกภาพทำเล (ใช้ร่วมทุกคลิป)</b>
+    <p class="hint">ใส่รูปทำเลไว้เยอะๆ ได้ แตะแท็บทำเลสีเขียวเพื่อเพิ่ม/ลบรูป แอปจะเลือกใช้ในแต่ละคลิปตามเวลาที่พอดี และพยายามไม่ใช้รูปซ้ำกับคลิปอื่น</p>
+    <label class="sw"><input type="radio" name="stk" value="auto" ${m === 'auto' ? 'checked' : ''}> 🤖 อัตโนมัติ (แนะนำ): แอปเลือกให้พอดีเวลา ไม่ซ้ำคลิปอื่นเท่าที่สต็อกมี</label>
+    <label class="sw"><input type="radio" name="stk" value="manual" ${m === 'manual' ? 'checked' : ''}> ✋ เลือกเอง: แตะรูปเพื่อเลือก/เอาออกจากคลิปนี้</label>
+    <label class="sw"><input type="radio" name="stk" value="all" ${m === 'all' ? 'checked' : ''}> ใช้ทุกรูปในสต็อก (แบบเดิม)</label>
+    <p class="hint">📦 สต็อก ${C.total} รูป (${parts}) → <b>คลิปนี้ใช้ ${m === 'all' ? C.total : sel} รูป</b>${sec ? ` · เวลาช่วงทำเลประมาณ ${sec} วินาที` : ''}</p>
+    ${m === 'all' ? '' : '<div class="tools"><button class="ib wide" data-stk="roll">🔄 สุ่มรูปใหม่ให้คลิปนี้</button></div>'}</div>`;
+}
+// จัดการเหตุการณ์ของแผงสต็อก/รูปในสต็อก คืนค่า true ถ้าจัดการแล้ว
+function stockEvent(e) {
+  const r = e.type === 'change' && e.target.closest('input[name=stk]');
+  if (r) { const cur = selectedStockIds(), keep = (state.stock && state.stock.counted) || [];
+    if (r.value === 'auto') autoPickStock(); else if (r.value === 'manual') { state.stock = { mode: 'manual', ids: cur, counted: keep }; save(); } else { state.stock = { mode: 'all', ids: null, counted: keep }; save(); }
+    return true; }
+  if (e.type === 'click') {
+    const b = e.target.closest('[data-stk=roll]'); if (b) { autoPickStock(true); return true; }
+    const th = e.target.closest('.th[data-lib]'); if (th && !e.target.closest('[data-del]')) { toggleStock(+th.dataset.id); return true; }
+  }
+  return false;
+}
 let refreshChips = null;
 const slotScript = sl => (sl.cat === 'lifestyle' ? ['life'] : sl.cat ? ['area'] : sl.kind === 'room' ? ['room', sl.room] : null);
 const getSlotScript = sl => { const k = slotScript(sl); return !k ? null : k[0] === 'room' ? (state.script.rooms[k[1]] || '') : (state.script[k[0]] || ''); };
@@ -315,7 +346,8 @@ function itemCap(it) {
   const kind = n.includes('overview') ? 'o' : n.includes('zoom') ? 'z' : (n === 'map-auto-1.png' && hasTwo ? 'o' : 'z');
   return kind === 'o' ? '🗺️ ภาพรวม + ระยะทาง' : '📍 ซูมที่บ้าน';
 }
-const thumbHtml = (it, del) => `<div class="th" data-id="${it.id}">${it.type === 'video' ? `<video src="${urlOf(it)}#t=0.1" muted playsinline></video>` : `<img src="${urlOf(it)}" alt="">`}${itemCap(it) ? `<span class="cap">${itemCap(it)}</span>` : ''}${del ? `<button class="x" data-del="${it.id}" aria-label="ลบ">✕</button>` : ''}</div>`;
+const stockThumbOf = it => !!it.cat && typeof stockOn === 'function' && stockOn();
+const thumbHtml = (it, del) => `<div class="th${stockThumbOf(it) && !stockSel(it) ? ' off' : ''}" data-id="${it.id}"${it.cat ? ' data-lib="1"' : ''}>${stockThumbOf(it) ? (stockSel(it) ? '<span class="tick">✓</span>' : '') : ''}${it.type === 'video' ? `<video src="${urlOf(it)}#t=0.1" muted playsinline></video>` : `<img src="${urlOf(it)}" alt="">`}${itemCap(it) ? `<span class="cap">${itemCap(it)}</span>` : ''}${del ? `<button class="x" data-del="${it.id}" aria-label="ลบ">✕</button>` : ''}</div>`;
 
 // เส้นสถานะสคริปต์ใต้หัวข้อกลุ่ม: เขียว+ยาวตามความยาวสคริปต์ = เขียนแล้ว · ส้มเต็มเส้น = ยังไม่เขียน
 function scriptBarHtml(sl) {
@@ -344,11 +376,13 @@ function openSlot(id) {
       ${state.routeData ? '<canvas id="routePrev" class="rprev"></canvas><button class="btn alt" data-a="rmroute">🗑️ ลบคลิปเส้นทาง</button>' : ''}
       <label class="sw"><input type="checkbox" id="skipMap" ${state.skipMap ? 'checked' : ''}> คลิปนี้ไม่ใช้แผนที่ (ข้าม)</label>` : ''}
     ${sl.id === 'title' || sl.id === 'close' ? sceneModeHtml(sl) : ''}
+    ${sl.cat ? stockPanelHtml() : ''}
     ${sl.kind === 'contact' ? contactCardHtml() : ((sl.id === 'title' || sl.id === 'close') && lib[sl.id + 'Builtin']) ? '' : `<button class="btn" data-a="add">${sl.max1 && items.length ? '↻ เปลี่ยนไฟล์' : '+ เพิ่มรูป / คลิป'}</button>
       ${items.length ? `<div class="sgrid" id="pgrid">${items.map(it => thumbHtml(it, true)).join('')}</div>` : ''}`}
     ${sc !== null ? `<label class="sl"><span>📝 สคริปต์ของช่วงนี้${sl.cat && sl.cat !== 'lifestyle' ? ' (ใช้ร่วมกันทั้ง 4 แท็บทำเล)' : ''}</span></label><textarea class="sct" id="slotScript" rows="3" placeholder="พิมพ์เรื่องเล่าของช่วงนี้ (ไม่ใส่ก็ได้ เขียนทีหลังได้ที่ขั้น 4)">${sc.replace(/</g, '&lt;')}</textarea>` : ''}
     <button class="btn" data-a="x">เสร็จ</button>`;
   d.onclick = async e => {
+    if (sl.cat && stockEvent(e)) { updateSb(); openSlot(id); return; }
     if (e.target.closest('[data-a=x]')) { d.remove(); refreshAll(); return; }
     if (e.target.closest('[data-a=rmroute]')) { if (confirm('ลบคลิปเส้นทางรถวิ่ง?')) { state.routeData = null; await save(); updateSb(); openSlot(id); } return; }
     if (e.target.closest('[data-a=genroute]')) { const st = d.querySelector('#routeStat'), btn = e.target.closest('[data-a=genroute]'); btn.disabled = true; try { const rd = await buildRouteData(st); if (rd) { state.routeData = rd; state.skipMap = false; await save(); updateSb(); openSlot(id); } } catch (err) { st.textContent = '❌ สร้างไม่สำเร็จ (ต่อเน็ตอยู่ไหม?) ' + (err.message || err); } btn.disabled = false; return; }
@@ -357,7 +391,7 @@ function openSlot(id) {
     const b = e.target.closest('[data-del]'); if (b && confirm('ลบไฟล์นี้ใช่ไหม?')) { await removeFromSlot(sl, +b.dataset.del); updateSb(); openSlot(id); }
   };
   d.addEventListener('input', e => { if (e.target.id === 'slotScript') setSlotScript(sl, e.target.value); if (e.target.dataset.b) { lib.brand[e.target.dataset.b] = e.target.value; saveLib(); } });
-  d.addEventListener('change', async e => { if (e.target.name === 'tmode') { lib[id + 'Builtin'] = e.target.value === 'builtin'; await saveLib(); updateSb(); openSlot(id); return; } if (e.target.id === 'skipMap') { state.skipMap = e.target.checked; save(); updateSb(); } });
+  d.addEventListener('change', async e => { if (sl.cat && stockEvent(e)) { updateSb(); openSlot(id); return; } if (e.target.name === 'tmode') { lib[id + 'Builtin'] = e.target.value === 'builtin'; await saveLib(); updateSb(); openSlot(id); return; } if (e.target.id === 'skipMap') { state.skipMap = e.target.checked; save(); updateSb(); } });
   if (sl.kind === 'contact') bindContact(d, () => openSlot(id));
   document.body.appendChild(d);
   const sp = d.querySelector('#scenePrev'); if (sp) { const z = sizeInfo(); sp.width = Math.round(z.w / 3); sp.height = Math.round(z.h / 3); previewScene(sp, id); }
@@ -374,14 +408,17 @@ function viewSlots() {
   const mark = { ok: '✓', warn: '!', miss: '●', info: '' };
   $('#view').innerHTML = `
     <h2>ใส่รูป/คลิปตามช่วงของคลิป</h2>
-    <p class="hint">แตะแท็บเพื่อเพิ่มรูป/คลิป ไม่ต้องเรียงลำดับ · เขียว ✓ = ผ่านแล้ว · แดง ● = จำเป็น · ส้ม ! = แนะนำ · เส้นประ = ข้ามได้</p>
+    <p class="hint">แตะแท็บเพื่อเพิ่มรูป/คลิป ไม่ต้องเรียงลำดับ · ชุดบน (เขียว ✓) = มีข้อมูลแล้ว เพิ่ม/แก้ได้ · ชุดล่าง: แดง ● = จำเป็น · ส้ม ! = แนะนำ · เส้นประ = ข้ามได้</p>
     <div class="chips" id="chips"></div>
     <div class="tools"><button class="ib wide" id="btnFacts">🏠 ข้อมูลบ้าน</button><button class="ib wide danger" id="btnDraft">✨ ร่างสคริปต์ให้</button></div>
     <div id="gallery"></div>
     <div id="doneBar"></div>`;
   const renderChips = () => {
     const el = $('#chips'); if (!el) return;
-    el.innerHTML = SLOTS.map(x => `<button class="chip st-${slotStatus(x)}" data-s="${x.id}">${x.ico} ${x.short} <i>${x.id === 'map' && state.skipMap && !slotCount(x) ? '⏭ ข้าม' : mark[slotStatus(x)]}</i></button>`).join('');
+    const chip = x => `<button class="chip st-${slotStatus(x)}" data-s="${x.id}">${x.ico} ${x.short} <i>${x.id === 'map' && state.skipMap && !slotCount(x) ? '⏭ ข้าม' : mark[slotStatus(x)]}</i></button>`;
+    const rank = { miss: 0, warn: 1, info: 2, ok: 3 }, have = SLOTS.filter(x => slotStatus(x) === 'ok'), rest = SLOTS.filter(x => slotStatus(x) !== 'ok').sort((p, q) => rank[slotStatus(p)] - rank[slotStatus(q)]);
+    el.className = 'chips2';
+    el.innerHTML = `${have.length ? `<div class="chgt">✅ มีข้อมูลแล้ว (${have.length}) · แตะเพื่อเพิ่ม/แก้ไข/เลือกรูป</div><div class="chrow">${have.map(chip).join('')}</div>` : ''}${rest.length ? `<div class="chgt">📭 ยังไม่มีข้อมูล (${rest.length}) · แตะเพื่อใส่</div><div class="chrow">${rest.map(chip).join('')}</div>` : ''}`;
   };
   const renderGallery = () => {
     const g = $('#gallery'); if (!g) return;
@@ -409,7 +446,7 @@ function viewSlots() {
       todo.unshift(`<div class="gsec gmiss" data-sec="orphan"><div class="gh"><b>⚠️ รูปที่ยังไม่ได้จัดเข้าแท็บ · ${orp.length}</b></div><p class="hint">รูปเหล่านี้ใส่ไว้ก่อนมีแท็บ เลือกว่าเป็นของแท็บไหน หรือกด ✕ ลบ (ต้องจัดให้ครบก่อนไปขั้นต่อไป)</p>
         <div class="sgrid">${orp.map(it => `<div class="th orp" data-id="${it.id}">${it.type === 'video' ? `<video src="${urlOf(it)}#t=0.1" muted playsinline></video>` : `<img src="${urlOf(it)}" alt="">`}<button class="x" data-del="${it.id}" aria-label="ลบ">✕</button><select class="mv" data-mv="${it.id}"><option value="">ย้ายไป…</option>${opts}</select></div>`).join('')}</div></div>`); } }
     if (state.routeData) done.push(`<div class="gsec" data-sec="route"><div class="gh"><b>🚗 คลิปเส้นทางรถวิ่งเข้าบ้าน</b><button class="ib sm" data-open="map">จัดการ</button></div><p class="hint">${state.routeData.size === state.size ? `ต่อเข้า MP4 อัตโนมัติ (~${ROUTE_DUR} วินาที) หลังภาพแผนที่` : '⚠️ สร้างไว้สำหรับขนาดคลิปอื่น กด จัดการ เพื่อสร้างใหม่'}</p></div>`);
-    const html = (todo.length ? `<h3 class="gtitle todo">⏳ ยังไม่เรียบร้อย (${todo.length})</h3>${todo.join('')}` : '')
+    const html = stockPanelHtml() + (todo.length ? `<h3 class="gtitle todo">⏳ ยังไม่เรียบร้อย (${todo.length})</h3>${todo.join('')}` : '')
       + (done.length ? `<h3 class="gtitle done">✅ เรียบร้อยแล้ว (${done.length})</h3>${done.join('')}` : '');
     g.innerHTML = html || '<div class="soon">ยังไม่มีไฟล์ แตะแท็บด้านบนเพื่อเริ่มเพิ่มรูป/คลิป</div>';
     g.querySelectorAll('[data-scene]').forEach(cv => { const z = sizeInfo(); cv.width = Math.round(z.w / 5); cv.height = Math.round(z.h / 5); paintSceneFrame(cv, cv.dataset.scene, cv.dataset.scene === 'title' ? 3.5 : 4); });
@@ -434,10 +471,12 @@ function viewSlots() {
   refreshChips = () => { if ($('#chips')) { renderChips(); renderDone(); } };
   $('#chips').onclick = e => { const b = e.target.closest('.chip'); if (b) openSlot(b.dataset.s); };
   $('#gallery').onchange = async e => {
+    if (stockEvent(e)) { updateSb(); refreshAll(); return; }
     const m = e.target.closest('[data-mv]'); if (!m || !m.value) return;
     const it = state.items.find(x => x.id === +m.dataset.mv); if (it) { it.room = m.value; await save(); updateSb(); refreshAll(); }
   };
   $('#gallery').onclick = async e => {
+    if (stockEvent(e)) { updateSb(); refreshAll(); return; }
     const o = e.target.closest('[data-open]'); if (o) { openSlot(o.dataset.open); return; }
     const x = e.target.closest('[data-del]'); if (!x) return;
     if (x.closest('.gsec').dataset.sec === 'orphan') { if (confirm('ลบรูปนี้ใช่ไหม?')) { removeItem(+x.dataset.del); await save(); updateSb(); refreshAll(); } return; }

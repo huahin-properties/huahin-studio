@@ -124,3 +124,8 @@ header{display:flex;align-items:center;gap:8px;flex-wrap:wrap}header small{font-
 
 .pcell canvas.wide{width:120px;height:auto}
 .pgrid .pcell{min-width:0}
+
+.chips2{margin:0 0 8px}.chgt{font-size:13px;color:var(--mute);margin:10px 0 5px;font-weight:600}.chrow{display:flex;flex-wrap:wrap;gap:5px}
+.th .tick{position:absolute;left:4px;top:4px;z-index:2;background:#2e7d4f;color:#fff;border-radius:50%;width:24px;height:24px;font-size:14px;text-align:center;line-height:24px;font-weight:700}
+.th.off{border-color:#c9bfb2}.th.off img,.th.off video{opacity:.35;filter:grayscale(.6)}
+.th.off{background:#e6ddd0}

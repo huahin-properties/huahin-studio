@@ -35,17 +35,41 @@ const VOICE_STYLES = {
   doc_th: { label: 'สารคดี (ภาษาไทย)', text: 'บรรยายสไตล์สารคดีท่องเที่ยวระดับพรีเมียม น้ำเสียงนุ่มลึก สงบ อบอุ่น น่าเชื่อถือ เหมือนผู้บรรยายสารคดี จังหวะช้าถึงปานกลาง ออกเสียงภาษาไทยชัดเจนเป็นธรรมชาติ ไม่เร่งรีบ หยุดเว้นจังหวะประมาณ 1 วินาทีเมื่อจบแต่ละย่อหน้า รักษาน้ำเสียง จังหวะ และอารมณ์ให้คงที่ตั้งแต่บรรทัดแรกถึงบรรทัดสุดท้าย' },
   warm_en: { label: 'อบอุ่นเป็นกันเอง (English)', text: 'Speak like a friendly, trustworthy property host walking guests through a beautiful home: warm, relaxed, smiling, medium pace, clear natural Thai pronunciation. Pause about one second between paragraphs. Keep the same voice, pace and energy from start to finish.' },
 };
-const lib = { voiceStyle: VOICE_STYLES.doc_en.text, links: { ...DEFAULT_LINKS }, brand: { greeting: '', tagline: '', subtitle: '', thanks: '', invite: '' }, titleBuiltin: true, closeBuiltin: true, myPoses: {}, title: null, close: null, area: [], contact: { name: '', phone: '', line: '' }, places: DEFAULT_PLACES.map((name, i) => ({ id: i + 1, name, coord: '' })) };
+const lib = { voiceStyle: VOICE_STYLES.doc_en.text, links: { ...DEFAULT_LINKS }, brand: { greeting: '', tagline: '', subtitle: '', thanks: '', invite: '' }, titleBuiltin: true, closeBuiltin: true, myPoses: {}, usage: {}, title: null, close: null, area: [], contact: { name: '', phone: '', line: '' }, places: DEFAULT_PLACES.map((name, i) => ({ id: i + 1, name, coord: '' })) };
 let libSeq = 1000000;
 const saveLib = () => DB.set('library', lib);
 async function loadLib() {
   const l = await DB.get('library'); if (!l) return;
-  lib.contact = { name: '', phone: '', line: '', ...(l.contact || {}) }; lib.brand = { ...lib.brand, ...(l.brand || {}) }; lib.links = { ...DEFAULT_LINKS, ...(l.links || {}) }; if (l.voiceStyle) lib.voiceStyle = l.voiceStyle; lib.titleBuiltin = l.titleBuiltin !== false; lib.closeBuiltin = l.closeBuiltin !== false; lib.title = l.title || null; lib.close = l.close || null; lib.area = l.area || []; lib.myPoses = l.myPoses || {}; if (l.places && l.places.length) lib.places = l.places;
+  lib.contact = { name: '', phone: '', line: '', ...(l.contact || {}) }; lib.brand = { ...lib.brand, ...(l.brand || {}) }; lib.links = { ...DEFAULT_LINKS, ...(l.links || {}) }; if (l.voiceStyle) lib.voiceStyle = l.voiceStyle; lib.titleBuiltin = l.titleBuiltin !== false; lib.closeBuiltin = l.closeBuiltin !== false; lib.title = l.title || null; lib.close = l.close || null; lib.area = l.area || []; lib.myPoses = l.myPoses || {}; lib.usage = l.usage || {}; if (l.places && l.places.length) lib.places = l.places;
   libSeq = Math.max(libSeq, ...lib.area.map(a => a.id || 0), (lib.title && lib.title.id) || 0, (lib.close && lib.close.id) || 0) + 1;
 }
 const libArea = cat => lib.area.filter(x => x.cat === cat);
-const areaLibOrdered = () => [...AREA_CATS.flatMap(c => libArea(c.id)), ...lib.area.filter(x => !AREA_CATS.some(c => c.id === x.cat) && x.cat !== 'lifestyle')];
-const lifeItems = () => libArea('lifestyle');
+// ===== สต็อกภาพทำเล: ใส่ไว้เยอะๆ ในคลังกลาง แอปเลือกใช้ในแต่ละคลิปตามเวลา · ไม่ซ้ำกับคลิปอื่นเท่าที่สต็อกมี =====
+// state.stock = { mode: 'auto' | 'manual' | 'all', ids: [เลขรูปในคลังที่ใช้ในคลิปนี้], counted: [รูปที่นับเป็น "เคยใช้" แล้ว] } · คลิปเก่าก่อนมีระบบนี้ = 'all' (ใช้ทุกรูปเหมือนเดิม)
+let stockBusy = false;
+const stockOn = () => !!(state.stock && state.stock.mode && state.stock.mode !== 'all') && !stockBusy;
+function stockSel(it) { if (!stockOn()) return true; if (state.stock.mode === 'auto' && !state.stock.ids) autoPickStock(); return (state.stock.ids || []).includes(it.id); }
+function autoPickStock(reroll) {
+  let T = {}; stockBusy = true; try { T = segTargets(); } finally { stockBusy = false; }
+  lib.usage = lib.usage || {}; const prev = (state.stock && state.stock.ids) || [];
+  ((state.stock && state.stock.counted) || []).forEach(id => { if (lib.usage[id] > 0) lib.usage[id]--; });
+  const PER = 3.2; // วินาทีต่อรูปโดยประมาณ
+  const pickCats = (cats, sec) => {
+    const pools = cats.map(c => libArea(c).filter(i => i.type === 'image')).filter(p => p.length); if (!pools.length) return [];
+    const avail = pools.reduce((a, p) => a + p.length, 0), total = Math.min(avail, Math.max(pools.length, Math.round((sec || 24) / PER))), quota = pools.map(() => 0);
+    for (let left = total, i = 0; left > 0 && i < 100000; i++) { const k = i % pools.length; if (quota[k] < pools[k].length) { quota[k]++; left--; } }
+    const out = [];
+    pools.forEach((p, k) => { const top = new Set(p.map(it => ({ id: it.id, s: (lib.usage[it.id] || 0) * 10 + (reroll && prev.includes(it.id) ? 100 : 0) + Math.random() })).sort((a, b) => a.s - b.s).slice(0, quota[k]).map(x => x.id)); p.forEach(it => { if (top.has(it.id)) out.push(it.id); }); });
+    return out;
+  };
+  const ids = [...pickCats(AREA_CATS.map(c => c.id), T.area), ...pickCats(['lifestyle'], T.life)];
+  ids.forEach(id => { lib.usage[id] = (lib.usage[id] || 0) + 1; });
+  state.stock = { mode: 'auto', ids, counted: ids.slice() };
+  saveLib(); save();
+}
+const stockCounts = () => { const raw = AREA_CATS.map(c => [c, libArea(c.id).filter(i => i.type === 'image')]), life = libArea('lifestyle').filter(i => i.type === 'image'); return { raw, life, total: raw.reduce((a, r) => a + r[1].length, 0) + life.length }; };
+const areaLibOrdered = () => [...AREA_CATS.flatMap(c => libArea(c.id)).filter(stockSel), ...lib.area.filter(x => !AREA_CATS.some(c => c.id === x.cat) && x.cat !== 'lifestyle')];
+const lifeItems = () => libArea('lifestyle').filter(stockSel);
 const areaItems = () => [...areaLibOrdered(), ...state.items.filter(i => i.room === AREA_ROOM)];
 function activeContact() { const m = state.contact.mode; return m === 'none' ? null : m === 'custom' ? state.contact.custom : lib.contact; }
 const mediaOf = f => ({ blob: f, type: f.type.startsWith('video') ? 'video' : 'image', name: f.name });
