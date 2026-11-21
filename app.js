@@ -205,10 +205,41 @@ function checkScriptFacts() {
   });
   return { issues, seen };
 }
+// ตรวจว่าเนื้อเรื่องที่พากย์เข้ากับภาพของท่อนนั้นไหม (อิงป้ายห้องที่ติดรูปไว้ + คำสำคัญในสคริปต์ · แอปมองเนื้อหาในรูปจริงๆ ไม่ได้)
+const ROOM_KW = { 'ห้องนอน': ['ห้องนอน', 'เตียงนอน'], 'ห้องนอนใหญ่': ['ห้องนอน', 'เตียงนอน'], 'ห้องน้ำ': ['ห้องน้ำ', 'อ่างอาบน้ำ', 'ฝักบัว'], 'ครัว': ['ครัว', 'เคาน์เตอร์ครัว'], 'ห้องนั่งเล่น': ['ห้องนั่งเล่น', 'โซฟา'], 'ห้องทานอาหาร': ['ห้องทานอาหาร', 'โต๊ะอาหาร'], 'สระว่ายน้ำ': ['สระ', 'ว่ายน้ำ'], 'สวน/ระเบียง': ['สวน', 'ระเบียง', 'ลานหญ้า'], 'ที่จอดรถ': ['จอดรถ', 'โรงจอดรถ', 'โรงรถ'], 'หน้าบ้าน/ภายนอก': ['หน้าบ้าน', 'ภายนอก'] };
+const AREA_KW = { beach: ['ทะเล', 'ชายหาด', 'หาดทราย', 'พระอาทิตย์ตก'], market: ['ตลาด', 'ร้านอาหาร', 'อาหารทะเล'], mountain: ['ภูเขา', 'น้ำตก', 'ธรรมชาติ'], city: ['ห้างสรรพสินค้า', 'ตัวเมือง', 'โรงพยาบาล'] };
+const countKw = (t, kws) => kws.reduce((n, k) => n + (t.split(k).length - 1), 0);
+function checkNarrationVsPhotos() {
+  const issues = [], hints = [], have = new Set(state.items.filter(i => i.type === 'image' && i.room).map(i => i.room));
+  scriptSegments().forEach(g => {
+    const t = g.text || '', tag = `ท่อน ${String(g.no).padStart(2, '0')} ${g.label}`; if (!t.trim()) return;
+    if (g.key === 'area') {
+      Object.keys(AREA_KW).forEach(c => { const n = countKw(t, AREA_KW[c]), cat = AREA_CATS.find(x => x.id === c); if (n >= 1 && !libArea(c).length && !state.items.some(i => i.room === AREA_ROOM)) issues.push(`${tag}: พูดถึง "${AREA_KW[c][0]}" ${n} ครั้ง แต่ยังไม่มีรูปหมวด "${cat.label}" ในคลังทำเล → ภาพที่เห็นอาจไม่ตรงกับคำพูด`); });
+      return;
+    }
+    if (!g.room) return;
+    const own = ROOM_KW[g.room] || [g.room], nOwn = countKw(t, own);
+    Object.keys(ROOM_KW).forEach(r => {
+      if (r === g.room || (own.some(k => ROOM_KW[r].includes(k)))) return;
+      const n = countKw(t, ROOM_KW[r]);
+      if (n >= 2 && n > nOwn) issues.push(`${tag}: ภาพในท่อนนี้เป็น "${g.room}" แต่เนื้อเรื่องพูดถึง "${r}" ${n} ครั้ง (พูดถึง${g.room} ${nOwn} ครั้ง) → คำพูดกับภาพอาจไม่ตรงกัน ย้ายประโยคไปท่อน "${r}" หรือแก้เนื้อเรื่อง`);
+    });
+    if (t.replace(/\s/g, '').length > 60 && nOwn === 0) hints.push(`${tag}: เนื้อเรื่องไม่มีคำที่บอกว่ากำลังพูดถึง "${g.room}" เลย ลองอ่านเทียบกับภาพ`);
+  });
+  // พูดถึงห้อง/พื้นที่ที่ไม่มีรูปเลยทั้งคลิป
+  const all = scriptSegments().map(g => g.text || '').join(' ');
+  Object.keys(ROOM_KW).forEach(r => { if (r === 'ห้องนอนใหญ่' || have.has(r) || (r === 'ห้องนอน' && have.has('ห้องนอนใหญ่'))) return; const n = countKw(all, ROOM_KW[r]); if (n >= 2) issues.push(`เนื้อเรื่องพูดถึง "${r}" ${n} ครั้ง แต่ไม่มีรูปที่ติดป้าย "${r}" เลย → ผู้ชมจะไม่เห็นภาพตรงกับคำพูด เพิ่มรูปหรือตัดประโยคออก`); });
+  return { issues, hints };
+}
 function openFactCheck() {
-  const { issues, seen } = checkScriptFacts(), d = document.createElement('div'); d.className = 'sheet tall'; d.id = 'checkSheet';
-  d.innerHTML = `<div class="sh-head"><b>🔍 ตรวจข้อมูลในสคริปต์</b><button class="ib" data-a="x" aria-label="ปิด">✕</button></div>
+  const nv = checkNarrationVsPhotos(), { issues, seen } = checkScriptFacts(), d = document.createElement('div'); d.className = 'sheet tall'; d.id = 'checkSheet';
+  d.innerHTML = `<div class="sh-head"><b>🔍 ตรวจสคริปต์: ตัวเลข + เรื่องกับภาพ</b><button class="ib" data-a="x" aria-label="ปิด">✕</button></div>
     <p class="hint">ตรวจตัวเลข (ห้องนอน ห้องน้ำ พื้นที่ ที่ดิน ราคา ระยะทาง เวลาเดินทาง) เทียบกับ 🏠 ข้อมูลบ้านและพิกัดที่คุณกรอก · พบตัวเลข ${seen.length} จุด</p>
+    <p class="hint"><b>เนื้อเรื่องเข้ากับภาพไหม</b> (เทียบคำในสคริปต์กับป้ายห้องที่ติดรูปไว้)</p>
+    ${nv.issues.length ? `<div class="soon" style="text-align:left;border-color:#b00020">${nv.issues.map(x => '⚠️ ' + x).join('<br><br>')}</div>` : '<div class="soon" style="text-align:left;border-color:#2e7d4f;color:#1e6b3a">✅ ไม่พบจุดที่เนื้อเรื่องขัดกับป้ายห้องของภาพ</div>'}
+    ${nv.hints.length ? `<div class="soon" style="text-align:left">💡 ${nv.hints.join('<br><br>💡 ')}</div>` : ''}
+    <p class="hint"><b>ข้อจำกัด:</b> แอปมองเนื้อหาในรูปจริงไม่ได้ ตรวจได้เฉพาะจาก <b>ป้ายห้องที่คุณติดรูปไว้</b> ถ้าติดป้ายผิด (เช่น รูปครัวติดป้ายห้องนอน) แอปจะไม่รู้ ให้ดูรูปย่อในขั้น 2 อีกรอบ</p>
+    <p class="hint"><b>ตัวเลขในสคริปต์</b></p>
     ${issues.length ? `<div class="soon" style="text-align:left;border-color:#b00020">${issues.map(x => '⚠️ ' + x).join('<br><br>')}</div>` : '<div class="soon" style="text-align:left;border-color:#2e7d4f;color:#1e6b3a">✅ ไม่พบตัวเลขที่ขัดกับข้อมูลบ้านที่กรอกไว้</div>'}
     <p class="hint"><b>สิ่งที่ปุ่มนี้ตรวจไม่ได้ ต้องอ่านตรวจเอง:</b> ชื่อสถานที่ จุดเด่นหรือสิ่งอำนวยความสะดวกที่ไม่มีตัวเลข (เช่น "สระส่วนตัว" "วิวภูเขา") ตัวเลขที่เขียนเป็นคำ (เช่น "สามห้องนอน") และข้อความโฆษณาเกินจริง</p>
     <button class="btn" data-a="x">ปิด</button>`;
@@ -831,6 +862,7 @@ function viewRender() {
     <label class="sw"><input type="checkbox" id="ovl" ${state.overlay ? 'checked' : ''}> ป้ายข้อความระหว่างคลิป เช่น "3 ห้องนอน" "พื้นที่ใช้สอย ..." โผล่เป็นระยะ (ใช้ข้อมูลบ้านที่กรอกไว้)</label>
     <label class="sw">การเปลี่ยนภาพ: <select id="trs"><option value="auto" ${state.trans === 'auto' ? 'selected' : ''}>หลากหลายอัตโนมัติ (สไลด์ ซูม เปิดวงกลม แฟลช)</option><option value="fade" ${state.trans === 'fade' ? 'selected' : ''}>เฟดนุ่มๆ อย่างเดียว</option></select></label>
     <label class="sw"><input type="checkbox" id="stretch" ${state.stretch ? 'checked' : ''}> ยืดเวลาให้ครบความยาวเป้าหมาย (ช่วงที่มีรูปน้อยจะซูม/แพนหลายมุม · ปิด = รูปละ 2 วินาทีตามสไตล์เดิม)</label>
+    ${(() => { try { const n = checkNarrationVsPhotos().issues.length; return n ? `<div class="soon" style="text-align:left;border-color:#b00020;color:#b00020">⚠️ พบ ${n} จุดที่เนื้อเรื่องอาจไม่ตรงกับภาพ <button class="ib" id="chk2">ดูรายละเอียด</button></div>` : '<p class="hint">✅ เนื้อเรื่องไม่ขัดกับป้ายห้องของภาพ <button class="ib" id="chk2">ตรวจอีกครั้ง</button></p>'; } catch (e) { return ''; } })()}
     <p class="hint">ปรับสี: ${isNeutral(state.color) ? 'ปิด' : (state.color.auto ? 'อัตโนมัติ' : 'ตั้งเอง')}</p>
     <p class="hint">ระหว่างเรนเดอร์ ให้เปิดหน้าจอค้างไว้ อย่าสลับแอป</p>
     <button class="btn" id="go" ${imgs.length && !blockers.length ? '' : 'disabled'}>🎬 เริ่มเรนเดอร์</button>
@@ -840,6 +872,7 @@ function viewRender() {
   $('#trs').onchange = e => { state.trans = e.target.value; save(); };
   $('#stretch').onchange = e => { state.stretch = e.target.checked; save(); viewRender(); };
   $('#bk').onclick = () => go(5);
+  if ($('#chk2')) $('#chk2').onclick = openFactCheck;
   if ($('#openSb')) $('#openSb').onclick = openSb;
   $('#go').onclick = async () => {
     $('#go').disabled = true; $('#out').innerHTML = '';
