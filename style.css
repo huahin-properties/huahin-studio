@@ -81,3 +81,11 @@ canvas#pv{width:100%;max-height:60vh;object-fit:contain;background:#000;border-r
 .sbl{display:block;font-size:12px;margin-bottom:6px}.sbl.ok{color:#1e6b3a}.sbl.no{color:#8a5a00}
 .gtitle{margin:16px 0 4px;font-size:16px}.gtitle.todo{color:#8a5a00}.gtitle.done{color:#1e6b3a}
 .gsec.gmiss{border-left:5px solid #e08a00;padding-left:8px}
+
+/* v26: ซ่อนแถบเตือนผังเรื่องด้านบน (แท็บสีบอกสถานะอยู่แล้ว) */
+.sb{display:none!important}
+/* การ์ดกลุ่มรูปแต่ละกลุ่มให้แยกกันชัดเจน */
+.gsec{background:#fffdf8;border:1px solid var(--line);border-left:7px solid #2e7d4f;border-radius:14px;padding:12px 12px 8px;margin:16px 0;box-shadow:0 3px 10px rgba(60,30,20,.12)}
+.gsec.gmiss{border-left:7px solid #e08a00;padding-left:12px;background:#fff8ec}
+.gsec .gh{padding-bottom:6px;border-bottom:1px solid var(--line);margin-bottom:8px}
+.gsec .gh b{font-size:16px}
