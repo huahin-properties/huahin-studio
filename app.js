@@ -28,6 +28,19 @@ async function load() {
 }
 
 const $ = s => document.querySelector(s);
+async function addFiles(files) {
+  for (const f of files) {
+    const type = f.type.startsWith('video') ? 'video' : 'image';
+    state.items.push({ id: nextId++, blob: f, type, room: ROOMS[0], name: f.name });
+  }
+  await save();
+}
+function removeItem(id) {
+  const i = state.items.findIndex(x => x.id === id); if (i < 0) return;
+  if (urlCache.has(id)) { URL.revokeObjectURL(urlCache.get(id)); urlCache.delete(id); }
+  if (typeof smallCache !== 'undefined') { smallCache.get(id)?.close?.(); smallCache.delete(id); statCache.delete(id); }
+  state.items.splice(i, 1);
+}
 const sizeInfo = () => SIZES.find(s => s.id === state.size);
 const urlCache = new Map();
 const urlOf = it => { if (!urlCache.has(it.id)) urlCache.set(it.id, URL.createObjectURL(it.blob)); return urlCache.get(it.id); };
@@ -69,19 +82,13 @@ function viewMedia() {
     ${state.items.length ? '<button class="btn" id="toNext">ถัดไป: ขั้น 3 ปรับสี →</button>' : ''}
     `;
   $('#add').onclick = () => $('#file').click();
-  $('#file').onchange = async e => {
-    for (const f of e.target.files) {
-      const type = f.type.startsWith('video') ? 'video' : 'image';
-      state.items.push({ id: nextId++, blob: f, type, room: ROOMS[0], name: f.name });
-    }
-    await save(); viewMedia();
-  };
+  $('#file').onchange = async e => { await addFiles(e.target.files); viewMedia(); };
   $('.items').onchange = e => { if (e.target.dataset.act === 'room') { const it = state.items.find(x => x.id == e.target.closest('.item').dataset.id); it.room = e.target.value; save(); } };
   $('.items').onclick = async e => {
     const act = e.target.dataset.act, el = e.target.closest('.item');
     if (!el || act === 'room') return;
     const i = state.items.findIndex(x => x.id == el.dataset.id);
-    if (act === 'del') { URL.revokeObjectURL(urlCache.get(state.items[i].id)); urlCache.delete(state.items[i].id); state.items.splice(i, 1); }
+    if (act === 'del') { if (!confirm('ลบรูปนี้ใช่ไหม?')) return; removeItem(state.items[i].id); }
     await save(); viewMedia();
   };
   if ($('#toNext')) $('#toNext').onclick = () => go(2);
@@ -132,6 +139,9 @@ async function viewColor() {
     ${slider('bright', 'ความสว่าง', -30, 30)}${slider('contrast', 'คอนทราสต์', -30, 30)}${slider('warm', 'โทนสี (เย็น ← → อุ่น)', -30, 30)}
     <button class="btn alt" id="reset">รีเซ็ตเป็นค่าเริ่มต้น</button>
     <div class="ba"><div><canvas id="cb"></canvas><small>ก่อน</small></div><div><canvas id="ca"></canvas><small>หลัง</small></div></div>
+    <p class="hint" id="cap"></p>
+    <input type="file" id="file3" accept="image/*,video/*" multiple hidden>
+    <div class="row2"><button class="btn alt" id="del3">🗑️ ลบรูปนี้</button><button class="btn alt" id="add3">+ เพิ่มรูป</button></div>
     <p class="hint">แตะรูปเล็กเพื่อเลือกรูปที่จะดูเทียบ ก่อน/หลัง</p>
     <div class="thumbs" id="th">${imgs.map((_, i) => `<canvas data-i="${i}"></canvas>`).join('')}</div>
     <button class="btn" id="nx">ถัดไป: 4 สคริปต์ →</button>
@@ -139,6 +149,7 @@ async function viewColor() {
   const draw = () => {
     const luts = isNeutral(c) ? null : makeLuts(stats, c);
     const put = (cv, bmp, lut, w) => { const h = Math.round(w * bmp.height / bmp.width); cv.width = w; cv.height = h; cv.getContext('2d').drawImage(gradeToCanvas(bmp, lut, w, h), 0, 0); };
+    $('#cap').textContent = `รูปที่ ${sel + 1} จาก ${imgs.length} · ห้อง: ${imgs[sel].room}`;
     put($('#cb'), smalls[sel], null, 240); put($('#ca'), smalls[sel], luts && luts[sel], 240);
     document.querySelectorAll('#th canvas').forEach(cv => { const i = +cv.dataset.i; put(cv, smalls[i], luts && luts[i], 110); cv.classList.toggle('on', i === sel); });
   };
@@ -148,6 +159,9 @@ async function viewColor() {
   document.querySelectorAll('input[type=range]').forEach(r => r.oninput = () => { c[r.dataset.k] = +r.value; $('#v_' + r.dataset.k).textContent = r.value; save(); redraw(); });
   $('#reset').onclick = () => { Object.assign(c, COLOR_DEFAULT); save(); viewColor(); };
   $('#th').onclick = e => { const cv = e.target.closest('canvas'); if (cv) { sel = +cv.dataset.i; redraw(); } };
+  $('#del3').onclick = async () => { if (!confirm('ลบรูปที่ ' + (sel + 1) + ' ใช่ไหม?')) return; removeItem(imgs[sel].id); await save(); viewColor(); };
+  $('#add3').onclick = () => $('#file3').click();
+  $('#file3').onchange = async e => { await addFiles(e.target.files); viewColor(); };
   $('#nx').onclick = () => go(3); $('#bk').onclick = () => go(1);
 }
 

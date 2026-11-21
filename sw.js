@@ -1,5 +1,5 @@
 // Service worker: ทำให้แอปเปิดได้แม้ไม่มีเน็ต (เปลี่ยนเลขเวอร์ชันทุกครั้งที่แก้ไฟล์)
-const VER = 'studio-v6';
+const VER = 'studio-v7';
 const FILES = ['./', 'index.html', 'style.css', 'app.js', 'renderer.js', 'color.js', 'exporter.js', 'lib/mp4-muxer.js', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(VER).then(c => c.addAll(FILES))); self.skipWaiting(); });
 self.addEventListener('activate', e => {
