@@ -34,7 +34,7 @@ const urlOf = it => { if (!urlCache.has(it.id)) urlCache.set(it.id, URL.createOb
 let previewTimer = null;
 
 function renderSteps() {
-  $('#steps').innerHTML = STEPS.map((s, i) => `<button data-i="${i}" class="${i === state.step ? 'on' : ''}" ${i > 1 ? 'disabled' : ''}>${s}</button>`).join('');
+  $('#steps').innerHTML = STEPS.map((s, i) => `<button data-i="${i}" class="${i === state.step ? 'on' : ''}" ${i > 1 && i < 6 ? 'disabled' : ''}>${s}</button>`).join('');
   $('#steps').onclick = e => { const b = e.target.closest('button'); if (b && !b.disabled) { state.step = +b.dataset.i; render(); } };
 }
 
@@ -87,6 +87,28 @@ function viewMedia() {
   if ($('#pv')) { startPreview(); $('#play').onclick = startPreview; }
 }
 
+function viewRender() {
+  const imgs = state.items.filter(i => i.type === 'image'), s = sizeInfo();
+  const skipped = state.items.length - imgs.length;
+  $('#view').innerHTML = `
+    <h2>เรนเดอร์เป็น MP4</h2>
+    <p class="hint">ขนาด ${s.name} (${s.w}×${s.h}) · ${imgs.length} รูป · ยาวประมาณ ${totalDuration(imgs.length).toFixed(1)} วินาที${skipped ? ` · คลิปสั้น ${skipped} ไฟล์ยังไม่ถูกใช้ (รอบหน้า)` : ''}</p>
+    <p class="hint">ระหว่างเรนเดอร์ ให้เปิดหน้าจอค้างไว้ อย่าสลับแอป</p>
+    <button class="btn" id="go" ${imgs.length ? '' : 'disabled'}>🎬 เริ่มเรนเดอร์</button>
+    <div id="prog" class="hint"></div><div id="out"></div>`;
+  $('#go').onclick = async () => {
+    $('#go').disabled = true; $('#out').innerHTML = '';
+    const t0 = performance.now();
+    try {
+      const blob = await renderMp4(imgs.map(i => i.blob), s.w, s.h, (p, msg) => { $('#prog').textContent = `${msg} ${Math.round(p * 100)}%`; });
+      const url = URL.createObjectURL(blob);
+      $('#prog').textContent = `เสร็จใน ${((performance.now() - t0) / 1000).toFixed(0)} วินาที · ขนาดไฟล์ ${(blob.size / 1048576).toFixed(1)} MB`;
+      $('#out').innerHTML = `<video src="${url}" controls playsinline style="width:100%;max-height:60vh;background:#000;border-radius:12px"></video><a class="btn" download="huahin-clip.mp4" href="${url}" style="text-decoration:none;text-align:center">⬇ บันทึกไฟล์ MP4</a>`;
+    } catch (e) { $('#prog').textContent = '❌ ' + (e.message || e); }
+    $('#go').disabled = false;
+  };
+}
+
 async function startPreview() {
   clearInterval(previewTimer);
   const cv = $('#pv'); if (!cv) return;
@@ -107,7 +129,7 @@ async function startPreview() {
 function render() {
   clearInterval(previewTimer);
   renderSteps();
-  if (state.step === 0) viewSize(); else viewMedia();
+  if (state.step === 0) viewSize(); else if (state.step === 6) viewRender(); else viewMedia();
 }
 
 (async () => {
