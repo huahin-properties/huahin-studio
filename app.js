@@ -495,7 +495,8 @@ function viewScript() {
       <div class="tgt"><input class="ct" id="tgt" type="number" inputmode="numeric" min="60" max="900" value="${state.clipSec}"><span>วินาที (<b id="tgtTxt">${mmss(state.clipSec)}</b>) · เสียงพากย์ที่ต้องมี ~<b id="narrTxt">${narrTarget()}</b> วิ (หักไตเติล/เครดิต/รถวิ่งแล้ว)</span></div>
       <div class="sbar ok" id="totBar" style="height:10px"><i style="width:0%"></i></div><small class="sbl" id="totTxt"></small>
       <div class="tools"><button class="ib wide danger" id="s4Draft">✨ เติมให้ครบเวลา</button><button class="ib wide" id="s4Facts">🏠 ข้อมูลบ้าน</button></div>
-      <div class="tools"><button class="ib wide" id="aiCopy">🤖 คัดลอกคำสั่งให้ AI เขียน</button><button class="ib wide" id="aiPaste">📥 วางสคริปต์จาก AI</button></div>
+      <div class="tools"><button class="ib wide" id="aiCopy">🤖 คัดลอก + เปิด AI Studio (เขียนสคริปต์)</button><button class="ib wide" id="aiPaste">📥 วางสคริปต์จาก AI</button></div>
+      <div class="tools"><button class="ib wide" id="ttsOpen">🔊 คัดลอกสคริปต์ + เปิดหน้าสร้างเสียง</button><button class="ib" id="linkEdit" title="แก้ลิงก์" aria-label="แก้ลิงก์">⚙️</button></div>
       <div class="tools"><button class="ib wide" id="chk">🔍 ตรวจข้อมูลในสคริปต์</button></div></div>
     <div class="tools"><button class="ib wide" id="trAll">🌐 แปลทั้งหมด</button><button class="ib wide" data-all="th">📋 ไทยทั้งหมด</button><button class="ib wide" data-all="en">📋 EN ทั้งหมด</button></div>
     <p class="hint" id="saved">💾 บันทึกอัตโนมัติทุกครั้งที่พิมพ์</p>
@@ -556,7 +557,19 @@ function viewScript() {
   $('#tgt').oninput = e => { const v = Math.max(60, Math.min(900, +e.target.value || 180)); state.clipSec = v; $('#tgtTxt').textContent = mmss(v); $('#narrTxt').textContent = narrTarget(); save(); segT = segTargets(); document.querySelectorAll('[data-t]').forEach(b => { const g = scriptSegments().find(x => x.key === b.dataset.t); if (g) b.textContent = `~${secOf(g.text)} / เป้า ${segT[g.key]} วิ`; }); updTot(); };
   $('#s4Draft').onclick = () => { const n = draftAll(); alert(expandMsg(n)); viewScript(); };
   $('#chk').onclick = openFactCheck;
-  $('#aiCopy').onclick = async e => { flash(e.currentTarget, await copyText(buildAiPrompt())); };
+  // คัดลอกข้อความ แล้วเปิดหน้า Google AI Studio ในแท็บใหม่ (กดปุ่มเดียว)
+  const openLink = url => { const a = document.createElement('a'); a.href = url; a.target = '_blank'; a.rel = 'noopener'; document.body.appendChild(a); a.click(); a.remove(); };
+  $('#aiCopy').onclick = async e => { const btn = e.currentTarget, ok = await copyText(buildAiPrompt()); flash(btn, ok); openLink(lib.links.chat); };
+  $('#ttsOpen').onclick = async e => {
+    const txt = scriptSegments().map(g => g.text.trim()).filter(Boolean).join('\n\n');
+    if (!txt) { alert('ยังไม่มีสคริปต์ให้คัดลอก'); return; }
+    const btn = e.currentTarget, ok = await copyText(txt); flash(btn, ok); openLink(lib.links.tts);
+  };
+  $('#linkEdit').onclick = async () => {
+    const c = prompt('ลิงก์หน้าเขียนสคริปต์ (AI Studio แชต) · เว้นว่าง = ค่ามาตรฐาน', lib.links.chat); if (c === null) return;
+    const t = prompt('ลิงก์หน้าสร้างเสียง (AI Studio) · เปิดหน้านั้นในเบราว์เซอร์แล้วคัดลอกที่อยู่เว็บจากแถบด้านบนมาวาง · เว้นว่าง = ค่ามาตรฐาน', lib.links.tts); if (t === null) return;
+    lib.links.chat = c.trim() || DEFAULT_LINKS.chat; lib.links.tts = t.trim() || DEFAULT_LINKS.tts; await saveLib(); alert('บันทึกลิงก์แล้ว');
+  };
   $('#aiPaste').onclick = () => {
     const d = document.createElement('div'); d.className = 'sheet tall'; d.id = 'pasteSheet';
     d.innerHTML = `<div class="sh-head"><b>📥 วางสคริปต์จาก AI</b><button class="ib" data-a="x" aria-label="ปิด">✕</button></div>
