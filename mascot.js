@@ -129,8 +129,15 @@ function computeMouthEnv(voice, sr, fps = 30) {
 // ----- มาสคอตนำเสนอ: เดินข้ามจอ ยืน นั่งที่ขอบจอ นอน เดินกลับ (ใช้รูปท่าเดิม ขยับด้วยการเคลื่อน/เอียง/กระโดดเบาๆ) -----
 const _e = x => (x < 0 ? 0 : x > 1 ? 1 : x * x * (3 - 2 * x)), _r = (t, a, d) => _e((t - a) / d); // ค่าไล่ 0→1
 // วงจร 6 ท่อน: เดิน 4 ครั้งใน 6 ท่อน (≈67% ของเดิมที่เดินทุกท่อน) ที่เหลือ นั่งยอง/นอน/ยืนเฉยๆ
+// ดุกดิก: หายใจ โยกตัวเบาๆ ตัวเด้งตามจังหวะพูด และมีช่วง "ขยับพิเศษ" สลับกัน (สั่นตัว / กระโดดเล็ก / เอียงหัว) ทุก ~4 วินาที · amp = ความแรง (เดิน/นอนเบาลง)
+function idleAt(t, seed, talk, amp) {
+  const ph = t * 1.9 + seed * 1.3, br = Math.sin(ph) * 0.012 * amp, P = 4.2 + (seed % 3) * 0.7, u = t + seed * 1.7, k = Math.floor(u / P), q = (u % P) / 0.9, kind = (k + seed) % 3;
+  let rot = Math.sin(t * 0.9 + seed * 2) * 0.012 * amp, dy = -talk * 0.006 * amp, sx = 1 - br * 0.5, sy = 1 + br;
+  if (q < 1) { const e = 1 - q; if (kind === 0) rot += Math.sin(q * Math.PI * 8) * 0.05 * e * amp; else if (kind === 1) { dy -= Math.abs(Math.sin(q * Math.PI * 2)) * 0.014 * amp; sy += Math.sin(q * Math.PI * 2) * 0.02 * amp; } else rot += Math.sin(q * Math.PI) * 0.06 * amp; }
+  return { dy, rot, sx, sy };
+}
 const MOVES = ['cross', 'sit', 'lie', 'return', 'lean', 'cross'];
-const PRESENTER = { on: false, spans: [], size: 0.28, side: 'left', move: true, random: true, prep() {
+const PRESENTER = { on: false, spans: [], size: 0.28, side: 'left', move: true, random: true, fidget: true, prep() {
   let cur = 0; // 0 = มุมบ้านเดิม, 1 = ปลายทางเดิน (ห่างจากมุมเดิม 70% ของความกว้างจอ)
   // สุ่มอิริยาบถ: ถ่วงน้ำหนักให้เดิน ~2 ใน 3 ท่อน · ไม่ซ้ำท่าเดิมติดกัน · แต่ละครั้งที่เรนเดอร์ไม่เหมือนกัน (ปิดสุ่ม = วงจรตายตัวเดิม)
   const W8 = [['cross', 0.34], ['return', 0.15], ['sit', 0.18], ['lie', 0.13], ['lean', 0.14], ['stand', 0.06]];
@@ -162,14 +169,16 @@ draw(ctx, W, H, t) {
   const bob = Math.sin(t * 2.6) * H * 0.004 * (1 - lie), flip = walk ? (dir < 0 ? 1 : 0) : (cx > W / 2 ? 1 : 0);
   let yoff = -hop - step * H * 0.022 + bob - lie * w * 0.46, rot = walk ? Math.sin(k * Math.PI * 2.3) * 0.06 : sit ? Math.sin(t * 2) * 0.02 * sit : 0;
   if (lie) { rot = -lie * 1.5; cx = Math.max(cx, h * 0.98 + mg); cx = Math.min(cx, W - mg - w * 0.1); }
-  const mo = mouthAt(t), bottom = H - H * 0.015;
+  const mo = mouthAt(t), bottom = H - H * 0.015, idl = this.fidget === false ? { dy: 0, rot: 0, sx: 1, sy: 1 } : idleAt(t, sp.seed || 0, mo.m, (walk ? 0.4 : 1) * (lie ? 0.5 : 1));
+  yoff += idl.dy * H; rot += idl.rot;
   ctx.save();
   if (cA > 0) ctx.globalAlpha = 1 - cA;
   if (flip && !lie) { ctx.translate(cx, 0); ctx.scale(-1, 1); ctx.translate(-cx, 0); }
   if (sit > 0) { ctx.translate(cx, bottom); ctx.scale(1 + 0.07 * sit, 1 - 0.17 * sit); ctx.translate(-cx, -bottom); } // นั่งยอง: ตัวเตี้ยลง แต่ยังอยู่ในจอครบตัว
+  ctx.translate(cx, bottom); ctx.scale(idl.sx, idl.sy); ctx.translate(-cx, -bottom);
   drawMascotTalking(ctx, sp.pose, cx, bottom, h, { mouth: mo.m, wf: mo.wf, blink: lie > 0.6 ? 1 : blinkAt(t, sp.seed || 0), yoff, rot });
   ctx.restore();
   if (cA > 0) { const im = cI === 'sit' ? csImg : cI === 'lean' ? lnImg : clImg, hh = h * (cI === 'sit' ? 0.8 : cI === 'lean' ? 0.86 : 0.72), ww = im.width * hh / im.height, x = cI !== 'lie' ? (sideL ? ww / 2 : W - ww / 2) : Math.min(W - ww / 2 - mg, Math.max(ww / 2 + mg, X(f)));
-    ctx.save(); ctx.globalAlpha = cA; ctx.drawImage(im, x - ww / 2, bottom - hh, ww, hh); ctx.restore(); }
+    ctx.save(); ctx.globalAlpha = cA; const ia = cI === 'lie' ? 0.6 : 1; ctx.translate(x, bottom); ctx.rotate(idl.rot * (cI === 'lie' ? 0.5 : 1)); ctx.scale(idl.sx, idl.sy); ctx.translate(-x, -bottom + idl.dy * H * ia); ctx.drawImage(im, x - ww / 2, bottom - hh, ww, hh); ctx.restore(); }
   if (lie > 0.85) { ctx.save(); ctx.fillStyle = 'rgba(255,255,255,.9)'; ctx.strokeStyle = 'rgba(90,24,32,.8)'; ctx.lineWidth = H * 0.003; ctx.textAlign = 'left'; ['z', 'Z', 'Z'].forEach((c, i) => { const q = ((t * 0.6 + i * 0.33) % 1), fs = H * (0.022 + i * 0.01); ctx.globalAlpha = Math.sin(Math.PI * q) * lie; ctx.font = `700 ${fs}px sans-serif`; const px = cx - h * 1.0 + q * H * 0.05 + i * H * 0.02, py = H - H * 0.015 - w * 0.9 - q * H * 0.07; ctx.strokeText(c, px, py); ctx.fillText(c, px, py); }); ctx.restore(); }
 } };
