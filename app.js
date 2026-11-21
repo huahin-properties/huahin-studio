@@ -348,6 +348,7 @@ function itemCap(it) {
   return kind === 'o' ? '🗺️ ภาพรวม + ระยะทาง' : '📍 ซูมที่บ้าน';
 }
 const findItemById = id => [...lib.area, ...state.items].find(x => x.id === id);
+const placeSubOf = it => { if (!it.placeId) return ''; const dd = placeDistances().find(x => x.id === it.placeId); return dd ? `ห่างจากบ้าน ${fmtKm(dd.km)} · ขับ ~${dd.min} นาที` : ''; };
 const catLabelOf = it => it.cat ? (AREA_CATS.find(c => c.id === it.cat) || {}).label || '' : (it.room || '');
 const stockThumbOf = it => !!it.cat && typeof stockOn === 'function' && stockOn();
 const thumbHtml = (it, del) => `<div class="th${stockThumbOf(it) && !stockSel(it) ? ' off' : ''}" data-id="${it.id}"${it.cat ? ' data-lib="1"' : ''}>${stockThumbOf(it) ? (stockSel(it) ? '<span class="tick">✓</span>' : '') : ''}${(it.title || '').trim() ? `<span class="ttl">${String(it.title).replace(/</g, '&lt;')}</span>` : ''}${it.type === 'video' ? `<video src="${urlOf(it)}#t=0.1" muted playsinline></video>` : `<img src="${urlOf(it)}" alt="">`}${itemCap(it) ? `<span class="cap">${itemCap(it)}</span>` : ''}${del ? `<button class="x" data-del="${it.id}" aria-label="ลบ">✕</button>` : ''}</div>`;
@@ -379,13 +380,14 @@ function openSlot(id) {
       ${state.routeData ? '<canvas id="routePrev" class="rprev"></canvas><button class="btn alt" data-a="rmroute">🗑️ ลบคลิปเส้นทาง</button>' : ''}
       <label class="sw"><input type="checkbox" id="skipMap" ${state.skipMap ? 'checked' : ''}> คลิปนี้ไม่ใช้แผนที่ (ข้าม)</label>` : ''}
     ${sl.id === 'title' || sl.id === 'close' ? sceneModeHtml(sl) : ''}
-    ${sl.cat ? stockPanelHtml() : ''}
+    ${sl.cat ? `<button class="btn alt" data-a="places">📍 จัดการสถานที่ (ชื่อ + พิกัด + รูป)</button>${stockPanelHtml()}` : ''}
     ${sl.kind === 'contact' ? contactCardHtml() : ((sl.id === 'title' || sl.id === 'close') && lib[sl.id + 'Builtin']) ? '' : `<button class="btn" data-a="add">${sl.max1 && items.length ? '↻ เปลี่ยนไฟล์' : '+ เพิ่มรูป / คลิป'}</button>
       ${items.length ? `${sl.kind !== 'contact' && !sl.max1 ? '<p class="hint">✏️ พิมพ์ชื่อใต้รูปได้ (ชื่อจะขึ้นเป็นป้ายบนภาพในคลิป และ AI ใช้ตอนเขียนสคริปต์/โพสต์)</p>' : ''}<div class="sgrid" id="pgrid">${items.map(it => sl.max1 ? thumbHtml(it, true) : `<div class="thn">${thumbHtml(it, true)}<input class="ct nm" data-nm="${it.id}" maxlength="60" placeholder="${(sl.ph || 'ตั้งชื่อรูป').replace(/"/g, '')}" value="${esc(it.title || '')}"></div>`).join('')}</div>` : ''}`}
     ${sc !== null ? `<label class="sl"><span>📝 สคริปต์ของช่วงนี้${sl.cat && sl.cat !== 'lifestyle' ? ' (ใช้ร่วมกันทั้ง 4 แท็บทำเล)' : ''}</span></label><textarea class="sct" id="slotScript" rows="3" placeholder="พิมพ์เรื่องเล่าของช่วงนี้ (ไม่ใส่ก็ได้ เขียนทีหลังได้ที่ขั้น 4)">${sc.replace(/</g, '&lt;')}</textarea>` : ''}
     <button class="btn" data-a="x">เสร็จ</button>`;
   d.onclick = async e => {
     if (sl.cat && stockEvent(e)) { updateSb(); openSlot(id); return; }
+    if (e.target.closest('[data-a=places]')) { openPlaces(() => { updateSb(); openSlot(id); }); return; }
     if (e.target.closest('[data-a=x]')) { d.remove(); refreshAll(); return; }
     if (e.target.closest('[data-a=rmroute]')) { if (confirm('ลบคลิปเส้นทางรถวิ่ง?')) { state.routeData = null; await save(); updateSb(); openSlot(id); } return; }
     if (e.target.closest('[data-a=genroute]')) { const st = d.querySelector('#routeStat'), btn = e.target.closest('[data-a=genroute]'); btn.disabled = true; try { const rd = await buildRouteData(st); if (rd) { state.routeData = rd; state.skipMap = false; await save(); updateSb(); openSlot(id); } } catch (err) { st.textContent = '❌ สร้างไม่สำเร็จ (ต่อเน็ตอยู่ไหม?) ' + (err.message || err); } btn.disabled = false; return; }
@@ -393,7 +395,7 @@ function openSlot(id) {
     if (e.target.closest('[data-a=add]')) { const fs = await pickFiles('image/*,video/*', !sl.max1); if (fs.length) { await addToSlot(sl, fs); updateSb(); openSlot(id); } return; }
     const b = e.target.closest('[data-del]'); if (b && confirm('ลบไฟล์นี้ใช่ไหม?')) { await removeFromSlot(sl, +b.dataset.del); updateSb(); openSlot(id); }
   };
-  d.addEventListener('input', e => { if (e.target.dataset && e.target.dataset.nm) { const it = findItemById(+e.target.dataset.nm); if (it) { it.title = e.target.value; if (it.cat) saveLib(); else save(); } return; } if (e.target.id === 'slotScript') setSlotScript(sl, e.target.value); if (e.target.dataset.b) { lib.brand[e.target.dataset.b] = e.target.value; saveLib(); } });
+  d.addEventListener('input', e => { if (e.target.dataset && e.target.dataset.nm) { const it = findItemById(+e.target.dataset.nm); if (it) { it.title = e.target.value; if (it.placeId) { const pl = lib.places.find(p => p.id === it.placeId); if (pl) { pl.name = e.target.value; placePhotos(pl).forEach(x => { x.title = e.target.value; }); } } if (it.cat) saveLib(); else save(); } return; } if (e.target.id === 'slotScript') setSlotScript(sl, e.target.value); if (e.target.dataset.b) { lib.brand[e.target.dataset.b] = e.target.value; saveLib(); } });
   d.addEventListener('change', async e => { if (sl.cat && stockEvent(e)) { updateSb(); openSlot(id); return; } if (e.target.name === 'tmode') { lib[id + 'Builtin'] = e.target.value === 'builtin'; await saveLib(); updateSb(); openSlot(id); return; } if (e.target.id === 'skipMap') { state.skipMap = e.target.checked; save(); updateSb(); } });
   if (sl.kind === 'contact') bindContact(d, () => openSlot(id));
   document.body.appendChild(d);
@@ -422,7 +424,7 @@ function viewSlots() {
     const stk = SLOTS.filter(x => x.kind === 'lib' && x.cat), stkChip = x => { const n = slotCount(x), st = slotStatus(x); return `<button class="chip ${st === 'info' ? 'stk-empty' : 'st-' + st}" data-s="${x.id}">${x.ico} ${x.short} <i>${n ? (st === 'ok' ? '✓ ' + n : mark[st] + ' ' + n) : (st === 'miss' ? '●' : '＋')}</i></button>`; };
     const rank = { miss: 0, warn: 1, info: 2, ok: 3 }, others = SLOTS.filter(x => !stk.includes(x)), have = others.filter(x => slotStatus(x) === 'ok'), rest = others.filter(x => slotStatus(x) !== 'ok').sort((p, q) => rank[slotStatus(p)] - rank[slotStatus(q)]);
     el.className = 'chips2';
-    el.innerHTML = `<div class="chgt">🗂️ สต็อกภาพทำเล / สถานที่สำคัญ (ใช้ร่วมทุกคลิป · เพิ่มรูปได้เรื่อยๆ · ตั้งชื่อรูปได้)</div><div class="chrow">${stk.map(stkChip).join('')}</div>
+    el.innerHTML = `<div class="chgt">🗂️ สต็อกภาพทำเล / สถานที่สำคัญ (ใช้ร่วมทุกคลิป · เพิ่มรูปได้เรื่อยๆ · ตั้งชื่อรูปได้)</div><div class="chrow">${stk.map(stkChip).join('')}<button class="chip stk-empty" data-places="1">📍 สถานที่ + พิกัด + รูป (${lib.places.length})</button></div>
       ${have.length ? `<div class="chgt">✅ มีข้อมูลแล้ว (${have.length}) · แตะเพื่อเพิ่ม/แก้ไข</div><div class="chrow">${have.map(chip).join('')}</div>` : ''}${rest.length ? `<div class="chgt">📭 ยังไม่มีข้อมูล (${rest.length}) · แตะเพื่อใส่</div><div class="chrow">${rest.map(chip).join('')}</div>` : ''}`;
   };
   const renderGallery = () => {
@@ -474,7 +476,7 @@ function viewSlots() {
   };
   refreshAll = () => { renderChips(); renderGallery(); renderDone(); };
   refreshChips = () => { if ($('#chips')) { renderChips(); renderDone(); } };
-  $('#chips').onclick = e => { const b = e.target.closest('.chip'); if (b) openSlot(b.dataset.s); };
+  $('#chips').onclick = e => { const b = e.target.closest('.chip'); if (!b) return; if (b.dataset.places) { openPlaces(() => { updateSb(); refreshAll(); }); return; } openSlot(b.dataset.s); };
   $('#gallery').onchange = async e => {
     if (stockEvent(e)) { updateSb(); refreshAll(); return; }
     const m = e.target.closest('[data-mv]'); if (!m || !m.value) return;
@@ -1363,7 +1365,7 @@ function makePlan() {
   const entries = [];
   if (hero) entries.push({ key: 'hook', dur: hookDur(), cap: (hero.title || '').trim() || null, sub: catLabelOf(state.items.find(i => i.id === hero.srcId) || {}) });
   if (lib.titleBuiltin) entries.push({ key: 'open', dur: titleDur(), title: true });
-  imgs.forEach((im, i) => { if (isHeroId(im.id)) return; if (routeOk && i === routeAt) entries.push({ key: null, dur: ROUTE_DUR }); entries.push({ key: idKey.get(im.id) || null, bkey: idBeat.get(im.id) || null, dur: durs[i].dur, cap: (im.title || '').trim() || null, sub: catLabelOf(im) }); });
+  imgs.forEach((im, i) => { if (isHeroId(im.id)) return; if (routeOk && i === routeAt) entries.push({ key: null, dur: ROUTE_DUR }); entries.push({ key: idKey.get(im.id) || null, bkey: idBeat.get(im.id) || null, dur: durs[i].dur, cap: (im.title || '').trim() || null, sub: placeSubOf(im) || catLabelOf(im) }); });
   if (routeOk && routeAt >= imgs.length) entries.push({ key: null, dur: ROUTE_DUR });
   if (lib.closeBuiltin) entries.push({ key: 'close', dur: closeDur(), close: true });
   const starts = {}, sceneAt = {}; let acc = 0;

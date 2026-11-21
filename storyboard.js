@@ -204,7 +204,7 @@ function placeDistances() {
   const home = parseCoord(state.facts.coord); if (!home) return [];
   return lib.places.map(p => ({ p, c: parseCoord(p.coord) })).filter(x => x.c).map(({ p, c }) => {
     const km = haversineKm(home, c), road = km * 1.3;
-    return { name: p.name, km, min: Math.max(2, Math.round(road / 40 * 60)) };
+    return { id: p.id, name: p.name, km, min: Math.max(2, Math.round(road / 40 * 60)) };
   }).sort((a, b) => a.km - b.km);
 }
 const fmtKm = km => (km < 1 ? `${Math.max(100, Math.round(km * 10) * 100)} เมตร` : `${km < 10 ? km.toFixed(1) : Math.round(km)} กิโลเมตร`);
@@ -213,23 +213,45 @@ function mapScriptText(max = 4) {
   return 'บ้านหลังนี้ ' + near.map(x => `ห่างจาก${x.name}ประมาณ ${fmtKm(x.km)} ขับรถราว ${x.min} นาที`).join(' ');
 }
 
-// หน้าต่างตั้งสถานที่สำคัญ (วางพิกัดครั้งเดียว ใช้ซ้ำทุกบ้าน)
+// ===== สถานที่สำคัญ: ชื่อ + หมวด + พิกัด + รูป อยู่ที่เดียว (ใส่ครั้งเดียว ใช้ซ้ำทุกคลิป) =====
+// รูปของสถานที่เก็บในสต็อกภาพทำเล (lib.area) โดยมี placeId/cat/title ผูกกับสถานที่ จึงเข้าระบบเลือกรูปอัตโนมัติ ป้ายชื่อบนภาพ และระยะทางจากบ้านเอง
+const PLACE_GUESS = [[/โรงพยาบาล|รพ\./, 'hospital'], [/ห้าง|เซ็นทรัล|บลูพอร์ต|มาร์เก็ต|market|แมคโคร|โลตัส|บิ๊กซี|ซีคาด้า/i, 'mall'], [/สวนน้ำ|black mountain|แบล็ค/i, 'water'], [/กอล์ฟ|golf/i, 'golf'], [/หาด|ทะเล|beach/i, 'beach'], [/ตลาด/, 'market'], [/เขา|ภูเขา|น้ำตก|อุทยาน/, 'mountain']];
+const placeCat = p => p.cat || (PLACE_GUESS.find(([re]) => re.test(p.name)) || [0, 'landmark'])[1];
+const placePhotos = p => lib.area.filter(x => x.placeId === p.id);
+function syncPlace(p) { placePhotos(p).forEach(x => { x.title = p.name; x.cat = placeCat(p); }); }
 function openPlaces(after) {
   document.querySelector('#placesSheet')?.remove();
   const d = document.createElement('div'); d.className = 'sheet tall'; d.id = 'placesSheet';
-  const rows = () => lib.places.map(p => `<div class="prow" data-id="${p.id}"><b>${p.name}</b><input class="ct" data-c="${p.id}" inputmode="decimal" placeholder="วางพิกัด เช่น 12.5698,99.9577" value="${esc(p.coord)}"><span class="pst">${p.coord ? (parseCoord(p.coord) ? '✅' : '⚠️ อ่านพิกัดไม่ออก') : ''}</span><button class="ib sm" data-rm="${p.id}" aria-label="ลบ">✕</button></div>`).join('');
+  const home = parseCoord(state.facts && state.facts.coord);
+  const coordSt = p => { if (!String(p.coord || '').trim()) return ''; const c = parseCoord(p.coord); if (!c) return '⚠️ อ่านพิกัดไม่ออก (ต้องเป็นตัวเลข เช่น 12.5698,99.9577)'; if (!home) return '✅ พิกัดถูกต้อง · ใส่พิกัดบ้านใน 🏠 ข้อมูลบ้านเพื่อดูระยะทาง'; const km = haversineKm(home, c); return `✅ ห่างจากบ้านนี้ ${fmtKm(km)} · ขับประมาณ ${Math.max(2, Math.round(km * 1.3 / 40 * 60))} นาที`; };
+  const card = p => { const ph = placePhotos(p), cat = placeCat(p);
+    return `<div class="seg pcardx" data-id="${p.id}"><div class="tools"><input class="ct" data-pn="${p.id}" maxlength="60" placeholder="ชื่อสถานที่" value="${esc(p.name)}" style="flex:1"><button class="ib sm danger" data-rm="${p.id}" aria-label="ลบสถานที่">🗑️</button></div>
+      <label class="fl"><span>หมวด (รูปจะไปอยู่ในแท็บหมวดนี้)</span><select class="ct" data-pc="${p.id}">${AREA_CATS.map(c => `<option value="${c.id}" ${c.id === cat ? 'selected' : ''}>${c.label}</option>`).join('')}</select></label>
+      <label class="fl"><span>พิกัด (วางเลขจาก Google Maps)</span><input class="ct" data-c="${p.id}" inputmode="decimal" placeholder="เช่น 12.5698,99.9577" value="${esc(p.coord || '')}"></label>
+      <small class="hint" data-st="${p.id}">${coordSt(p)}</small>
+      <div class="pph">${ph.map(x => `<div class="pphi"><img src="${urlOf(x)}" alt=""><button class="x" data-pdel="${x.id}" aria-label="ลบรูป">✕</button></div>`).join('')}<button class="ib wide" data-ph="${p.id}">📷 ${ph.length ? 'เพิ่มรูป' : 'ใส่รูปสถานที่นี้'}</button></div></div>`; };
+  const draw = () => { const sc = d.scrollTop; d.querySelector('#prows').innerHTML = lib.places.length ? lib.places.map(card).join('') : '<div class="soon">ยังไม่มีสถานที่ กด "+ เพิ่มสถานที่ใหม่"</div>'; d.scrollTop = sc; };
   d.innerHTML = `<div class="sh-head"><b>📍 สถานที่สำคัญ</b><button class="ib" data-a="x" aria-label="ปิด">✕</button></div>
-    <p class="hint">วางพิกัดของแต่ละที่ <b>ครั้งเดียว</b> ใช้ซ้ำทุกบ้าน · วิธีคัดลอก: เปิด Google Maps กดค้างที่จุดนั้น แล้วแตะตัวเลขพิกัดด้านบนเพื่อคัดลอก · ที่ไม่ใส่พิกัดจะไม่ถูกนำมาคำนวณ</p>
-    <div id="prows">${rows()}</div>
-    <button class="btn alt" data-a="add">+ เพิ่มสถานที่</button><button class="btn" data-a="x">เสร็จ</button>`;
-  d.addEventListener('input', e => { const id = +e.target.dataset.c; if (!id) return; const p = lib.places.find(x => x.id === id); p.coord = e.target.value; saveLib(); e.target.closest('.prow').querySelector('.pst').textContent = p.coord ? (parseCoord(p.coord) ? '✅' : '⚠️ อ่านพิกัดไม่ออก') : ''; });
+    <p class="hint">ใส่ <b>ชื่อ + พิกัด + รูป</b> ของแต่ละสถานที่ไว้ที่นี่ที่เดียว ใช้ซ้ำทุกคลิป · พิกัด: เปิด Google Maps กดค้างที่จุดนั้นแล้วแตะตัวเลขพิกัดด้านบนเพื่อคัดลอก · ที่ไม่ใส่พิกัดจะไม่ถูกใช้คำนวณระยะทาง · รูปที่ใส่ที่นี่จะเข้าสต็อกภาพทำเลตามหมวด และขึ้นป้ายชื่อ+ระยะทางบนภาพในคลิป</p>
+    <button class="btn alt" data-a="add">+ เพิ่มสถานที่ใหม่</button>
+    <div id="prows"></div>
+    <button class="btn alt" data-a="add">+ เพิ่มสถานที่ใหม่</button><button class="btn" data-a="x">เสร็จ</button>`;
+  d.addEventListener('input', e => {
+    const t = e.target, id = +(t.dataset.pn || t.dataset.c); if (!id) return; const p = lib.places.find(x => x.id === id); if (!p) return;
+    if (t.dataset.pn) { p.name = t.value; syncPlace(p); } else { p.coord = t.value; d.querySelector(`[data-st="${id}"]`).textContent = coordSt(p); }
+    saveLib();
+  });
+  d.addEventListener('change', e => { const id = +e.target.dataset.pc; if (!id) return; const p = lib.places.find(x => x.id === id); if (p) { p.cat = e.target.value; syncPlace(p); saveLib(); } });
   d.onclick = async e => {
-    const rm = e.target.closest('[data-rm]'); if (rm) { lib.places = lib.places.filter(x => x.id !== +rm.dataset.rm); await saveLib(); d.querySelector('#prows').innerHTML = rows(); return; }
+    const rm = e.target.closest('[data-rm]');
+    if (rm) { const p = lib.places.find(x => x.id === +rm.dataset.rm), n = placePhotos(p).length; if (!confirm(`ลบสถานที่ "${p.name}"${n ? ` และรูป ${n} รูปของสถานที่นี้` : ''} ?`)) return; lib.area = lib.area.filter(x => x.placeId !== p.id); lib.places = lib.places.filter(x => x.id !== p.id); await saveLib(); draw(); return; }
+    const pd = e.target.closest('[data-pdel]'); if (pd) { if (confirm('ลบรูปนี้?')) { lib.area = lib.area.filter(x => x.id !== +pd.dataset.pdel); await saveLib(); draw(); } return; }
+    const ph = e.target.closest('[data-ph]'); if (ph) { const p = lib.places.find(x => x.id === +ph.dataset.ph), fs = (await pickFiles('image/*', true)).filter(f => f.type.startsWith('image')); if (fs.length) { p.cat = placeCat(p); fs.forEach(f => lib.area.push({ id: libSeq++, cat: p.cat, placeId: p.id, title: p.name, ...mediaOf(f) })); await saveLib(); draw(); } return; }
     const a = e.target.closest('[data-a]')?.dataset.a; if (!a) return;
-    if (a === 'add') { const name = prompt('ชื่อสถานที่ เช่น โรงพยาบาลหัวหิน'); if (name && name.trim()) { lib.places.push({ id: Date.now(), name: name.trim(), coord: '' }); await saveLib(); d.querySelector('#prows').innerHTML = rows(); } return; }
+    if (a === 'add') { const name = prompt('ชื่อสถานที่ เช่น โรงพยาบาลหัวหินบำรุงราษฎร์'); if (name && name.trim()) { const p = { id: Date.now(), name: name.trim(), coord: '' }; p.cat = placeCat(p); lib.places.unshift(p); await saveLib(); draw(); d.scrollTop = 0; } return; }
     d.remove(); if (after) after();
   };
-  document.body.appendChild(d);
+  document.body.appendChild(d); draw();
 }
 
 // ---- สร้างรูปแผนที่จากพิกัดบ้าน (แผนที่ OpenStreetMap โหลดตอนสร้าง ต้องต่อเน็ต · ไม่ใช้รหัส API) ----
