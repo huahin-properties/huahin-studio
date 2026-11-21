@@ -638,7 +638,7 @@ function viewScript() {
   $('#s4Draft').onclick = () => { const n = draftAll(); alert(expandMsg(n)); viewScript(); };
   $('#chk').onclick = openFactCheck;
   // คัดลอกข้อความ แล้วเปิดหน้า Google AI Studio ในแท็บใหม่ (กดปุ่มเดียว)
-  const openLink = url => { const a = document.createElement('a'); a.href = url; a.target = '_blank'; a.rel = 'noopener'; document.body.appendChild(a); a.click(); a.remove(); };
+  const openLink = openExternal;
   $('#aiCopy').onclick = async e => { const btn = e.currentTarget, ok = await copyText(buildAiPrompt()); flash(btn, ok); openLink(lib.links.chat); };
   // แบ่งสคริปต์เป็นช่วง (ไม่เกิน ~700 ตัวอักษรต่อช่วง) แสดงต้นข้อความ ให้คัดลอกทีละช่วงและตรวจก่อนวาง
   $('#ttsOpen').onclick = () => {
@@ -952,6 +952,18 @@ async function startPreview() {
     drawFrame(ctx, cv.width, cv.height, imgs, t);
   };
   previewTimer = setInterval(tick, 1000 / 30);
+}
+
+// เปิดลิงก์ภายนอกในแอป Chrome จริง (หน้าต่างแยก) แอปนี้ค้างอยู่ด้านหลัง สลับกลับมาได้ · บน Android ที่ติดตั้งแอปไว้ ลิงก์ปกติจะเปิดเป็นหน้าต่างเล็กในแอปแล้วหายเมื่อกลับมา
+function externalUrl(url) {
+  const standalone = window.matchMedia && matchMedia('(display-mode: standalone)').matches || navigator.standalone;
+  if (/Android/i.test(navigator.userAgent) && standalone) { const u = new URL(url); return `intent://${u.host}${u.pathname}${u.search}#Intent;scheme=${u.protocol.replace(':', '')};package=com.android.chrome;S.browser_fallback_url=${encodeURIComponent(url)};end`; }
+  return null;
+}
+function openExternal(url) {
+  const x = externalUrl(url);
+  if (x) { window.location.href = x; return; }
+  const a = document.createElement('a'); a.href = url; a.target = '_blank'; a.rel = 'noopener noreferrer'; document.body.appendChild(a); a.click(); a.remove();
 }
 
 // ---- การ์ดสไตล์เสียง (ตั้งครั้งเดียว ใช้ทุกคลิป): คัดลอกไปวางในช่อง Style ของ AI Studio ----
