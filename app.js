@@ -9,7 +9,7 @@ const SIZES = [
 const ROOMS = [AREA_ROOM, MAP_ROOM, 'หน้าบ้าน/ภายนอก','ที่จอดรถ','ห้องนั่งเล่น','ห้องทานอาหาร','ครัว','ห้องนอนใหญ่','ห้องนอน','ห้องน้ำ','สระว่ายน้ำ','สวน/ระเบียง','วิวรอบๆ','อื่นๆ'];
 const STEPS = ['1 ขนาด','2 ใส่รูป/คลิป','3 สี','4 สคริปต์','5 เสียง','6 มาสคอต','7 เรนเดอร์'];
 
-const state = { slot: 'title', step: 0, size: '4:5', items: [], color: { ...COLOR_DEFAULT }, useArea: true, contact: { mode: 'std', custom: { name: '', phone: '', line: '' } }, script: { area: '', rooms: {} } };
+const state = { facts: { name: '', beds: '', baths: '', usable: '', land: '', price: '', travel: '', highlights: '' }, slot: 'title', step: 0, size: '4:5', items: [], color: { ...COLOR_DEFAULT }, useArea: true, contact: { mode: 'std', custom: { name: '', phone: '', line: '' } }, script: { area: '', rooms: {} } };
 let nextId = 1;
 
 // ---- เก็บงานไว้ในเครื่อง (IndexedDB) ปิดแอปแล้วงานไม่หาย ----
@@ -22,10 +22,10 @@ const DB = {
   async get(k) { const db = await this.open(); return new Promise(res => { const q = db.transaction('kv').objectStore('kv').get(k); q.onsuccess = () => res(q.result); }); },
   async set(k, v) { const db = await this.open(); return new Promise(res => { const tx = db.transaction('kv', 'readwrite'); tx.objectStore('kv').put(v, k); tx.oncomplete = res; }); },
 };
-const save = () => (typeof updateSb === 'function' && updateSb(), DB.set('project', { v: 2, useArea: state.useArea, contact: state.contact, size: state.size, color: state.color, script: state.script, items: state.items.map(({ id, blob, type, room, name }) => ({ id, blob, type, room, name })) }));
+const save = () => (typeof updateSb === 'function' && updateSb(), DB.set('project', { v: 2, facts: state.facts, useArea: state.useArea, contact: state.contact, size: state.size, color: state.color, script: state.script, items: state.items.map(({ id, blob, type, room, name }) => ({ id, blob, type, room, name })) }));
 async function load() {
   await loadLib(); const p = await DB.get('project');
-  if (p) { if (!p.v) p.items.forEach(i => { if (i.room === 'หน้าบ้าน/ภายนอก') i.room = ''; }); state.size = p.size; state.color = { ...COLOR_DEFAULT, ...(p.color || {}) }; state.script = { area: '', rooms: {}, ...(p.script || {}) }; state.useArea = true; state.contact = { mode: 'std', ...(p.contact || {}), custom: { name: '', phone: '', line: '', ...((p.contact || {}).custom || {}) } }; state.items = p.items; nextId = Math.max(0, ...p.items.map(i => i.id)) + 1; }
+  if (p) { if (!p.v) p.items.forEach(i => { if (i.room === 'หน้าบ้าน/ภายนอก') i.room = ''; }); state.size = p.size; state.color = { ...COLOR_DEFAULT, ...(p.color || {}) }; state.script = { area: '', rooms: {}, ...(p.script || {}) }; state.facts = { ...state.facts, ...(p.facts || {}) }; state.useArea = true; state.contact = { mode: 'std', ...(p.contact || {}), custom: { name: '', phone: '', line: '', ...((p.contact || {}).custom || {}) } }; state.items = p.items; nextId = Math.max(0, ...p.items.map(i => i.id)) + 1; }
 }
 
 const $ = s => document.querySelector(s);
@@ -109,6 +109,57 @@ function viewSize() {
   $('#next').onclick = () => go(1);
 }
 
+// ---- ร่างสคริปต์อัตโนมัติ: ใช้ข้อความประจำห้อง + ข้อมูลบ้านที่กรอก (เติมเฉพาะท่อนที่ยังว่าง ไม่ทับของเดิม) ----
+function draftFor(sl) {
+  const f = state.facts, n = v => String(v || '').trim();
+  const intro = n(f.name) ? `บ้านหลังนี้อยู่ใน${n(f.name)}` : 'บ้านหลังนี้';
+  const bits = [n(f.beds) && `${n(f.beds)} ห้องนอน`, n(f.baths) && `${n(f.baths)} ห้องน้ำ`, n(f.usable) && `พื้นที่ใช้สอย ${n(f.usable)}`, n(f.land) && `บนที่ดิน ${n(f.land)}`].filter(Boolean);
+  const T = {
+    cat: 'หัวหินเมืองริมทะเลที่มีครบทุกอย่าง ทั้งชายหาดสวย ตลาดและร้านอาหารหลากหลาย ธรรมชาติภูเขาให้พักผ่อน เหมาะทั้งอยู่อาศัยจริงและลงทุน',
+    map: n(f.travel) ? `เดินทางสะดวก ${n(f.travel)}` : 'เดินทางเข้าถึงสะดวก ใกล้ทุกความสะดวกสบายในเมืองหัวหิน',
+    ext: `${intro} หน้าบ้านกว้างขวาง ดูโปร่งสบาย${bits.length ? ' ' + bits.join(' ') : ''}${n(f.highlights) ? ' จุดเด่นคือ ' + n(f.highlights) : ''}${n(f.price) ? ' ราคา ' + n(f.price) : ''}`,
+    park: 'มีที่จอดรถสะดวก จอดได้สบาย',
+    liv: 'ห้องนั่งเล่นโปร่งโล่ง รับแสงธรรมชาติ ตกแต่งอบอุ่น เหมาะกับการนั่งเล่นพักผ่อนกับครอบครัว',
+    dine: 'ห้องทานอาหารกว้างขวาง ทานข้าวด้วยกันได้ทั้งครอบครัว',
+    kit: 'ห้องครัวทันสมัย พื้นที่ใช้งานกว้าง เคาน์เตอร์และเครื่องใช้ครบครัน ทำอาหารได้สะดวก',
+    bed: `ห้องนอนสบาย เงียบสงบ ${n(f.beds) ? 'มีให้ ' + n(f.beds) + ' ห้องนอน ' : ''}พักผ่อนได้เต็มที่`,
+    bath: `ห้องน้ำสะอาดทันสมัย ${n(f.baths) ? 'มีทั้งหมด ' + n(f.baths) + ' ห้อง ' : ''}พร้อมใช้งาน`,
+    pool: 'สระว่ายน้ำส่วนตัว ผ่อนคลายได้ทุกวัน ไม่ต้องไปไหนไกล',
+    garden: 'พื้นที่สวนและระเบียงสำหรับนั่งพักผ่อน รับลมสบายๆ',
+    life: 'ใช้ชีวิตแบบที่คุณชอบ อยู่กับครอบครัว ออกกำลังกายตอนเช้า ไปตลาดใกล้บ้าน ทุกวันสะดวกสบาย',
+  };
+  if (sl.cat === 'lifestyle') return T.life;
+  if (sl.cat) return T.cat;
+  return T[sl.id] || '';
+}
+function draftAll() {
+  let n = 0, seen = new Set();
+  SLOTS.forEach(sl => {
+    const cur = getSlotScript(sl); if (cur === null || secOf(cur) > 0) return;
+    if (!slotItems(sl).length) return;
+    const key = JSON.stringify(slotScript(sl)); if (seen.has(key)) return; seen.add(key);
+    const t = draftFor(sl); if (t) { setSlotScript(sl, t); n++; }
+  });
+  return n;
+}
+function openFacts(after) {
+  document.querySelector('#factsSheet')?.remove();
+  const f = state.facts, d = document.createElement('div'); d.className = 'sheet tall'; d.id = 'factsSheet';
+  const F = [['name', 'ชื่อโครงการ / ชื่อบ้าน', ''], ['beds', 'จำนวนห้องนอน', 'tel'], ['baths', 'จำนวนห้องน้ำ', 'tel'], ['usable', 'พื้นที่ใช้สอย (เช่น 150 ตร.ม.)', ''], ['land', 'ที่ดิน (เช่น 80 ตร.ว.)', ''], ['price', 'ราคา (เช่น 4.9 ล้านบาท)', ''], ['travel', 'การเดินทาง (เช่น ห่างหาดหัวหิน 15 นาที)', ''], ['highlights', 'จุดเด่น 2–3 ข้อ (เช่น สระส่วนตัว ใกล้ตลาด)', '']];
+  d.innerHTML = `<div class="sh-head"><b>🏠 ข้อมูลบ้าน</b><button class="ib" data-a="x" aria-label="ปิด">✕</button></div>
+    <p class="hint">กรอกเท่าที่มี ไม่กรอกช่องไหนก็ได้ แอปจะใช้ร่างสคริปต์ให้ (ข้อมูลนี้อยู่ในเครื่องคุณเท่านั้น)</p>
+    ${F.map(([k, ph, t]) => `<input class="ct" data-k="${k}" ${t ? `type="${t}" ` : ''}placeholder="${ph}" value="${String(f[k] || '').replace(/"/g, '&quot;')}">`).join('')}
+    <button class="btn" data-a="draft">✨ บันทึกและร่างสคริปต์อัตโนมัติ</button><button class="btn alt" data-a="x">บันทึกเฉยๆ</button>`;
+  d.addEventListener('input', e => { if (e.target.dataset.k) { f[e.target.dataset.k] = e.target.value; save(); } });
+  d.onclick = e => {
+    const a = e.target.closest('[data-a]')?.dataset.a; if (!a) return;
+    d.remove();
+    if (a === 'draft') { const n = draftAll(); alert(n ? `ร่างสคริปต์ให้ ${n} ช่วงแล้ว (เฉพาะที่ยังว่าง) ลองอ่านและแก้ได้เลย` : 'ทุกช่วงที่มีรูปมีสคริปต์อยู่แล้ว ไม่มีท่อนว่างให้ร่าง'); }
+    if (after) after();
+  };
+  document.body.appendChild(d);
+}
+
 // ---- ขั้น 2: เช็กลิสต์แท็บ — แตะแท็บเพื่อเพิ่มไฟล์ในป๊อปอัพ ไฟล์ที่ใส่แล้วแสดงด้านล่างหน้าเดียวกัน ----
 let refreshChips = null;
 const slotScript = sl => (sl.cat === 'lifestyle' ? ['life'] : sl.cat ? ['area'] : sl.kind === 'room' ? ['room', sl.room] : null);
@@ -154,6 +205,7 @@ function viewSlots() {
     <h2>ใส่รูป/คลิปตามช่วงของคลิป</h2>
     <p class="hint">แตะแท็บเพื่อเพิ่มรูป/คลิป ไม่ต้องเรียงลำดับ · เขียว ✓ = ผ่านแล้ว · แดง ● = จำเป็น · ส้ม ! = แนะนำ · เส้นประ = ข้ามได้</p>
     <div class="chips" id="chips"></div>
+    <div class="tools"><button class="ib wide" id="btnFacts">🏠 ข้อมูลบ้าน</button><button class="ib wide danger" id="btnDraft">✨ ร่างสคริปต์ให้</button></div>
     <div id="gallery"></div>
     <div id="doneBar"></div>`;
   const renderChips = () => {
@@ -204,6 +256,8 @@ function viewSlots() {
     const sl = SLOTS.find(z => z.id === x.closest(".gsec").dataset.sec);
     if (confirm('ลบไฟล์นี้ใช่ไหม?')) { await removeFromSlot(sl, +x.dataset.del); updateSb(); refreshAll(); }
   };
+  $('#btnFacts').onclick = () => openFacts(() => refreshAll());
+  $('#btnDraft').onclick = () => { const n = draftAll(); alert(n ? `ร่างสคริปต์ให้ ${n} ช่วงแล้ว (เฉพาะที่ยังว่าง) ถ้าอยากให้ใส่ราคา/ห้องนอน กดปุ่ม 🏠 ข้อมูลบ้าน แล้วร่างอีกครั้งได้` : 'ไม่มีท่อนว่างให้ร่าง (ท่อนที่ยังไม่มีรูปจะไม่ถูกร่าง)'); refreshAll(); };
   refreshAll();
 }
 
@@ -257,7 +311,7 @@ function viewScript() {
   };
   $('#view').innerHTML = `
     <h2>4 สคริปต์: เรื่องราว</h2>
-    <div class="tools"><button class="ib" data-all title="คัดลอกสคริปต์ทั้งหมดไปวางใน Google AI Studio" aria-label="คัดลอกทั้งหมด">📋 ทั้งหมด</button></div>
+    <div class="tools"><button class="ib wide" id="s4Facts">🏠 ข้อมูลบ้าน</button><button class="ib wide danger" id="s4Draft">✨ ร่างให้</button><button class="ib" data-all title="คัดลอกสคริปต์ทั้งหมดไปวางใน Google AI Studio" aria-label="คัดลอกทั้งหมด">📋 ทั้งหมด</button></div>
     <p class="hint">เวลารวมโดยประมาณ <b id="tot">${mmss(total())}</b> (เป้าหมายประมาณ 3:00) · เลขท่อนตรงกับชื่อไฟล์เสียง 01, 02, ... · ไตเติลและหน้าปิดเป็นคลิปประจำ ไม่ต้องเขียนสคริปต์</p>
     ${state.items.length ? '' : '<div class="soon">ยังไม่มีรูป กลับไปขั้น 2 เพื่อใส่รูปและติดแท็กห้องก่อน</div>'}
     <div id="segs">${segs.map(card).join('')}</div>
@@ -289,6 +343,8 @@ function viewScript() {
     flash(e.currentTarget, await copyText(txt));
   };
   $('#nx').onclick = () => go(4); $('#bk').onclick = () => go(2);
+  $('#s4Facts').onclick = () => openFacts(() => viewScript());
+  $('#s4Draft').onclick = () => { const n = draftAll(); alert(n ? `ร่างสคริปต์ให้ ${n} ช่วงแล้ว (เฉพาะที่ยังว่าง)` : 'ไม่มีท่อนว่างให้ร่าง'); viewScript(); };
 }
 
 // ---- ขั้น 3: ปรับสี ----
