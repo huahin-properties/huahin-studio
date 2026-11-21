@@ -53,7 +53,7 @@ function layoutFor(W, H) { return W > H * 1.2 ? 'land' : 'port'; }
 async function titleScene() {
   const M = await loadMascots();
   return {
-    dur: TITLE_DUR,
+    dur: typeof titleDur === 'function' ? titleDur() : TITLE_DUR,
     draw(ctx, W, H, t) {
       const u = Math.min(W, H) / 1080, land = layoutFor(W, H) === 'land'; sceneBackground(ctx, W, H, t);
       const mh = land ? H * 0.74 : H * 0.42, cx = land ? W * 0.27 : W / 2, bottom = land ? H * 0.86 : H * 0.55;
@@ -74,7 +74,7 @@ async function titleScene() {
 async function closeScene() {
   const M = await loadMascots(), ct = typeof activeContact === 'function' ? activeContact() : null;
   return {
-    dur: CLOSE_DUR,
+    dur: typeof closeDur === 'function' ? closeDur() : CLOSE_DUR,
     draw(ctx, W, H, t) {
       const u = Math.min(W, H) / 1080, land = layoutFor(W, H) === 'land'; sceneBackground(ctx, W, H, t);
       const mh = land ? H * 0.74 : H * 0.38, cx = land ? W * 0.27 : W / 2, bottom = land ? H * 0.86 : H * 0.5;

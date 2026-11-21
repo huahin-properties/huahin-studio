@@ -149,7 +149,7 @@ function bankFor(id) {
 }
 // ความยาวคลิปรวม (ค่าเริ่มต้น 3:00) − ฉากคงที่ (ไตเติล/เครดิต/รถวิ่ง) = เวลาที่ช่วงเล่าเรื่องต้องมี
 const routeOkNow = () => !!(state.routeData && state.routeData.size === state.size);
-const fixedSec = () => (lib.titleBuiltin ? TITLE_DUR : 0) + (lib.closeBuiltin ? CLOSE_DUR : 0) + (routeOkNow() ? ROUTE_DUR : 0) + STYLE.fade;
+const fixedSec = () => (lib.titleBuiltin ? titleDur() : 0) + (lib.closeBuiltin ? closeDur() : 0) + (routeOkNow() ? ROUTE_DUR : 0) + STYLE.fade;
 const narrTarget = () => Math.max(30, state.clipSec - fixedSec());
 const SEG_WEIGHT = { 'cat-city': 14, map: 7, ext: 12, park: 3, liv: 9, dine: 4, kit: 10, bed: 10, bath: 5, pool: 9, garden: 4, 'cat-lifestyle': 9 };
 function segSlot(g) {
@@ -444,6 +444,28 @@ function scriptSegments() {
   if (lifeItems().length) segs.push({ no: segs.length + 1, key: 'life', label: 'ไลฟ์สไตล์', text: state.script.life || '' });
   return segs;
 }
+// ท่อนเปิดคลิป (ฉากไตเติล) และท่อนปิดท้าย/ติดต่อ (ฉากเครดิต) — พูดด้วยเสียงเหมือนท่ออื่น แก้ข้อความเองได้
+const spokenPhone = ph => String(ph || '').replace(/\D/g, '').split('').join(' ');
+function openDefault() {
+  const B = BR(), nm = (state.facts.name || '').trim();
+  return `${B.greeting} ยินดีต้อนรับสู่ Huahin Properties วันนี้ผมจะพาไปชมบ้านพักตากอากาศที่หัวหิน${nm ? ' ' + nm : ''}`;
+}
+function closeDefault() {
+  const B = BR(), ct = activeContact();
+  if (!ct || !(ct.phone || '').trim()) return `${B.thanks} ติดต่อสอบถามข้อมูลเพิ่มเติมได้ที่ Huahin Properties`;
+  return `${B.thanks} ${B.invite}${(ct.name || '').trim() ? ' ' + ct.name.trim() : ' Huahin Properties'} โทร ${spokenPhone(ct.phone)}${(ct.line || '').trim() ? ' หรือแอดไลน์ ' + ct.line.trim() : ''}`;
+}
+function scriptSegmentsAll() {
+  const mid = scriptSegments(), out = [];
+  if (lib.titleBuiltin) out.push({ no: 0, key: 'open', label: 'เปิดคลิป (ฉากไตเติล)', text: state.script.open != null ? state.script.open : openDefault(), edge: true });
+  out.push(...mid);
+  if (lib.closeBuiltin) out.push({ no: mid.length + 1, key: 'close', label: 'ปิดท้าย + ติดต่อ (ฉากเครดิต)', text: state.script.close != null ? state.script.close : closeDefault(), edge: true });
+  return out;
+}
+// ความยาวฉากเปิด/ปิด ปรับตามความยาวเสียงพูด (อย่างน้อยเท่าค่ามาตรฐาน)
+const titleDur = () => { const g = scriptSegmentsAll().find(x => x.key === 'open'); return g ? Math.max(TITLE_DUR, secOf(g.text) + 1.5) : TITLE_DUR; };
+const closeDur = () => { const g = scriptSegmentsAll().find(x => x.key === 'close'); return g ? Math.max(CLOSE_DUR, secOf(g.text) + 2) : CLOSE_DUR; };
+
 async function copyText(t) {
   try { await navigator.clipboard.writeText(t); return true; } catch (_) {}
   const ta = document.createElement('textarea'); ta.value = t; document.body.appendChild(ta); ta.select();
@@ -470,17 +492,17 @@ async function translateTh2En(text) {
 
 function viewScript() {
   organizeItems(); save();
-  const segs = scriptSegments(), no2 = n => String(n).padStart(2, '0');
+  const segs = scriptSegmentsAll(), no2 = n => String(n).padStart(2, '0');
   let segT = segTargets();
   const sc = state.script; sc.en = sc.en || {}; sc.enSrc = sc.enSrc || {};
-  const setText = (seg, v) => { if (seg.key === 'life') sc.life = v; else if (seg.key === 'area') sc.area = v; else sc.rooms[seg.room] = v; };
+  const setText = (seg, v) => { if (seg.key === 'open') sc.open = v; else if (seg.key === 'close') sc.close = v; else if (seg.key === 'life') sc.life = v; else if (seg.key === 'area') sc.area = v; else sc.rooms[seg.room] = v; };
   const total = () => scriptSegments().reduce((a, g) => a + secOf(g.text), 0);
   const stale = g => !!(sc.en[g.key] && g.text.trim() && sc.enSrc[g.key] !== g.text);
   const staleTxt = g => (stale(g) ? '⚠️ แก้ไทยหลังแปลแล้ว กด 🌐 แปลใหม่' : '');
   const card = g => {
-    const its = g.key === 'life' ? lifeItems() : g.key === 'area' ? areaItems() : state.items.filter(i => i.room === g.room);
+    const its = g.edge ? [] : g.key === 'life' ? lifeItems() : g.key === 'area' ? areaItems() : state.items.filter(i => i.room === g.room);
     return `<div class="seg" data-key="${g.key}">
-      <div class="seg-h"><b>${no2(g.no)} · ${g.label}</b><span class="badge" data-t="${g.key}">~${secOf(g.text)} / เป้า ${segT[g.key]} วิ</span></div>
+      <div class="seg-h"><b>${g.edge ? (g.key === 'open' ? 'เริ่ม' : 'จบ') : no2(g.no)} · ${g.label}</b><span class="badge" data-t="${g.key}">~${secOf(g.text)}${g.edge ? ' วิ' : ' / เป้า ' + segT[g.key] + ' วิ'}</span></div>
       ${its.length ? `<div class="mini">${its.slice(0, 4).map(i => i.type === 'image' ? `<img src="${urlOf(i)}" alt="">` : '<span>🎬</span>').join('')}<small>${its.length} รูป/คลิป</small></div>` : ''}
       <div class="lang"><span>🇹🇭 ไทย</span><button class="ib sm" data-cp="th:${g.key}">📋 ไทย</button></div>
       <textarea rows="3" data-k="${g.key}" placeholder="พิมพ์เรื่องเล่าของห้องนี้...">${g.text.replace(/</g, '&lt;')}</textarea>
@@ -520,9 +542,9 @@ function viewScript() {
   const stamp = () => { const d = new Date(); $('#saved').textContent = `💾 บันทึกแล้ว ${d.toLocaleTimeString('th-TH')}`; };
   $('#segs').oninput = e => {
     const ta = e.target.closest('textarea'); if (!ta) return;
-    if (ta.dataset.e) { sc.en[ta.dataset.e] = ta.value; sc.enSrc[ta.dataset.e] = (scriptSegments().find(x => x.key === ta.dataset.e) || {}).text; save(); stamp(); return; }
-    const g = scriptSegments().find(x => x.key === ta.dataset.k); setText(g, ta.value); save(); stamp();
-    document.querySelector(`[data-t="${CSS.escape(g.key)}"]`).textContent = `~${secOf(ta.value)} / เป้า ${segT[g.key]} วิ`;
+    if (ta.dataset.e) { sc.en[ta.dataset.e] = ta.value; sc.enSrc[ta.dataset.e] = (scriptSegmentsAll().find(x => x.key === ta.dataset.e) || {}).text; save(); stamp(); return; }
+    const g = scriptSegmentsAll().find(x => x.key === ta.dataset.k); setText(g, ta.value); save(); stamp();
+    document.querySelector(`[data-t="${CSS.escape(g.key)}"]`).textContent = g.edge ? `~${secOf(ta.value)} วิ` : `~${secOf(ta.value)} / เป้า ${segT[g.key]} วิ`;
     document.querySelector(`[data-w="${CSS.escape(g.key)}"]`).textContent = staleTxt({ key: g.key, text: ta.value });
     $('#tot').textContent = mmss(total()); updTot(); warn();
   };
@@ -535,12 +557,12 @@ function viewScript() {
   };
   $('#segs').onclick = async e => {
     const cp = e.target.closest('[data-cp]');
-    if (cp) { const [lang, key] = [cp.dataset.cp.split(':')[0], cp.dataset.cp.slice(cp.dataset.cp.indexOf(':') + 1)]; const g = scriptSegments().find(x => x.key === key); const txt = lang === 'en' ? (sc.en[key] || '') : g.text; if (!txt.trim()) { alert(lang === 'en' ? 'ยังไม่มีข้อความอังกฤษ กด 🌐 แปล ก่อน' : 'ยังไม่มีข้อความ'); return; } flash(cp, await copyText(txt.trim())); return; }
+    if (cp) { const [lang, key] = [cp.dataset.cp.split(':')[0], cp.dataset.cp.slice(cp.dataset.cp.indexOf(':') + 1)]; const g = scriptSegmentsAll().find(x => x.key === key); const txt = lang === 'en' ? (sc.en[key] || '') : g.text; if (!txt.trim()) { alert(lang === 'en' ? 'ยังไม่มีข้อความอังกฤษ กด 🌐 แปล ก่อน' : 'ยังไม่มีข้อความ'); return; } flash(cp, await copyText(txt.trim())); return; }
     const tr = e.target.closest('[data-tr]');
-    if (tr) { const g = scriptSegments().find(x => x.key === tr.dataset.tr); if (!g.text.trim()) { alert('ยังไม่มีข้อความไทยให้แปล'); return; } tr.disabled = true; tr.textContent = 'กำลังแปล...'; try { await doTranslate(g); stamp(); } catch (err) { alert('แปลไม่สำเร็จ (ต่อเน็ตอยู่ไหม?) ' + (err.message || err)); } tr.disabled = false; tr.textContent = '🌐 แปล'; }
+    if (tr) { const g = scriptSegmentsAll().find(x => x.key === tr.dataset.tr); if (!g.text.trim()) { alert('ยังไม่มีข้อความไทยให้แปล'); return; } tr.disabled = true; tr.textContent = 'กำลังแปล...'; try { await doTranslate(g); stamp(); } catch (err) { alert('แปลไม่สำเร็จ (ต่อเน็ตอยู่ไหม?) ' + (err.message || err)); } tr.disabled = false; tr.textContent = '🌐 แปล'; }
   };
   $('#trAll').onclick = async e => {
-    const b = e.currentTarget, list = scriptSegments().filter(g => g.text.trim()); if (!list.length) { alert('ยังไม่มีข้อความไทยให้แปล'); return; }
+    const b = e.currentTarget, list = scriptSegmentsAll().filter(g => g.text.trim()); if (!list.length) { alert('ยังไม่มีข้อความไทยให้แปล'); return; }
     b.disabled = true; let n = 0;
     try { for (const g of list) { b.textContent = `กำลังแปล ${++n}/${list.length}`; await doTranslate(g); } stamp(); b.textContent = '✓ แปลครบแล้ว'; setTimeout(() => { b.textContent = '🌐 แปลทั้งหมด'; }, 2000); }
     catch (err) { alert(`แปลไม่สำเร็จที่ท่อนที่ ${n} (ต่อเน็ตอยู่ไหม?) ` + (err.message || err)); b.textContent = '🌐 แปลทั้งหมด'; }
@@ -548,13 +570,13 @@ function viewScript() {
   };
   document.querySelectorAll('[data-all]').forEach(btn => btn.onclick = async e => {
     const lang = btn.dataset.all;
-    const txt = scriptSegments().map(g => (lang === 'en' ? (sc.en[g.key] || '') : g.text).trim()).filter(Boolean).join('\n\n'); // ข้อความล้วน ไม่มีเลขท่อน (สำหรับสร้างเสียง)
+    const txt = scriptSegmentsAll().map(g => (lang === 'en' ? (sc.en[g.key] || '') : g.text).trim()).filter(Boolean).join('\n\n'); // ข้อความล้วน ไม่มีเลขท่อน (สำหรับสร้างเสียง)
     if (!txt) { alert(lang === 'en' ? 'ยังไม่มีข้อความอังกฤษ กด 🌐 แปลทั้งหมด ก่อน' : 'ยังไม่มีข้อความ'); return; }
     flash(btn, await copyText(txt));
   });
   $('#nx').onclick = () => go(4); $('#bk').onclick = () => go(2);
   $('#s4Facts').onclick = () => openFacts(() => viewScript());
-  $('#tgt').oninput = e => { const v = Math.max(60, Math.min(900, +e.target.value || 180)); state.clipSec = v; $('#tgtTxt').textContent = mmss(v); $('#narrTxt').textContent = narrTarget(); save(); segT = segTargets(); document.querySelectorAll('[data-t]').forEach(b => { const g = scriptSegments().find(x => x.key === b.dataset.t); if (g) b.textContent = `~${secOf(g.text)} / เป้า ${segT[g.key]} วิ`; }); updTot(); };
+  $('#tgt').oninput = e => { const v = Math.max(60, Math.min(900, +e.target.value || 180)); state.clipSec = v; $('#tgtTxt').textContent = mmss(v); $('#narrTxt').textContent = narrTarget(); save(); segT = segTargets(); document.querySelectorAll('[data-t]').forEach(b => { const g = scriptSegmentsAll().find(x => x.key === b.dataset.t); if (g && !g.edge) b.textContent = `~${secOf(g.text)} / เป้า ${segT[g.key]} วิ`; }); updTot(); };
   $('#s4Draft').onclick = () => { const n = draftAll(); alert(expandMsg(n)); viewScript(); };
   $('#chk').onclick = openFactCheck;
   // คัดลอกข้อความ แล้วเปิดหน้า Google AI Studio ในแท็บใหม่ (กดปุ่มเดียว)
@@ -562,9 +584,9 @@ function viewScript() {
   $('#aiCopy').onclick = async e => { const btn = e.currentTarget, ok = await copyText(buildAiPrompt()); flash(btn, ok); openLink(lib.links.chat); };
   // แบ่งสคริปต์เป็นช่วง (ไม่เกิน ~700 ตัวอักษรต่อช่วง) แสดงต้นข้อความ ให้คัดลอกทีละช่วงและตรวจก่อนวาง
   $('#ttsOpen').onclick = () => {
-    const segs = scriptSegments().filter(g => g.text.trim()); if (!segs.length) { alert('ยังไม่มีสคริปต์ให้คัดลอก'); return; }
+    const segs = scriptSegmentsAll().filter(g => g.text.trim()); if (!segs.length) { alert('ยังไม่มีสคริปต์ให้คัดลอก'); return; }
     const chunks = []; let cur = null;
-    segs.forEach(g => { const t = g.text.trim(); if (!cur || cur.len + t.length > 700) { cur = { nos: [], texts: [], len: 0 }; chunks.push(cur); } cur.nos.push(String(g.no).padStart(2, '0')); cur.texts.push(t); cur.len += t.length; });
+    segs.forEach(g => { const t = g.text.trim(); if (!cur || cur.len + t.length > 700) { cur = { nos: [], texts: [], len: 0 }; chunks.push(cur); } cur.nos.push(g.edge ? (g.key === 'open' ? 'เปิด' : 'ปิด') : String(g.no).padStart(2, '0')); cur.texts.push(t); cur.len += t.length; });
     const d = document.createElement('div'); d.className = 'sheet tall'; d.id = 'ttsSheet';
     d.innerHTML = `<div class="sh-head"><b>🔊 สร้างเสียง (ทีละช่วง)</b><button class="ib" data-a="x" aria-label="ปิด">✕</button></div>
       <p class="hint">ทำทีละช่วงตามลำดับ: กด <b>คัดลอก</b> → กด <b>เปิดหน้าสร้างเสียง</b> → ในช่องข้อความ <b>ลบของเก่าให้ว่างก่อน</b> แล้ววาง → ตรวจว่าบรรทัดแรกตรงกับ "ขึ้นต้นว่า" ด้านล่าง → สร้างเสียง → ตั้งชื่อไฟล์ตามเลขช่วง (เช่น ช่วง 1 = <b>01</b>) แล้วทำช่วงต่อไป</p>
