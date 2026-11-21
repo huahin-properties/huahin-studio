@@ -84,6 +84,7 @@ function kitMediaBlock() {
   const L = [], h = typeof heroItem === 'function' ? heroItem() : null, src = h && state.items.find(i => i.id === h.srcId);
   if (src) L.push(`- ภาพเด่นเปิดคลิป: ${src.name || 'ภาพ'} (ห้อง/มุม: ${src.room || 'ยังไม่ตั้งห้อง'})`);
   const cats = typeof AREA_CATS !== 'undefined' ? AREA_CATS.map(c => [c.label, libArea(c.id).length]).filter(x => x[1]) : [];
+  if (typeof placesInClip === 'function') placesInClip().forEach(x => L.push(`- สถานที่ใกล้บ้าน: ${x.p.name} (${x.cat}${x.d ? ` · ห่างจากบ้าน ${fmtKm(x.d.km)} ขับ ~${x.d.min} นาที` : ' · ยังไม่มีพิกัด'}) · รูป/คลิป ${x.n} ไฟล์`));
   cats.forEach(([lb, c]) => { const cid = AREA_CATS.find(z => z.label === lb).id, nm = libArea(cid).map(i => String(i.title || '').trim()).filter(Boolean); L.push(`- ภาพทำเลหัวหิน (${lb}): ${c} ภาพ${nm.length ? ' · ชื่อสถานที่ในภาพ: ' + nm.join(', ') : ''}`); });
   if (typeof lifeItems === 'function' && lifeItems().length) L.push(`- ภาพไลฟ์สไตล์: ${lifeItems().length} ภาพ`);
   const byRoom = {}; state.items.forEach(i => { const r = i.room || 'ยังไม่ตั้งห้อง'; (byRoom[r] = byRoom[r] || []).push(i); });

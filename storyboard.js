@@ -19,11 +19,6 @@ const SLOTS = [
   { id: 'cat-market', ico: '🛒', short: 'ตลาด', label: 'ทำเล: ตลาด / ร้านอาหาร', kind: 'lib', cat: 'market', min: 1, rec: 1, hint: 'ตลาด ร้านอาหาร ชีวิตผู้คน 1–4 ภาพ · ใส่ครั้งเดียวใช้ซ้ำ' },
   { id: 'cat-beach', ico: '🏖️', short: 'หาด', label: 'ทำเล: ชายหาด / ทะเล', kind: 'lib', cat: 'beach', min: 1, rec: 1, hint: 'หาดหัวหิน ทะเล พระอาทิตย์ตก 1–4 ภาพ · ใส่ครั้งเดียวใช้ซ้ำ' },
   { id: 'cat-mountain', ico: '⛰️', short: 'ภูเขา', label: 'ทำเล: ภูเขา / ธรรมชาติ', kind: 'lib', cat: 'mountain', min: 1, rec: 1, hint: 'ภูเขา ธรรมชาติรอบหัวหิน 1–4 ภาพ · ใส่ครั้งเดียวใช้ซ้ำ' },
-  { id: 'cat-landmark', ico: '🏛️', short: 'สถานที่สำคัญ', label: 'ทำเล: สถานที่สำคัญ / แลนด์มาร์ก', kind: 'lib', cat: 'landmark', min: 0, rec: 0, hint: 'สถานีรถไฟหัวหิน วัด ตลาดน้ำ จุดชมวิว ฯลฯ ใส่ครั้งเดียวใช้ซ้ำทุกคลิป · ตั้งชื่อรูปได้ (เช่น "สถานีรถไฟหัวหิน") เพื่อขึ้นเป็นป้ายชื่อบนภาพ', ph: 'ชื่อสถานที่ เช่น สถานีรถไฟหัวหิน' },
-  { id: 'cat-hospital', ico: '🏥', short: 'โรงพยาบาล', label: 'ทำเล: โรงพยาบาล', kind: 'lib', cat: 'hospital', min: 0, rec: 0, hint: 'โรงพยาบาลและสถานพยาบาลใกล้บ้าน ใส่ครั้งเดียวใช้ซ้ำทุกคลิป · ตั้งชื่อรูปได้', ph: 'ชื่อโรงพยาบาล' },
-  { id: 'cat-mall', ico: '🏬', short: 'ห้าง', label: 'ทำเล: ห้างสรรพสินค้า / ช้อปปิ้ง', kind: 'lib', cat: 'mall', min: 0, rec: 0, hint: 'ห้างสรรพสินค้า ศูนย์การค้า ตลาดสมัยใหม่ ใส่ครั้งเดียวใช้ซ้ำทุกคลิป · ตั้งชื่อรูปได้', ph: 'ชื่อห้าง/ศูนย์การค้า' },
-  { id: 'cat-water', ico: '🎢', short: 'สวนน้ำ', label: 'ทำเล: สวนน้ำ / Black Mountain', kind: 'lib', cat: 'water', min: 0, rec: 0, hint: 'สวนน้ำ Black Mountain และที่เที่ยวสำหรับครอบครัว ใส่ครั้งเดียวใช้ซ้ำทุกคลิป · ตั้งชื่อรูปได้', ph: 'ชื่อสถานที่ เช่น Black Mountain Water Park' },
-  { id: 'cat-golf', ico: '⛳', short: 'กอล์ฟ', label: 'ทำเล: สนามกอล์ฟ', kind: 'lib', cat: 'golf', min: 0, rec: 0, hint: 'สนามกอล์ฟใกล้บ้าน ใส่ครั้งเดียวใช้ซ้ำทุกคลิป · ตั้งชื่อรูปได้', ph: 'ชื่อสนามกอล์ฟ' },
   { id: 'map', ico: '🗺️', short: 'แผนที่', label: 'แผนที่เข้าโครงการ (ไม่ใส่ก็ได้)', kind: 'room', rooms: [MAP_ROOM], room: MAP_ROOM, min: 0, rec: 0, hint: 'แคปหน้า Google Maps พร้อมเส้นทางเข้าโครงการ 1–4 ภาพ · ไม่อยากเปิดเผยที่ตั้งก็ข้ามได้' },
   { id: 'ext', ico: '🏡', short: 'หน้าบ้าน', label: 'หน้าบ้าน / ภายนอก', kind: 'room', rooms: ['หน้าบ้าน/ภายนอก'], room: 'หน้าบ้าน/ภายนอก', min: 1, rec: 2, hint: 'หน้าบ้านมุมกว้าง ยืนหน้าประตูรั้ว 1–4 ภาพ' },
   { id: 'park', ico: '🚗', short: 'จอดรถ', label: 'ที่จอดรถ', kind: 'room', rooms: ['ที่จอดรถ'], room: 'ที่จอดรถ', min: 0, rec: 0, hint: 'โรงจอดรถ/ที่จอดรถ 1–2 ภาพ · ไม่มีก็ข้ามได้' },
@@ -216,10 +211,18 @@ function placeDistances() {
     return { id: p.id, name: p.name, km, min: Math.max(2, Math.round(road / 40 * 60)) };
   }).sort((a, b) => a.km - b.km);
 }
+// สถานที่ที่ใช้ในคลิปนี้ = สถานที่ที่มีรูป/คลิปถูกเลือกใช้ (ถ้ามีไม่ถึง 2 แห่ง เติมสถานที่ที่มีพิกัดและใกล้บ้านที่สุดให้ครบ 3 แห่ง)
+function placesInClip() {
+  const dist = new Map(placeDistances().map(d => [d.id, d])), used = lib.places.filter(p => placePhotos(p).some(stockSel));
+  const pool = used.length >= 2 ? used : [...used, ...lib.places.filter(p => !used.includes(p) && dist.has(p.id)).sort((a, b) => dist.get(a.id).km - dist.get(b.id).km)].slice(0, 3);
+  return pool.map(p => ({ p, d: dist.get(p.id) || null, cat: (AREA_CATS.find(c => c.id === placeCat(p)) || {}).label || '', n: placePhotos(p).length })).sort((a, b) => (a.d ? a.d.km : 1e9) - (b.d ? b.d.km : 1e9));
+}
+const spN = n => (/[A-Za-z0-9]/.test(n) ? ` ${n} ` : n); // ชื่อที่มีอังกฤษ/ตัวเลข เว้นวรรคให้อ่านออกเสียงถูก
+const placeSentence = x => (x.d ? `บ้านหลังนี้ห่างจาก${spN(x.p.name)}ประมาณ ${fmtKm(x.d.km)} ขับรถราว ${x.d.min} นาที` : `ใกล้บ้านมี${spN(x.p.name)}`).replace(/\s+/g,' ').trim();
 const fmtKm = km => (km < 1 ? `${Math.max(100, Math.round(km * 10) * 100)} เมตร` : `${km < 10 ? km.toFixed(1) : Math.round(km)} กิโลเมตร`);
 function mapScriptText(max = 4) {
   const near = placeDistances().slice(0, max); if (!near.length) return '';
-  return 'บ้านหลังนี้ ' + near.map(x => `ห่างจาก${x.name}ประมาณ ${fmtKm(x.km)} ขับรถราว ${x.min} นาที`).join(' ');
+  return 'บ้านหลังนี้ ' + near.map(x => `ห่างจาก${spN(x.name)}ประมาณ ${fmtKm(x.km)} ขับรถราว ${x.min} นาที`).join(' ').replace(/\s+/g, ' ');
 }
 
 // ===== สถานที่สำคัญ: ชื่อ + หมวด + พิกัด + รูป อยู่ที่เดียว (ใส่ครั้งเดียว ใช้ซ้ำทุกคลิป) =====
@@ -239,7 +242,9 @@ function openPlaces(after) {
       <label class="fl"><span>พิกัด (วางเลขจาก Google Maps)</span><input class="ct" data-c="${p.id}" inputmode="decimal" placeholder="เช่น 12.5698,99.9577" value="${esc(p.coord || '')}"></label>
       <small class="hint" data-st="${p.id}">${coordSt(p)}</small>
       <div class="pph">${ph.map(x => `<div class="pphi">${x.type === 'video' ? `<video src="${urlOf(x)}#t=0.1" muted playsinline></video><span class="vb">🎬 ${Math.round(x.dur || 0) || ''}</span>` : `<img src="${urlOf(x)}" alt="">`}<button class="x" data-pdel="${x.id}" aria-label="ลบ">✕</button></div>`).join('')}<button class="ib wide" data-ph="${p.id}">📷 ${ph.length ? 'เพิ่มรูป/คลิป' : 'ใส่รูป/คลิปสถานที่นี้'}</button></div>${ph.length ? `<small class="hint">สต็อกสถานที่นี้: ${ph.filter(x => x.type !== 'video').length} รูป · ${ph.filter(x => x.type === 'video').length} คลิป (ใส่ได้ไม่จำกัด แอปเลือกใช้ให้ต่อคลิป)</small>` : ''}</div>`; };
-  const draw = () => { const sc = d.scrollTop; d.querySelector('#prows').innerHTML = lib.places.length ? lib.places.map(card).join('') : '<div class="soon">ยังไม่มีสถานที่ กด "+ เพิ่มสถานที่ใหม่"</div>'; d.scrollTop = sc; };
+  const orphans = () => lib.area.filter(x => !x.placeId && ['landmark', 'hospital', 'mall', 'water', 'golf'].includes(x.cat));
+  const orphanHtml = () => orphans().length ? `<div class="seg"><b>รูปเดิมที่ยังไม่ผูกกับสถานที่ (${orphans().length})</b><p class="hint">รูปที่เคยใส่ไว้ในหมวดโดยตรง ลบออกหรือเพิ่มสถานที่แล้วใส่รูปใหม่ได้</p><div class="pph">${orphans().map(x => `<div class="pphi">${x.type === 'video' ? `<video src="${urlOf(x)}#t=0.1" muted playsinline></video>` : `<img src="${urlOf(x)}" alt="">`}<button class="x" data-pdel="${x.id}" aria-label="ลบ">✕</button></div>`).join('')}</div></div>` : '';
+  const draw = () => { const sc = d.scrollTop; d.querySelector('#prows').innerHTML = orphanHtml() + (lib.places.length ? lib.places.map(card).join('') : '<div class="soon">ยังไม่มีสถานที่ กด "+ เพิ่มสถานที่ใหม่"</div>'); d.scrollTop = sc; };
   d.innerHTML = `<div class="sh-head"><b>📍 สถานที่สำคัญ</b><button class="ib" data-a="x" aria-label="ปิด">✕</button></div>
     <p class="hint">ใส่ <b>ชื่อ + พิกัด + รูป</b> ของแต่ละสถานที่ไว้ที่นี่ที่เดียว ใช้ซ้ำทุกคลิป · พิกัด: เปิด Google Maps กดค้างที่จุดนั้นแล้วแตะตัวเลขพิกัดด้านบนเพื่อคัดลอก · ที่ไม่ใส่พิกัดจะไม่ถูกใช้คำนวณระยะทาง · รูปที่ใส่ที่นี่จะเข้าสต็อกภาพทำเลตามหมวด และขึ้นป้ายชื่อ+ระยะทางบนภาพในคลิป</p>
     <button class="btn alt" data-a="add">+ เพิ่มสถานที่ใหม่</button>

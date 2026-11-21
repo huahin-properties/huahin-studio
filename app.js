@@ -123,7 +123,7 @@ function bankFor(id) {
   const intro = n(f.name) ? `บ้านหลังนี้อยู่ใน ${n(f.name)}` : 'บ้านหลังนี้';
   const bits = [n(f.beds) && `${n(f.beds)} ห้องนอน`, n(f.baths) && `${n(f.baths)} ห้องน้ำ`, n(f.usable) && `พื้นที่ใช้สอย ${area(f.usable)}`, n(f.land) && `บนที่ดิน ${wah(f.land)}`].filter(Boolean);
   const B = {
-    'cat': [...(() => { const nm = [...new Set(areaLibOrdered().map(i => String(i.title || '').trim()).filter(Boolean))].slice(0, 5); return nm.length ? [`ในละแวกใกล้เคียงมี ${nm.join(' ')} ให้ไปใช้บริการได้สะดวก`] : []; })(), 'หัวหินคือเมืองริมทะเลที่ใครๆ ก็รัก ทั้งความสงบ ความสะดวก และบรรยากาศที่ผ่อนคลาย',
+    'cat': [...(() => { const pl = placesInClip(), sent = pl.slice(0, 5).map(placeSentence), onlyNamed = [...new Set(areaLibOrdered().filter(i => !i.placeId).map(i => String(i.title || '').trim()).filter(Boolean))].slice(0, 3); return [...sent, ...(onlyNamed.length ? [`ในละแวกใกล้เคียงมี ${onlyNamed.join(' ')} ให้ไปใช้บริการได้สะดวก`] : [])]; })(), 'หัวหินคือเมืองริมทะเลที่ใครๆ ก็รัก ทั้งความสงบ ความสะดวก และบรรยากาศที่ผ่อนคลาย',
       'ชายหาดทรายทอดยาว เหมาะกับการเดินเล่นยามเช้า และชมพระอาทิตย์ตกยามเย็น',
       'ตลาดและร้านอาหารหลากหลาย ตั้งแต่อาหารทะเลสดๆ ไปจนถึงร้านคาเฟ่น่านั่ง',
       'ชีวิตประจำวันสะดวกสบาย มีทั้งห้างสรรพสินค้า โรงพยาบาล และสถานที่ท่องเที่ยวให้เลือกมากมาย',
@@ -256,7 +256,8 @@ function buildAiPrompt() {
   const f = state.facts, T = segTargets(), lines = [];
   [['ชื่อโครงการ', f.name], ['ห้องนอน', f.beds], ['ห้องน้ำ', f.baths], ['พื้นที่ใช้สอย (ตร.ม.)', f.usable], ['ที่ดิน (ตร.ว.)', f.land], ['ราคา (ล้านบาท)', f.price], ['จุดเด่น', f.highlights]].forEach(([k, v]) => { if (String(v || '').trim()) lines.push(`- ${k}: ${v}`); });
   const near = typeof mapScriptText === 'function' ? mapScriptText(4) : ''; if (near) lines.push('- ระยะทาง (ประมาณการ): ' + near);
-  { const named = [...areaLibOrdered(), ...lifeItems(), ...state.items].filter(i => (i.title || '').trim()).map(i => `${i.title.trim()} (${catLabelOf(i)})`); if (named.length) lines.push('- สถานที่/จุดที่มีภาพในคลิปนี้ (ใช้ชื่อตามนี้ ไม่แต่งชื่ออื่น): ' + [...new Set(named)].join(', ')); }
+  { const pl = placesInClip(); if (pl.length) lines.push('- สถานที่ใกล้บ้านที่มีภาพในคลิปนี้ (จากหน้า "สถานที่ + พิกัด + รูป" ใช้ชื่อและระยะทางตามนี้เท่านั้น ไม่แต่งเพิ่ม): ' + pl.map(x => `${x.p.name} (${x.cat}${x.d ? ` · ห่างจากบ้าน ${fmtKm(x.d.km)} ขับ ~${x.d.min} นาที` : ' · ยังไม่มีพิกัด จึงไม่ระบุระยะทาง'})`).join('; '));
+    const named = [...areaLibOrdered(), ...lifeItems(), ...state.items].filter(i => !i.placeId && (i.title || '').trim()).map(i => `${i.title.trim()} (${catLabelOf(i)})`); if (named.length) lines.push('- ภาพอื่นที่ตั้งชื่อไว้ (ใช้ชื่อตามนี้): ' + [...new Set(named)].join(', ')); }
   const segs = scriptSegments().map((g, i) => { const nImg = Math.max(1, segItems(g).length); return `[${String(g.no).padStart(2, '0')}] ${g.label} · เป้าหมาย ${T[g.key]} วินาที (ประมาณ ${T[g.key] * SPEAK_CPS} ตัวอักษร) · มี ${nImg} รูป: เขียนเป็นประโยคสั้นๆ ${nImg} ประโยค ประโยคละ 1 รูป (ประมาณ ${Math.max(2, Math.round(T[g.key] / nImg))} วินาทีต่อประโยค)${g.text.trim() ? ' · ร่างเดิม: ' + g.text.trim() : ''}`; });
   return `คุณคือผู้เขียนสคริปต์พากย์คลิปแนะนำบ้านพักตากอากาศระดับพรีเมียมที่หัวหิน สไตล์ luxury editorial อบอุ่น เป็นกันเอง เล่าเหมือนพาเดินชมบ้านจริง ใช้ภาษาไทยที่พูดแล้วลื่นไหลและน่าฟัง
 
@@ -424,7 +425,7 @@ function viewSlots() {
     const stk = SLOTS.filter(x => x.kind === 'lib' && x.cat), stkChip = x => { const n = slotCount(x), st = slotStatus(x); return `<button class="chip ${st === 'info' ? 'stk-empty' : 'st-' + st}" data-s="${x.id}">${x.ico} ${x.short} <i>${n ? (st === 'ok' ? '✓ ' + n : mark[st] + ' ' + n) : (st === 'miss' ? '●' : '＋')}</i></button>`; };
     const rank = { miss: 0, warn: 1, info: 2, ok: 3 }, others = SLOTS.filter(x => !stk.includes(x)), have = others.filter(x => slotStatus(x) === 'ok'), rest = others.filter(x => slotStatus(x) !== 'ok').sort((p, q) => rank[slotStatus(p)] - rank[slotStatus(q)]);
     el.className = 'chips2';
-    el.innerHTML = `<div class="chgt">🗂️ สต็อกภาพทำเล / สถานที่สำคัญ (ใช้ร่วมทุกคลิป · เพิ่มรูปได้เรื่อยๆ · ตั้งชื่อรูปได้)</div><div class="chrow">${stk.map(stkChip).join('')}<button class="chip stk-empty" data-places="1">📍 สถานที่ + พิกัด + รูป (${lib.places.length})</button></div>
+    el.innerHTML = `<div class="chgt">🗂️ สต็อกภาพทำเล (ใช้ร่วมทุกคลิป) · สถานที่สำคัญ โรงพยาบาล ห้าง สวนน้ำ กอล์ฟ ฯลฯ ใส่ที่ปุ่ม 📍 ท้ายแถว (ชื่อ + พิกัด + รูป/คลิป)</div><div class="chrow">${stk.map(stkChip).join('')}<button class="chip stk-empty" data-places="1">📍 สถานที่ + พิกัด + รูป (${lib.places.length} แห่ง · ${lib.area.filter(x => x.placeId).length} รูป/คลิป)</button></div>
       ${have.length ? `<div class="chgt">✅ มีข้อมูลแล้ว (${have.length}) · แตะเพื่อเพิ่ม/แก้ไข</div><div class="chrow">${have.map(chip).join('')}</div>` : ''}${rest.length ? `<div class="chgt">📭 ยังไม่มีข้อมูล (${rest.length}) · แตะเพื่อใส่</div><div class="chrow">${rest.map(chip).join('')}</div>` : ''}`;
   };
   const renderGallery = () => {
