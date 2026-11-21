@@ -9,7 +9,7 @@ const SIZES = [
 const ROOMS = [AREA_ROOM, MAP_ROOM, 'หน้าบ้าน/ภายนอก','ที่จอดรถ','ห้องนั่งเล่น','ห้องทานอาหาร','ครัว','ห้องนอนใหญ่','ห้องนอน','ห้องน้ำ','สระว่ายน้ำ','สวน/ระเบียง','วิวรอบๆ','อื่นๆ'];
 const STEPS = ['1 ขนาด','2 ใส่รูป/คลิป','3 สี','4 สคริปต์','5 เสียง','6 มาสคอต','7 เรนเดอร์'];
 
-const state = { routeData: null, skipMap: false, facts: { name: '', beds: '', baths: '', usable: '', land: '', price: '', travel: '', coord: '', routeStart: '', routeLabel: '', highlights: '' }, slot: 'title', step: 0, size: '4:5', items: [], color: { ...COLOR_DEFAULT }, useArea: true, contact: { mode: 'std', custom: { name: '', phone: '', line: '' } }, script: { area: '', rooms: {} } };
+const state = { routeData: null, skipMap: false, facts: { name: '', beds: '', baths: '', usable: '', land: '', price: '', travel: '', coord: '', routeStart: '', routeLabel: '', highlights: '' }, slot: 'title', step: 0, size: '4:5', items: [], color: { ...COLOR_DEFAULT }, useArea: true, contact: { mode: 'std', custom: { name: '', phone: '', line: '' } }, script: { area: '', rooms: {}, en: {}, enSrc: {} } };
 let nextId = 1;
 
 // ---- เก็บงานไว้ในเครื่อง (IndexedDB) ปิดแอปแล้วงานไม่หาย ----
@@ -25,7 +25,7 @@ const DB = {
 const save = () => (typeof updateSb === 'function' && updateSb(), DB.set('project', { v: 2, routeData: state.routeData, skipMap: state.skipMap, facts: state.facts, useArea: state.useArea, contact: state.contact, size: state.size, color: state.color, script: state.script, items: state.items.map(({ id, blob, type, room, name }) => ({ id, blob, type, room, name })) }));
 async function load() {
   await loadLib(); const p = await DB.get('project');
-  if (p) { if (!p.v) p.items.forEach(i => { if (i.room === 'หน้าบ้าน/ภายนอก') i.room = ''; }); state.size = p.size; state.color = { ...COLOR_DEFAULT, ...(p.color || {}) }; state.script = { area: '', rooms: {}, ...(p.script || {}) }; state.skipMap = !!p.skipMap; state.routeData = p.routeData || null; state.facts = { ...state.facts, ...(p.facts || {}) }; state.useArea = true; state.contact = { mode: 'std', ...(p.contact || {}), custom: { name: '', phone: '', line: '', ...((p.contact || {}).custom || {}) } }; state.items = p.items; nextId = Math.max(0, ...p.items.map(i => i.id)) + 1; }
+  if (p) { if (!p.v) p.items.forEach(i => { if (i.room === 'หน้าบ้าน/ภายนอก') i.room = ''; }); state.size = p.size; state.color = { ...COLOR_DEFAULT, ...(p.color || {}) }; state.script = { area: '', rooms: {}, en: {}, enSrc: {}, ...(p.script || {}) }; state.skipMap = !!p.skipMap; state.routeData = p.routeData || null; state.facts = { ...state.facts, ...(p.facts || {}) }; state.useArea = true; state.contact = { mode: 'std', ...(p.contact || {}), custom: { name: '', phone: '', line: '', ...((p.contact || {}).custom || {}) } }; state.items = p.items; nextId = Math.max(0, ...p.items.map(i => i.id)) + 1; }
 }
 
 const $ = s => document.querySelector(s);
@@ -336,23 +336,52 @@ async function copyText(t) {
   const ta = document.createElement('textarea'); ta.value = t; document.body.appendChild(ta); ta.select();
   let ok = false; try { ok = document.execCommand('copy'); } catch (_) {} ta.remove(); return ok;
 }
+// ---- แปลไทย -> อังกฤษ (MyMemory ฟรี ไม่ใช้รหัส · ต้องต่อเน็ต · ข้อความสคริปต์ถูกส่งไปแปลที่บริการนี้) ----
+function chunkText(t, max = 400) {
+  const out = []; let cur = '';
+  for (const w of t.split(/(\s+)/)) { if ((cur + w).length > max && cur) { out.push(cur); cur = ''; } cur += w; while (cur.length > max) { out.push(cur.slice(0, max)); cur = cur.slice(max); } }
+  if (cur.trim()) out.push(cur); return out;
+}
+const decodeHtml = h => { const t = document.createElement('textarea'); t.innerHTML = h; return t.value; };
+async function translateTh2En(text) {
+  const out = [];
+  for (const c of chunkText(text.trim())) {
+    const r = await fetch('https://api.mymemory.translated.net/get?q=' + encodeURIComponent(c) + '&langpair=th|en');
+    if (!r.ok) throw new Error('บริการแปลตอบ ' + r.status);
+    const j = await r.json();
+    if (String(j.responseStatus) !== '200') throw new Error(j.responseDetails || 'แปลไม่สำเร็จ');
+    out.push(decodeHtml(j.responseData.translatedText));
+  }
+  return out.join(' ').replace(/\s+/g, ' ').trim();
+}
+
 function viewScript() {
   organizeItems(); save();
   const segs = scriptSegments(), no2 = n => String(n).padStart(2, '0');
-  const setText = (seg, v) => { if (seg.key === 'life') state.script.life = v; else if (seg.key === 'area') state.script.area = v; else state.script.rooms[seg.room] = v; };
+  const sc = state.script; sc.en = sc.en || {}; sc.enSrc = sc.enSrc || {};
+  const setText = (seg, v) => { if (seg.key === 'life') sc.life = v; else if (seg.key === 'area') sc.area = v; else sc.rooms[seg.room] = v; };
   const total = () => scriptSegments().reduce((a, g) => a + secOf(g.text), 0);
+  const stale = g => !!(sc.en[g.key] && g.text.trim() && sc.enSrc[g.key] !== g.text);
+  const staleTxt = g => (stale(g) ? '⚠️ แก้ไทยหลังแปลแล้ว กด 🌐 แปลใหม่' : '');
   const card = g => {
     const its = g.key === 'life' ? lifeItems() : g.key === 'area' ? areaItems() : state.items.filter(i => i.room === g.room);
     return `<div class="seg" data-key="${g.key}">
-      <div class="seg-h"><b>${no2(g.no)} · ${g.label}</b><span class="badge" data-t="${g.key}">~${secOf(g.text)} วิ</span><button class="ib sm" data-cp="${g.key}" title="คัดลอกท่อนนี้" aria-label="คัดลอกท่อนนี้">📋</button></div>
+      <div class="seg-h"><b>${no2(g.no)} · ${g.label}</b><span class="badge" data-t="${g.key}">~${secOf(g.text)} วิ</span></div>
       ${its.length ? `<div class="mini">${its.slice(0, 4).map(i => i.type === 'image' ? `<img src="${urlOf(i)}" alt="">` : '<span>🎬</span>').join('')}<small>${its.length} รูป/คลิป</small></div>` : ''}
+      <div class="lang"><span>🇹🇭 ไทย</span><button class="ib sm" data-cp="th:${g.key}">📋 ไทย</button></div>
       <textarea rows="3" data-k="${g.key}" placeholder="พิมพ์เรื่องเล่าของห้องนี้...">${g.text.replace(/</g, '&lt;')}</textarea>
+      <div class="lang"><span>🇬🇧 English</span><button class="ib sm" data-tr="${g.key}">🌐 แปล</button><button class="ib sm" data-cp="en:${g.key}">📋 EN</button></div>
+      <textarea rows="3" data-e="${g.key}" placeholder="กด 🌐 แปล เพื่อแปลจากไทย (แก้ไขเองได้)">${(sc.en[g.key] || '').replace(/</g, '&lt;')}</textarea>
+      <small class="stale" data-w="${g.key}">${staleTxt(g)}</small>
     </div>`;
   };
   $('#view').innerHTML = `
     <h2>4 สคริปต์: เรื่องราว</h2>
-    <div class="tools"><button class="ib wide" id="s4Facts">🏠 ข้อมูลบ้าน</button><button class="ib wide danger" id="s4Draft">✨ ร่างให้</button><button class="ib" data-all title="คัดลอกสคริปต์ทั้งหมดไปวางใน Google AI Studio" aria-label="คัดลอกทั้งหมด">📋 ทั้งหมด</button></div>
-    <p class="hint">เวลารวมโดยประมาณ <b id="tot">${mmss(total())}</b> (เป้าหมายประมาณ 3:00) · เลขท่อนตรงกับชื่อไฟล์เสียง 01, 02, ... · ไตเติลและหน้าปิดเป็นคลิปประจำ ไม่ต้องเขียนสคริปต์</p>
+    <div class="tools"><button class="ib wide" id="s4Facts">🏠 ข้อมูลบ้าน</button><button class="ib wide danger" id="s4Draft">✨ ร่างให้</button></div>
+    <div class="tools"><button class="ib wide" id="trAll">🌐 แปลทั้งหมด</button><button class="ib wide" data-all="th">📋 ไทยทั้งหมด</button><button class="ib wide" data-all="en">📋 EN ทั้งหมด</button></div>
+    <p class="hint" id="saved">💾 บันทึกอัตโนมัติทุกครั้งที่พิมพ์</p>
+    <p class="hint">เวลารวมโดยประมาณ <b id="tot">${mmss(total())}</b> (เป้าหมายประมาณ 3:00) · ไตเติลและหน้าปิดเป็นคลิปประจำ ไม่ต้องเขียนสคริปต์</p>
+    <div class="soon" style="text-align:left">📋 <b>ปุ่มคัดลอกใช้ทำอะไร:</b> กด 📋 ไทย หรือ 📋 EN ที่ท่อนไหน แล้วนำไปวางใน <b>Google AI Studio</b> เพื่อสร้างเสียงพากย์ จากนั้นตั้งชื่อไฟล์เสียงตามเลขท่อน (01, 02, ...) แล้วนำมาอัปโหลดในขั้น 5 · ปุ่มทั้งหมดจะมี [01] [02] คั่นไว้ให้อ่านง่าย (ถ้าจะสร้างเสียงให้ใช้ปุ่มของแต่ละท่อน)<br>🌐 การแปลใช้บริการแปลฟรีออนไลน์ ต้องต่อเน็ต คุณภาพพื้นฐาน อ่านและแก้ก่อนใช้ทุกครั้ง</div>
     ${state.items.length ? '' : '<div class="soon">ยังไม่มีรูป กลับไปขั้น 2 เพื่อใส่รูปและติดแท็กห้องก่อน</div>'}
     <div id="segs">${segs.map(card).join('')}</div>
     <p class="hint" id="warn"></p>
@@ -367,21 +396,41 @@ function viewScript() {
     $('#warn').innerHTML = msgs.join('<br>');
   };
   warn();
+  const stamp = () => { const d = new Date(); $('#saved').textContent = `💾 บันทึกแล้ว ${d.toLocaleTimeString('th-TH')}`; };
   $('#segs').oninput = e => {
     const ta = e.target.closest('textarea'); if (!ta) return;
-    const g = scriptSegments().find(x => x.key === ta.dataset.k); setText(g, ta.value); save();
+    if (ta.dataset.e) { sc.en[ta.dataset.e] = ta.value; sc.enSrc[ta.dataset.e] = (scriptSegments().find(x => x.key === ta.dataset.e) || {}).text; save(); stamp(); return; }
+    const g = scriptSegments().find(x => x.key === ta.dataset.k); setText(g, ta.value); save(); stamp();
     document.querySelector(`[data-t="${CSS.escape(g.key)}"]`).textContent = `~${secOf(ta.value)} วิ`;
+    document.querySelector(`[data-w="${CSS.escape(g.key)}"]`).textContent = staleTxt({ key: g.key, text: ta.value });
     $('#tot').textContent = mmss(total()); warn();
   };
-  const flash = (btn, ok) => { const o = btn.textContent; btn.textContent = ok ? '✓ คัดลอกแล้ว' : 'คัดลอกไม่ได้'; setTimeout(() => { btn.textContent = o; }, 1500); };
+  const flash = (btn, ok) => { const o = btn.dataset.o || btn.textContent; btn.dataset.o = o; btn.textContent = ok ? '✓ คัดลอกแล้ว' : 'คัดลอกไม่ได้'; setTimeout(() => { btn.textContent = o; }, 1500); };
+  const doTranslate = async g => {
+    if (!g.text.trim()) return false;
+    const t = await translateTh2En(g.text); sc.en[g.key] = t; sc.enSrc[g.key] = g.text; save();
+    const ta = document.querySelector(`[data-e="${CSS.escape(g.key)}"]`); ta.value = t;
+    document.querySelector(`[data-w="${CSS.escape(g.key)}"]`).textContent = ''; return true;
+  };
   $('#segs').onclick = async e => {
-    const b = e.target.closest('[data-cp]'); if (!b) return;
-    const g = scriptSegments().find(x => x.key === b.dataset.cp); flash(b, await copyText(g.text));
+    const cp = e.target.closest('[data-cp]');
+    if (cp) { const [lang, key] = [cp.dataset.cp.split(':')[0], cp.dataset.cp.slice(cp.dataset.cp.indexOf(':') + 1)]; const g = scriptSegments().find(x => x.key === key); const txt = lang === 'en' ? (sc.en[key] || '') : g.text; if (!txt.trim()) { alert(lang === 'en' ? 'ยังไม่มีข้อความอังกฤษ กด 🌐 แปล ก่อน' : 'ยังไม่มีข้อความ'); return; } flash(cp, await copyText(txt.trim())); return; }
+    const tr = e.target.closest('[data-tr]');
+    if (tr) { const g = scriptSegments().find(x => x.key === tr.dataset.tr); if (!g.text.trim()) { alert('ยังไม่มีข้อความไทยให้แปล'); return; } tr.disabled = true; tr.textContent = 'กำลังแปล...'; try { await doTranslate(g); stamp(); } catch (err) { alert('แปลไม่สำเร็จ (ต่อเน็ตอยู่ไหม?) ' + (err.message || err)); } tr.disabled = false; tr.textContent = '🌐 แปล'; }
   };
-  document.querySelector('[data-all]').onclick = async e => {
-    const txt = scriptSegments().map(g => `[${no2(g.no)}]\n${g.text.trim()}`).join('\n\n');
-    flash(e.currentTarget, await copyText(txt));
+  $('#trAll').onclick = async e => {
+    const b = e.currentTarget, list = scriptSegments().filter(g => g.text.trim()); if (!list.length) { alert('ยังไม่มีข้อความไทยให้แปล'); return; }
+    b.disabled = true; let n = 0;
+    try { for (const g of list) { b.textContent = `กำลังแปล ${++n}/${list.length}`; await doTranslate(g); } stamp(); b.textContent = '✓ แปลครบแล้ว'; setTimeout(() => { b.textContent = '🌐 แปลทั้งหมด'; }, 2000); }
+    catch (err) { alert(`แปลไม่สำเร็จที่ท่อนที่ ${n} (ต่อเน็ตอยู่ไหม?) ` + (err.message || err)); b.textContent = '🌐 แปลทั้งหมด'; }
+    b.disabled = false;
   };
+  document.querySelectorAll('[data-all]').forEach(btn => btn.onclick = async e => {
+    const lang = btn.dataset.all;
+    const txt = scriptSegments().map(g => [`[${no2(g.no)}]`, (lang === 'en' ? (sc.en[g.key] || '') : g.text).trim()]).filter(x => x[1]).map(x => x.join('\n')).join('\n\n');
+    if (!txt) { alert(lang === 'en' ? 'ยังไม่มีข้อความอังกฤษ กด 🌐 แปลทั้งหมด ก่อน' : 'ยังไม่มีข้อความ'); return; }
+    flash(btn, await copyText(txt));
+  });
   $('#nx').onclick = () => go(4); $('#bk').onclick = () => go(2);
   $('#s4Facts').onclick = () => openFacts(() => viewScript());
   $('#s4Draft').onclick = () => { const n = draftAll(); alert(n ? `ร่างสคริปต์ให้ ${n} ช่วงแล้ว (เฉพาะที่ยังว่าง)` : 'ไม่มีท่อนว่างให้ร่าง'); viewScript(); };
