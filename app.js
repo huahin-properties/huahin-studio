@@ -109,55 +109,85 @@ function viewSize() {
   $('#next').onclick = () => go(1);
 }
 
-// ---- ขั้น 2: แท็บเช็กลิสต์ ใส่รูป/คลิปตามช่วงของคลิป (รูปที่ใส่ในแท็บไหนถูกตั้งห้องให้อัตโนมัติ) ----
+// ---- ขั้น 2: เช็กลิสต์แท็บ — แตะแท็บเพื่อเพิ่มไฟล์ในป๊อปอัพ ไฟล์ที่ใส่แล้วแสดงด้านล่างหน้าเดียวกัน ----
 let refreshChips = null;
+const slotScript = sl => (sl.cat === 'lifestyle' ? ['life'] : sl.cat ? ['area'] : sl.kind === 'room' ? ['room', sl.room] : null);
+const getSlotScript = sl => { const k = slotScript(sl); return !k ? null : k[0] === 'room' ? (state.script.rooms[k[1]] || '') : (state.script[k[0]] || ''); };
+const setSlotScript = (sl, v) => { const k = slotScript(sl); if (k[0] === 'room') state.script.rooms[k[1]] = v; else state.script[k[0]] = v; save(); };
+const thumbHtml = (it, del) => `<div class="th" data-id="${it.id}">${it.type === 'video' ? `<video src="${urlOf(it)}#t=0.1" muted playsinline></video>` : `<img src="${urlOf(it)}" alt="">`}${del ? `<button class="x" data-del="${it.id}" aria-label="ลบ">✕</button>` : ''}</div>`;
+
+function openSlot(id) {
+  document.querySelector('#slotSheet')?.remove();
+  const sl = SLOTS.find(x => x.id === id); if (!sl) return;
+  const items = slotItems(sl), n = slotCount(sl), st = slotStatus(sl, n);
+  const stTxt = { ok: '✅ ผ่านแล้ว', warn: '⚠️ ' + slotInfo(sl, n), miss: '❌ ' + slotInfo(sl, n), info: '➖ ไม่จำเป็น · ข้ามได้' }[st];
+  const d = document.createElement('div'); d.className = 'sheet tall'; d.id = 'slotSheet';
+  const sc = getSlotScript(sl);
+  d.innerHTML = `<div class="sh-head"><b>${sl.ico} ${sl.label}</b><button class="ib" data-a="x" aria-label="ปิด">✕</button></div>
+    <p class="hint">${sl.hint}</p><p class="stline st-${st}">${stTxt}</p>
+    ${sl.kind === 'contact' ? contactCardHtml() : `<button class="btn" data-a="add">${sl.max1 && items.length ? '↻ เปลี่ยนไฟล์' : '+ เพิ่มรูป / คลิป'}</button>
+      ${items.length ? `<div class="sgrid" id="pgrid">${items.map(it => thumbHtml(it, true)).join('')}</div>` : ''}`}
+    ${sc !== null ? `<label class="sl"><span>📝 สคริปต์ของช่วงนี้${sl.cat && sl.cat !== 'lifestyle' ? ' (ใช้ร่วมกันทั้ง 4 แท็บทำเล)' : ''}</span></label><textarea class="sct" id="slotScript" rows="3" placeholder="พิมพ์เรื่องเล่าของช่วงนี้ (ไม่ใส่ก็ได้ เขียนทีหลังได้ที่ขั้น 4)">${sc.replace(/</g, '&lt;')}</textarea>` : ''}
+    <button class="btn" data-a="x">เสร็จ</button>`;
+  d.onclick = async e => {
+    if (e.target.closest('[data-a=x]')) { d.remove(); refreshAll(); return; }
+    if (e.target.closest('[data-a=add]')) { const fs = await pickFiles('image/*,video/*', !sl.max1); if (fs.length) { await addToSlot(sl, fs); updateSb(); openSlot(id); } return; }
+    const b = e.target.closest('[data-del]'); if (b && confirm('ลบไฟล์นี้ใช่ไหม?')) { await removeFromSlot(sl, +b.dataset.del); updateSb(); openSlot(id); }
+  };
+  d.addEventListener('input', e => { if (e.target.id === 'slotScript') setSlotScript(sl, e.target.value); });
+  if (sl.kind === 'contact') bindContact(d, () => openSlot(id));
+  document.body.appendChild(d);
+}
+
+let refreshAll = () => {};
 function viewSlots() {
   selExtra = ''; selPre = '';
-  if (!SLOTS.some(x => x.id === state.slot)) { const first = SLOTS.find(x => slotStatus(x) === 'miss') || SLOTS.find(x => slotStatus(x) === 'warn') || SLOTS[0]; state.slot = first.id; }
   const mark = { ok: '✓', warn: '!', miss: '●', info: '' };
   $('#view').innerHTML = `
     <h2>ใส่รูป/คลิปตามช่วงของคลิป</h2>
+    <p class="hint">แตะแท็บเพื่อเพิ่มรูป/คลิป ไม่ต้องเรียงลำดับ · เขียว ✓ = ผ่านแล้ว · แดง ● = จำเป็น · ส้ม ! = แนะนำ · เส้นประ = ข้ามได้</p>
     <div class="chips" id="chips"></div>
-    <div id="panel"></div>`;
-  refreshChips = () => {
+    <div id="gallery"></div>
+    <div id="doneBar"></div>`;
+  const renderChips = () => {
     const el = $('#chips'); if (!el) return;
-    el.innerHTML = SLOTS.map(x => `<button class="chip st-${slotStatus(x)}${x.id === state.slot ? ' cur' : ''}" data-s="${x.id}">${x.ico} ${x.short} <i>${mark[slotStatus(x)]}</i></button>`).join('');
-    const cur = el.querySelector('.cur'); if (cur && !el.dataset.done) { cur.scrollIntoView({ inline: 'center', block: 'nearest' }); }
+    el.innerHTML = SLOTS.map(x => `<button class="chip st-${slotStatus(x)}" data-s="${x.id}">${x.ico} ${x.short} <i>${mark[slotStatus(x)]}</i></button>`).join('');
   };
-  const showPanel = () => {
-    const sl = SLOTS.find(x => x.id === state.slot), idx = SLOTS.indexOf(sl), panel = $('#panel');
-    refreshChips();
-    const items = slotItems(sl), n = slotCount(sl), st = slotStatus(sl, n);
-    const stTxt = { ok: '✅ ผ่านแล้ว', warn: '⚠️ ' + slotInfo(sl, n), miss: '❌ ' + slotInfo(sl, n), info: '➖ ไม่จำเป็น' }[st];
-    const nextLabel = idx < SLOTS.length - 1 ? `ถัดไป: ${SLOTS[idx + 1].ico} ${SLOTS[idx + 1].short} →` : 'ถัดไป: 3 สี →';
-    panel.innerHTML = `
-      <h3 class="ph">${sl.ico} ${sl.label}</h3>
-      <p class="hint">${sl.hint}</p>
-      <p class="stline st-${st}">${stTxt}</p>
-      ${sl.kind === 'contact' ? contactCardHtml() : `
-        <button class="btn" id="addSlot">${sl.max1 && items.length ? '↻ เปลี่ยนไฟล์' : '+ เพิ่มรูป / คลิป'}</button>
-        <div class="sgrid" id="sgrid">${items.map(it => `<div class="th" data-id="${it.id}">${it.type === 'video' ? `<video src="${urlOf(it)}#t=0.1" muted playsinline></video>` : `<img src="${urlOf(it)}" alt="">`}<button class="x" data-del="${it.id}" aria-label="ลบ">✕</button></div>`).join('') || '<div class="soon" style="grid-column:1/-1">ยังไม่มีไฟล์ในแท็บนี้</div>'}</div>
-        ${items.length > 4 && !sl.max1 ? '<p class="hint">ใส่เกิน 4 ไฟล์ได้ แต่ช่วงนี้จะยาวขึ้น</p>' : ''}`}
-      <div class="row2"><button class="btn alt" id="prevSlot" ${idx ? '' : 'disabled'}>← ก่อนหน้า</button><button class="btn" id="nextSlot">${nextLabel}</button></div>`;
-    $('#nextSlot').onclick = () => { if (idx < SLOTS.length - 1) { state.slot = SLOTS[idx + 1].id; showPanel(); window.scrollTo(0, 0); } else go(2); };
-    $('#prevSlot').onclick = () => { if (idx) { state.slot = SLOTS[idx - 1].id; showPanel(); window.scrollTo(0, 0); } };
-    if (sl.kind === 'contact') { bindContact(panel, showPanel); return; }
-    $('#addSlot').onclick = async () => { const fs = await pickFiles('image/*,video/*', !sl.max1); if (fs.length) { await addToSlot(sl, fs); updateSb(); showPanel(); } };
-    $('#sgrid').onclick = async e => {
-      const b = e.target.closest('[data-del]'); if (!b) return;
-      if (!confirm('ลบไฟล์นี้ใช่ไหม?')) return;
-      await removeFromSlot(sl, +b.dataset.del); updateSb(); showPanel();
-    };
-    if (sl.kind === 'room') enableDrag($('#sgrid'), { itemSel: '.th', grid: true, onEnd: async els => {
-      const ids = els.map(c => +c.dataset.id), slots = [];
-      state.items.forEach((x, k) => { if (sl.rooms.includes(x.room)) slots.push(k); });
-      const byId = new Map(state.items.map(x => [x.id, x])), next = state.items.slice();
-      slots.forEach((k, i) => { next[k] = byId.get(ids[i]); });
-      state.items = next; await save(); showPanel();
-    } });
+  const renderGallery = () => {
+    const g = $('#gallery'); if (!g) return;
+    const html = SLOTS.map(sl => {
+      if (sl.kind === 'contact') { const ct = activeContact(); const ok = slotCount(sl);
+        return ok ? `<div class="gsec" data-sec="${sl.id}"><div class="gh"><b>${sl.ico} ${sl.short}</b><button class="ib sm" data-open="${sl.id}">แก้ไข</button></div><p class="hint">${slotInfo(sl, ok)}</p></div>` : ''; }
+      const items = slotItems(sl); if (!items.length) return '';
+      return `<div class="gsec" data-sec="${sl.id}"><div class="gh"><b>${sl.ico} ${sl.label.replace(/ \(.*\)/, '')} · ${items.length}</b><button class="ib sm" data-open="${sl.id}">+ เพิ่ม</button></div>
+        <div class="sgrid" data-grid="${sl.id}">${items.map(it => thumbHtml(it, true)).join('')}</div></div>`;
+    }).join('');
+    g.innerHTML = html || '<div class="soon">ยังไม่มีไฟล์ แตะแท็บด้านบนเพื่อเริ่มเพิ่มรูป/คลิป</div>';
+    SLOTS.filter(sl => sl.kind === 'room').forEach(sl => { const grid = g.querySelector(`[data-grid="${sl.id}"]`); if (!grid) return;
+      enableDrag(grid, { itemSel: '.th', grid: true, onEnd: async els => {
+        const ids = els.map(c => +c.dataset.id), slots = [];
+        state.items.forEach((x, k) => { if (sl.rooms.includes(x.room)) slots.push(k); });
+        const byId = new Map(state.items.map(x => [x.id, x])), next = state.items.slice();
+        slots.forEach((k, i) => { next[k] = byId.get(ids[i]); });
+        state.items = next; await save(); renderGallery();
+      } }); });
   };
-  $('#chips').onclick = e => { const b = e.target.closest('.chip'); if (b) { state.slot = b.dataset.s; showPanel(); } };
-  showPanel();
+  const renderDone = () => {
+    const miss = sbBlockers(), el = $('#doneBar'); if (!el) return;
+    el.innerHTML = `${miss.length ? `<p class="hint" style="color:#9b1c1c">❌ ยังขาด: ${miss.map(m => m.label.replace(/ \(.*\)/, '')).join(', ')}</p>` : '<p class="hint" style="color:#1e6b3a">✅ เช็กลิสต์ของจำเป็นครบแล้ว</p>'}
+      <button class="btn" id="toColor" ${miss.length ? 'disabled' : ''}>ถัดไป: 3 สี →</button>`;
+    $('#toColor').onclick = () => go(2);
+  };
+  refreshAll = () => { renderChips(); renderGallery(); renderDone(); };
+  refreshChips = () => { if ($('#chips')) { renderChips(); renderDone(); } };
+  $('#chips').onclick = e => { const b = e.target.closest('.chip'); if (b) openSlot(b.dataset.s); };
+  $('#gallery').onclick = async e => {
+    const o = e.target.closest('[data-open]'); if (o) { openSlot(o.dataset.open); return; }
+    const x = e.target.closest('[data-del]'); if (!x) return;
+    const sl = SLOTS.find(z => z.id === x.closest(".gsec").dataset.sec);
+    if (confirm('ลบไฟล์นี้ใช่ไหม?')) { await removeFromSlot(sl, +x.dataset.del); updateSb(); refreshAll(); }
+  };
+  refreshAll();
 }
 
 function go(n) { selMode = false; picked.clear(); state.step = n; render(); window.scrollTo(0, 0); }
@@ -377,6 +407,8 @@ function viewRender() {
   };
 }
 
+let dragging = false;
+document.addEventListener('touchmove', e => { if (dragging) e.preventDefault(); }, { passive: false });
 // กดค้าง ~0.35 วินาที แล้วลากเพื่อสลับลำดับ (ใช้ได้ทั้งรายการแนวตั้งและตารางรูปเล็ก)
 function enableDrag(box, opt) {
   const { itemSel, grid, onEnd } = opt;
@@ -396,7 +428,7 @@ function enableDrag(box, opt) {
     item.style.transform = `translate(${grid ? lx - gx - r.left : 0}px, ${ly - gy - r.top}px)`;
   };
   const begin = (el, e) => {
-    item = el; item.classList.add('dragging');
+    item = el; dragging = true; item.classList.add('dragging');
     const r = item.getBoundingClientRect(); gx = e.clientX - r.left; gy = e.clientY - r.top; lx = e.clientX; ly = e.clientY;
     if (navigator.vibrate) navigator.vibrate(30);
     document.addEventListener('pointermove', move); document.addEventListener('pointerup', end); document.addEventListener('pointercancel', end);
@@ -425,14 +457,13 @@ function enableDrag(box, opt) {
     place();
   };
   const end = async () => {
-    clearInterval(scroller);
+    clearInterval(scroller); dragging = false;
     document.removeEventListener('pointermove', move); document.removeEventListener('pointerup', end); document.removeEventListener('pointercancel', end);
     const els = [...box.children]; const moved = item; item = null;
     await onEnd(els, moved);
   };
   box.addEventListener('pointerdown', down);
   box.addEventListener('contextmenu', e => e.preventDefault());
-  document.addEventListener('touchmove', e => { if (item) e.preventDefault(); }, { passive: false });
 }
 
 async function startPreview() {
