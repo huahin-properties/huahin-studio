@@ -986,6 +986,13 @@ function segPlan() {
     plan[g.key] = { sec: AUD[g.key] != null ? AUD[g.key] + 0.25 : Math.max(secOf(g.text), T[g.key] || 0), imgs: all, nAll: all.length, dropped: [] };
   });
   // ไม่ให้รูปล้นเวลาเสียง: ถ้ารูปมากกว่าที่เวลาของท่อนนั้นรองรับ (รูปละ ≥ 2.2 วิ) เลือกรูปกระจายห่างๆ ให้พอดีเวลา · ส่วนที่ไม่ได้ใช้ไม่ถูกลบ แค่ข้ามในคลิปนี้ (ไม่ใช้กับโหมดแยกตามภาพ)
+  if (state.stretch && state.audio.mode === 'beats') beatsList().forEach(b => { // โหมดแยกตามภาพ: เวลาของแต่ละช่วงเสียงเป็นตัวตั้ง
+    const P = plan[b.segKey]; if (!P || b.edge) return;
+    const au = beatAudioSec(b.id), sec = au != null ? au + 0.25 : P.sec * b.share, vids = b.imgs.filter(i => i.type === 'video'), stills = b.imgs.filter(i => i.type !== 'video'), room = Math.max(0, sec - vids.reduce((s, v) => s + vidDur(v), 0)), maxS = Math.max(1, Math.floor(room / 2.2));
+    if (stills.length <= maxS) return;
+    const keep = new Set(); for (let i = 0; i < maxS; i++) keep.add(stills[maxS === 1 ? 0 : Math.round(i * (stills.length - 1) / (maxS - 1))].id);
+    const gone = stills.filter(x => !keep.has(x.id)); P.dropped.push(...gone); const gs = new Set(gone.map(x => x.id)); P.imgs = P.imgs.filter(x => !gs.has(x.id));
+  });
   if (state.stretch && state.audio.mode !== 'beats') Object.values(plan).forEach(P => {
     const vids = P.imgs.filter(i => i.type === 'video'), stills = P.imgs.filter(i => i.type !== 'video'), room = Math.max(0, P.sec - vids.reduce((s, v) => s + vidDur(v), 0)), maxS = Math.max(1, Math.floor(room / 2.2));
     if (stills.length <= maxS) return;
@@ -1001,12 +1008,12 @@ const stillShare = (items, totalSec) => { const vids = items.filter(i => i.type 
 function imageDurations(imgs) {
   const plan = segPlan(), idToKey = new Map();
   Object.entries(plan).forEach(([k, P]) => P.imgs.forEach(i => idToKey.set(i.id, k)));
-  const BM = state.audio && state.audio.mode === 'beats' ? beatMap() : null;
+  const BM = state.audio && state.audio.mode === 'beats' ? beatMap() : null, DR = droppedIds();
   return imgs.map(i => {
     if (isHeroId(i.id)) { const d = hookDur(); return { dur: d, shots: d > MAXSHOT ? Math.ceil(d / MAXSHOT) : 1 }; }
     if (i.type === 'video') return { dur: vidDur(i), shots: 1 };
     const k = idToKey.get(i.id); if (!k || !state.stretch) return { dur: STYLE.secPerImage, shots: 1 };
-    const bt = BM && BM.get(i.id); if (bt) { const au = beatAudioSec(bt.id), P0 = plan[k], sec = au != null ? au + 0.25 : P0.sec * bt.share, d0 = stillShare(bt.imgs, sec); return { dur: d0, shots: d0 > MAXSHOT ? Math.ceil(d0 / MAXSHOT) : 1 }; }
+    const bt = BM && BM.get(i.id); if (bt) { const au = beatAudioSec(bt.id), P0 = plan[k], sec = au != null ? au + 0.25 : P0.sec * bt.share, d0 = stillShare(bt.imgs.filter(x => !DR.has(x.id)), sec); return { dur: d0, shots: d0 > MAXSHOT ? Math.ceil(d0 / MAXSHOT) : 1 }; }
     const P = plan[k], d = stillShare(P.imgs, P.sec);
     return { dur: d, shots: d > MAXSHOT ? Math.ceil(d / MAXSHOT) : 1 };
   });
@@ -1023,7 +1030,7 @@ function fitMeterHtml(sl) {
   const k = segKeyOfSlot(sl), P = segPlan()[k]; if (!P || !P.sec) return '';
   const n = P.nAll != null ? P.nAll : P.imgs.length, sec = Math.round(P.sec), lo = Math.max(1, Math.ceil(sec / MAXSHOT)), hi = Math.max(lo, Math.floor(sec / 2.5)), S = hi + Math.max(2, Math.round(hi * 0.4));
   const pos = Math.min(S, n) / S * 100, o = (lo - 0.5) / S * 100, g = (hi - lo + 1) / S * 100;
-  const bad = n < lo || n > hi, verdict = n < lo ? `⚠️ น้อยไป ภาพจะซูมหลายมุมซ้ำ แนะนำเพิ่มอีก ${lo - n} รูป` : n > hi ? `⚠️ เยอะไป เกินเวลาช่วงนี้ ลดเหลือไม่เกิน ${hi} รูป หรือเพิ่มสคริปต์` : '✅ จำนวนรูปพอดีกับเวลา';
+  const bad = n < lo, verdict = n < lo ? `⚠️ น้อยไป ภาพจะซูมหลายมุมซ้ำ แนะนำเพิ่มอีก ${lo - n} รูป` : n > hi ? `ℹ️ มีรูปเกินเวลาช่วงนี้ แอปจะเลือกใช้ ~${hi} รูปให้พอดีเวลา (ที่เหลือเก็บไว้ ไม่ลบ)` : '✅ จำนวนรูปพอดีกับเวลา';
   return `<div class="fit"><b style="width:${o}%"></b><b class="g" style="width:${g}%"></b><b class="r"></b><i style="left:${pos}%"></i></div><small class="fitl ${bad ? 'w' : 'ok'}">🎞️ ช่วงนี้ ~${sec} วิ · รูปที่เหมาะ ${lo}–${hi} รูป · ตอนนี้ ${n} รูป${k === 'area' ? ' (รวมทั้งทำเล)' : ''} — ${verdict}</small>`;
 }
 
