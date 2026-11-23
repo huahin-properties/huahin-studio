@@ -687,12 +687,12 @@ function openBeatSheet() {
   const row = (b, i) => `<div class="seg" data-bi="${i}"><div class="seg-h"><b>${b.no} · ${b.label}</b><span class="badge" data-bt="${i}">เริ่ม ${fmtSec(TL[b.id] != null ? TL[b.id] : (TL[b.segKey] || 0))} · ~${est(b).toFixed(1)} วิ</span></div>
     ${b.imgs.length ? `<div class="mini">${b.imgs.slice(0, 3).map(im => `<img src="${urlOf(im)}" alt="">`).join('')}<small>${b.imgs.length} รูป</small></div>` : ''}
     <textarea rows="2" data-b="${i}">${b.text.replace(/</g, '&lt;')}</textarea>
-    <div class="tools"><button class="ib wide" data-bc="${i}">📋 คัดลอกช่วงนี้</button><small class="hint" data-bs="${i}">${beatAudioSec(b.id) != null ? '✅ มีเสียงแล้ว ' + beatAudioSec(b.id).toFixed(1) + ' วิ' : '⬜ ยังไม่มีเสียง'}</small></div></div>`;
+    <div class="tools"><button class="ib wide" data-bc="${i}">📋 คัดลอกช่วงนี้ (ข้อความล้วน)</button><small class="hint" data-bs="${i}">${beatAudioSec(b.id) != null ? '✅ มีเสียงแล้ว ' + beatAudioSec(b.id).toFixed(1) + ' วิ' : '⬜ ยังไม่มีเสียง'}</small></div></div>`;
   const d = document.createElement('div'); d.className = 'sheet tall'; d.id = 'beatSheet';
   d.innerHTML = `<div class="sh-head"><b>🎙️ บทเสียงแบ่งช่วงตามภาพ</b><button class="ib" data-a="x" aria-label="ปิด">✕</button></div>
-    <p class="hint">แต่ละช่วงคือ <b>ข้อความสั้นๆ ที่พูดตอนภาพนั้นขึ้น</b> พร้อมเวลาโดยประมาณ ใช้เป็นผังก่อนไปสร้างเสียงที่ Google AI Studio: คัดลอกทีละช่วง → สร้างเสียงช่วงละไฟล์ → ที่ขั้น 5 เลือก "แยกตามภาพ" แล้วใส่ไฟล์ แอปจะตั้งเวลาแต่ละภาพตามเสียงจริง ช่วงไหนจังหวะไม่ลงตัว แก้ข้อความที่นี่ สร้างเสียงใหม่เฉพาะช่วงนั้นแล้วกด "↻ เปลี่ยนไฟล์" ช่วงอื่นไม่ต้องทำใหม่ (แก้ข้อความที่นี่ = แก้สคริปต์ท่อนนั้นด้วย)</p>
+    <p class="hint">แต่ละช่วงคือ <b>ข้อความสั้นๆ ที่พูดตอนภาพนั้นขึ้น</b> พร้อมเวลาโดยประมาณ ใช้เป็นผังก่อนไปสร้างเสียงที่ Google AI Studio: <b>ปุ่ม "คัดลอกช่วงนี้" และ "ข้อความล้วน" ไม่มีหมายเลข/เวลาติดไป</b> วางสร้างเสียงได้ทันที (ส่วน "ตารางพร้อมเวลา" ไว้ดูเองเท่านั้น) · คัดลอกทีละช่วง → สร้างเสียงช่วงละไฟล์ → ที่ขั้น 5 เลือก "แยกตามภาพ" แล้วใส่ไฟล์ แอปจะตั้งเวลาแต่ละภาพตามเสียงจริง ช่วงไหนจังหวะไม่ลงตัว แก้ข้อความที่นี่ สร้างเสียงใหม่เฉพาะช่วงนั้นแล้วกด "↻ เปลี่ยนไฟล์" ช่วงอื่นไม่ต้องทำใหม่ (แก้ข้อความที่นี่ = แก้สคริปต์ท่อนนั้นด้วย)</p>
     <p class="hint">${beats.length} ช่วง · เสียงโดยประมาณรวม ~${Math.round(beats.reduce((s, b) => s + est(b), 0))} วินาที · เวลา "เริ่ม" คำนวณจากผังเวลาตอนนี้</p>
-    <div class="tools"><button class="ib wide" id="bAll">📋 คัดลอกตารางทั้งหมด (ข้อความ + วินาที)</button><button class="ib wide" id="bMode">🎞️ ใช้โหมด "แยกตามภาพ" (ขั้น 5)</button></div>
+    <div class="tools"><button class="ib wide" id="bClean">📋 คัดลอกข้อความล้วน ทุกช่วง (สำหรับสร้างเสียง)</button><button class="ib wide" id="bAll">🗒️ คัดลอกตารางพร้อมเวลา (ไว้ดู ห้ามวางสร้างเสียง)</button><button class="ib wide" id="bMode">🎞️ ใช้โหมด "แยกตามภาพ" (ขั้น 5)</button></div>
     ${beats.map(row).join('')}<button class="btn alt" data-a="x">ปิด</button>`;
   const flash = (btn, ok) => { const o = btn.dataset.o || btn.textContent; btn.dataset.o = o; btn.textContent = ok ? '✓ คัดลอกแล้ว' : 'คัดลอกไม่ได้'; setTimeout(() => { btn.textContent = o; }, 1500); };
   d.oninput = e => {
@@ -704,6 +704,7 @@ function openBeatSheet() {
   d.onclick = async e => {
     if (e.target.closest('[data-a=x]')) { d.remove(); if (state.step === 3) viewScript(); return; }
     const c = e.target.closest('[data-bc]'); if (c) { flash(c, await copyText(beats[+c.dataset.bc].text)); return; }
+    if (e.target.closest('#bClean')) { flash(e.target.closest('#bClean'), await copyText(beats.map(b => b.text.trim()).join('\n\n'))); return; }
     if (e.target.closest('#bAll')) { flash(e.target.closest('#bAll'), await copyText(beats.map(b => `[${b.no}] (${b.imgs.length ? b.imgs.length + ' รูป · ' : ''}≈${est(b).toFixed(1)} วิ) ${b.text}`).join('\n\n'))); return; }
     if (e.target.closest('#bMode')) { A.mode = 'beats'; await save(); d.remove(); go(4); }
   };
