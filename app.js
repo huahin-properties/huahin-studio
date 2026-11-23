@@ -123,7 +123,7 @@ function bankFor(id) {
   const intro = n(f.name) ? `บ้านหลังนี้อยู่ใน ${n(f.name)}` : 'บ้านหลังนี้';
   const bits = [n(f.beds) && `${n(f.beds)} ห้องนอน`, n(f.baths) && `${n(f.baths)} ห้องน้ำ`, n(f.usable) && `พื้นที่ใช้สอย ${area(f.usable)}`, n(f.land) && `บนที่ดิน ${wah(f.land)}`].filter(Boolean);
   const B = {
-    'cat': [...(() => { const pl = placesInClip(), sent = pl.slice(0, 5).map(placeSentence), onlyNamed = [...new Set(areaLibOrdered().filter(i => !i.placeId).map(i => String(i.title || '').trim()).filter(Boolean))].slice(0, 3); return [...sent, ...(onlyNamed.length ? [`ในละแวกใกล้เคียงมี ${onlyNamed.join(' ')} ให้ไปใช้บริการได้สะดวก`] : [])]; })(), 'หัวหินคือเมืองริมทะเลที่ใครๆ ก็รัก ทั้งความสงบ ความสะดวก และบรรยากาศที่ผ่อนคลาย',
+    'cat': [...(() => { const pl = placesInClip(), sent = pl.slice(0, 3).map(placeSentence), onlyNamed = [...new Set(areaLibOrdered().filter(i => !i.placeId).map(i => String(i.title || '').trim()).filter(Boolean))].slice(0, 3); return [...sent, ...(onlyNamed.length ? [`ในละแวกใกล้เคียงมี ${onlyNamed.join(' ')} ให้ไปใช้บริการได้สะดวก`] : [])]; })(), 'หัวหินคือเมืองริมทะเลที่ใครๆ ก็รัก ทั้งความสงบ ความสะดวก และบรรยากาศที่ผ่อนคลาย',
       'ชายหาดทรายทอดยาว เหมาะกับการเดินเล่นยามเช้า และชมพระอาทิตย์ตกยามเย็น',
       'ตลาดและร้านอาหารหลากหลาย ตั้งแต่อาหารทะเลสดๆ ไปจนถึงร้านคาเฟ่น่านั่ง',
       'ชีวิตประจำวันสะดวกสบาย มีทั้งห้างสรรพสินค้า โรงพยาบาล และสถานที่ท่องเที่ยวให้เลือกมากมาย',
@@ -155,7 +155,8 @@ function bankFor(id) {
 const routeOkNow = () => !!(state.routeData && state.routeData.size === state.size);
 const fixedSec = () => (heroItem() ? hookDur() : 0) + (lib.titleBuiltin ? titleDur() : 0) + (lib.closeBuiltin ? closeDur() : 0) + (routeOkNow() ? ROUTE_DUR : 0) + STYLE.fade;
 const narrTarget = () => Math.max(30, state.clipSec - fixedSec());
-const SEG_WEIGHT = { 'cat-city': 14, map: 7, ext: 12, park: 3, liv: 9, dine: 4, kit: 10, bed: 10, bath: 5, pool: 9, garden: 4, 'cat-lifestyle': 9 };
+// ช่วงทำเล: เดิมน้ำหนัก 14 (ราว 20% ของคลิป) ตอนนี้ 4.8 → เหลือเวลาประมาณ 40% ของเดิม (ราว 8% ของคลิป) เวลาที่เหลือไปอยู่ช่วงตัวบ้าน
+const SEG_WEIGHT = { 'cat-city': 4.8, map: 7, ext: 12, park: 3, liv: 9, dine: 4, kit: 10, bed: 10, bath: 5, pool: 9, garden: 4, 'cat-lifestyle': 9 };
 function segSlot(g) {
   if (g.key === 'life') return SLOTS.find(x => x.cat === 'lifestyle');
   if (g.key === 'area') return SLOTS.find(x => x.cat === 'city');
@@ -724,7 +725,7 @@ function viewScript() {
     return `<div class="seg" data-key="${g.key}">
       <div class="seg-h"><b>${g.edge ? (g.key === 'open' ? 'เริ่ม' : g.key === 'hook' ? 'ฮุก' : 'จบ') : no2(g.no)} · ${g.label}</b><span class="badge" data-t="${g.key}">~${secOf(g.text)}${g.edge ? ' วิ' : ' / เป้า ' + segT[g.key] + ' วิ'}</span></div>
       ${its.length ? `<div class="mini">${its.slice(0, 4).map(i => i.type === 'image' ? `<img src="${urlOf(i)}" alt="">` : '<span>🎬</span>').join('')}<small>${its.length} รูป/คลิป</small></div>` : ''}
-      <div class="lang"><span>🇹🇭 ไทย</span><button class="ib sm" data-cp="th:${g.key}">📋 ไทย</button></div>
+      <div class="lang"><span>🇹🇭 ไทย</span>${g.key === 'area' && secOf(g.text) > segT[g.key] * 1.15 ? `<button class="ib sm" data-trim="area">✂️ ย่อเหลือ ${segT[g.key]} วิ</button>` : ''}<button class="ib sm" data-cp="th:${g.key}">📋 ไทย</button></div>
       <textarea rows="3" data-k="${g.key}" placeholder="พิมพ์เรื่องเล่าของห้องนี้...">${g.text.replace(/</g, '&lt;')}</textarea>
       <div class="lang"><span>🇬🇧 English</span><button class="ib sm" data-tr="${g.key}">🌐 แปล</button><button class="ib sm" data-cp="en:${g.key}">📋 EN</button></div>
       <textarea rows="3" data-e="${g.key}" placeholder="กด 🌐 แปล เพื่อแปลจากไทย (แก้ไขเองได้)">${(sc.en[g.key] || '').replace(/</g, '&lt;')}</textarea>
@@ -793,6 +794,8 @@ function viewScript() {
   $('#segs').onclick = async e => {
     const cp = e.target.closest('[data-cp]');
     if (cp) { const [lang, key] = [cp.dataset.cp.split(':')[0], cp.dataset.cp.slice(cp.dataset.cp.indexOf(':') + 1)]; const g = scriptSegmentsAll().find(x => x.key === key); const txt = lang === 'en' ? (sc.en[key] || '') : g.text; if (!txt.trim()) { alert(lang === 'en' ? 'ยังไม่มีข้อความอังกฤษ กด 🌐 แปล ก่อน' : 'ยังไม่มีข้อความ'); return; } flash(cp, await copyText(txt.trim())); return; }
+    const tm = e.target.closest('[data-trim]');
+    if (tm) { const want = segT.area * SPEAK_CPS, parts = (state.script.area || '').split(/(?<=[ ])/), out = []; let len = 0; for (const p of parts) { if (len + p.replace(/\s/g, '').length > want && out.length) break; out.push(p); len += p.replace(/\s/g, '').length; } state.script.area = out.join('').trim(); save(); viewScript(); return; }
     const tr = e.target.closest('[data-tr]');
     if (tr) { const g = scriptSegmentsAll().find(x => x.key === tr.dataset.tr); if (!g.text.trim()) { alert('ยังไม่มีข้อความไทยให้แปล'); return; } tr.disabled = true; tr.textContent = 'กำลังแปล...'; try { await doTranslate(g); stamp(); } catch (err) { alert('แปลไม่สำเร็จ (ต่อเน็ตอยู่ไหม?) ' + (err.message || err)); } tr.disabled = false; tr.textContent = '🌐 แปล'; }
   };
