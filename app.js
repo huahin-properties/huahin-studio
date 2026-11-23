@@ -832,10 +832,13 @@ function viewScript() {
         <p class="hint">ขึ้นต้นว่า: <b>"${c.texts[0].slice(0, 32).replace(/</g, '&lt;')}…"</b></p>
         <div class="tools"><button class="ib wide" data-cc="${i}">📋 คัดลอกช่วง ${i + 1}</button></div></div>`).join('')}
       <div class="seg"><b>🎙️ ไฟล์เดียวทั้งคลิป (แนะนำ เสียงเป็นเนื้อเดียวกัน)</b><p class="hint">คัดลอกสคริปต์ทุกท่อนต่อกัน เว้นบรรทัดระหว่างท่อน แล้วสร้างเสียงครั้งเดียว · แอปแบ่งท่อนจากช่วงเงียบระหว่างย่อหน้า ดังนั้น <b>อย่าตัดบรรทัดว่างทิ้ง</b></p><div class="tools"><button class="ib wide" data-all-one="1">📋 คัดลอกทั้งคลิป (ไฟล์เดียว)</button></div></div>
-      <button class="btn" data-a="open">🔊 เปิดหน้าสร้างเสียง</button><button class="btn alt" data-a="x">ปิด</button>`;
+      <button class="btn" data-a="open">🔊 เปิดหน้าสร้างเสียง (ในแอป Chrome)</button>
+      <div class="seg"><b>ถ้าเปิดแล้วยังเป็นหน้าต่างเล็กมีปุ่ม ✕ (ปิดแล้วข้อความหาย)</b><p class="hint">ใช้วิธีสำรอง: กด <b>คัดลอกลิงก์</b> → กดปุ่มโฮม → เปิดแอป <b>Chrome</b> ตัวปกติ → แตะแถบที่อยู่ด้านบน → วาง → เข้าไป · ใน Chrome ตัวปกติ ข้อความที่วางไว้จะอยู่ครบแม้สลับไปมา</p><div class="tools"><button class="ib wide" data-a="copylink">📋 คัดลอกลิงก์หน้าสร้างเสียง</button></div></div>
+      <button class="btn alt" data-a="x">ปิด</button>`;
     d.onclick = async e => {
       if (e.target.closest('[data-a=x]')) { d.remove(); return; }
       if (e.target.closest('[data-a=open]')) { openLink(lib.links.tts); return; }
+      const cl = e.target.closest('[data-a=copylink]'); if (cl) { flash(cl, await copyText(lib.links.tts)); return; }
       const one = e.target.closest('[data-all-one]'); if (one) { flash(one, await copyText(chunks.flatMap(c => c.texts).join('\n\n'))); return; }
       const b = e.target.closest('[data-cc]'); if (!b) return;
       const ok = await copyText(chunks[+b.dataset.cc].texts.join('\n\n')); flash(b, ok);
@@ -1176,7 +1179,7 @@ async function startPreview() {
 // เปิดลิงก์ภายนอกในแอป Chrome จริง (หน้าต่างแยก) แอปนี้ค้างอยู่ด้านหลัง สลับกลับมาได้ · บน Android ที่ติดตั้งแอปไว้ ลิงก์ปกติจะเปิดเป็นหน้าต่างเล็กในแอปแล้วหายเมื่อกลับมา
 function externalUrl(url) {
   const standalone = window.matchMedia && matchMedia('(display-mode: standalone)').matches || navigator.standalone;
-  if (/Android/i.test(navigator.userAgent) && standalone) { const u = new URL(url); return `intent://${u.host}${u.pathname}${u.search}#Intent;scheme=${u.protocol.replace(':', '')};package=com.android.chrome;S.browser_fallback_url=${encodeURIComponent(url)};end`; }
+  if (/Android/i.test(navigator.userAgent) && standalone) { const u = new URL(url); return `intent://${u.host}${u.pathname}${u.search}#Intent;scheme=${u.protocol.replace(':', '')};action=android.intent.action.VIEW;category=android.intent.category.BROWSABLE;package=com.android.chrome;component=com.google.android.apps.chrome.Main;launchFlags=0x10000000;S.browser_fallback_url=${encodeURIComponent(url)};end`; }
   return null;
 }
 function openExternal(url) {
