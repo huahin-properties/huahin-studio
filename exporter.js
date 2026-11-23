@@ -21,6 +21,7 @@ async function loadScaled(blob, W, H) {
   const scaled = await createImageBitmap(full, { resizeWidth: tw, resizeHeight: th, resizeQuality: 'high' });
   full.close();
   const c = document.createElement('canvas'); c.width = tw; c.height = th; c.getContext('2d').drawImage(scaled, 0, 0); scaled.close();
+  if (typeof proEnhance === 'function' && typeof state !== 'undefined' && state.enhance && state.enhance !== 'off') proEnhance(c, state.enhance);
   sharpen(c, 0.28);
   const bmp = await createImageBitmap(c); c.width = c.height = 0;
   return bmp;

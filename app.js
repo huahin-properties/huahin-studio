@@ -9,7 +9,7 @@ const SIZES = [
 const ROOMS = [AREA_ROOM, MAP_ROOM, 'หน้าบ้าน/ภายนอก','ที่จอดรถ','ห้องนั่งเล่น','ห้องทานอาหาร','ครัว','ห้องนอนใหญ่','ห้องนอน','ห้องน้ำ','สระว่ายน้ำ','สวน/ระเบียง','วิวรอบๆ','อื่นๆ'];
 const STEPS = ['1 ขนาด','2 ใส่รูป/คลิป','3 สี','4 สคริปต์','5 เสียง','6 มาสคอต','7 เรนเดอร์'];
 
-const state = { cover: null, capOn: true, hookOn: true, hero: null, content: null, stock: { mode: 'auto', ids: null, counted: [] }, trans: 'auto', overlay: true, mascot: { presenter: true, size: 0.28, side: 'left' }, audio: { mode: 'single', single: null, chunks: {}, beatAud: {}, music: null, musicVol: 15, duck: true, duckBoost: 2.5, sfx: true }, stretch: true, clipSec: 180, routeData: null, skipMap: false, facts: { name: '', beds: '', baths: '', usable: '', land: '', price: '', travel: '', coord: '', routeStart: '', routeLabel: '', highlights: '' }, slot: 'title', step: 0, size: '4:5', items: [], color: { ...COLOR_DEFAULT }, useArea: true, contact: { mode: 'std', custom: { name: '', phone: '', line: '' } }, script: { area: '', rooms: {}, en: {}, enSrc: {} } };
+const state = { enhance: 'pro', cover: null, capOn: true, hookOn: true, hero: null, content: null, stock: { mode: 'auto', ids: null, counted: [] }, trans: 'auto', overlay: true, mascot: { presenter: true, size: 0.28, side: 'left' }, audio: { mode: 'single', single: null, chunks: {}, beatAud: {}, music: null, musicVol: 15, duck: true, duckBoost: 2.5, sfx: true }, stretch: true, clipSec: 180, routeData: null, skipMap: false, facts: { name: '', beds: '', baths: '', usable: '', land: '', price: '', travel: '', coord: '', routeStart: '', routeLabel: '', highlights: '' }, slot: 'title', step: 0, size: '4:5', items: [], color: { ...COLOR_DEFAULT }, useArea: true, contact: { mode: 'std', custom: { name: '', phone: '', line: '' } }, script: { area: '', rooms: {}, en: {}, enSrc: {} } };
 const STATE0 = structuredClone(state);
 let nextId = 1;
 
@@ -24,10 +24,10 @@ const DB = {
   async set(k, v) { const db = await this.open(); return new Promise((res, rej) => { const tx = db.transaction('kv', 'readwrite'); tx.objectStore('kv').put(v, k); tx.oncomplete = res; tx.onerror = tx.onabort = () => rej(tx.error || new Error('บันทึกไม่ได้ (พื้นที่เต็ม?)')); }); },
   async del(k) { const db = await this.open(); return new Promise((res, rej) => { const tx = db.transaction('kv', 'readwrite'); tx.objectStore('kv').delete(k); tx.oncomplete = res; tx.onerror = tx.onabort = () => rej(tx.error); }); },
 };
-const projData = () => ({ v: 2, hookOn: state.hookOn, hero: state.hero, content: state.content, stock: state.stock, capOn: state.capOn, cover: state.cover, trans: state.trans, overlay: state.overlay, mascot: state.mascot, audio: state.audio, stretch: state.stretch, clipSec: state.clipSec, routeData: state.routeData, skipMap: state.skipMap, facts: state.facts, useArea: state.useArea, contact: state.contact, size: state.size, color: state.color, script: state.script, items: state.items.map(({ id, blob, type, room, name, title }) => ({ id, blob, type, room, name, title })) });
+const projData = () => ({ v: 2, hookOn: state.hookOn, hero: state.hero, content: state.content, stock: state.stock, capOn: state.capOn, cover: state.cover, enhance: state.enhance, trans: state.trans, overlay: state.overlay, mascot: state.mascot, audio: state.audio, stretch: state.stretch, clipSec: state.clipSec, routeData: state.routeData, skipMap: state.skipMap, facts: state.facts, useArea: state.useArea, contact: state.contact, size: state.size, color: state.color, script: state.script, items: state.items.map(({ id, blob, type, room, name, title, orig }) => ({ id, blob, type, room, name, title, orig })) });
 const save = () => { if (typeof updateSb === 'function') updateSb(); if (!state.pid) return Promise.resolve(); if (typeof schedMeta === 'function') schedMeta(); return DB.set('project:' + state.pid, projData()).catch(() => {}); };
 function applyProject(p) {
-  if (p) { if (!p.v) p.items.forEach(i => { if (i.room === 'หน้าบ้าน/ภายนอก') i.room = ''; }); state.size = p.size; state.hookOn = p.hookOn !== false; state.hero = p.hero || null; state.content = p.content || null; state.capOn = p.capOn !== false; state.cover = p.cover || null; state.stock = p.stock || { mode: 'all', ids: null, counted: [] }; state.trans = p.trans || 'auto'; state.overlay = p.overlay !== false; state.color = { ...COLOR_DEFAULT, ...(p.color || {}) }; state.script = { area: '', rooms: {}, en: {}, enSrc: {}, ...(p.script || {}) }; state.skipMap = !!p.skipMap; state.clipSec = p.clipSec || 180; state.audio = { mode: 'single', single: null, chunks: {}, beatAud: {}, music: null, musicVol: 15, duck: true, duckBoost: 2.5, sfx: true, ...(p.audio || {}) }; state.mascot = { presenter: true, size: 0.28, side: 'left', ...(p.mascot || {}) }; state.stretch = p.stretch !== false; state.routeData = p.routeData || null; state.facts = { ...state.facts, ...(p.facts || {}) }; state.useArea = true; state.contact = { mode: 'std', ...(p.contact || {}), custom: { name: '', phone: '', line: '', ...((p.contact || {}).custom || {}) } }; state.items = p.items; nextId = Math.max(0, ...p.items.map(i => i.id)) + 1; }
+  if (p) { if (!p.v) p.items.forEach(i => { if (i.room === 'หน้าบ้าน/ภายนอก') i.room = ''; }); state.size = p.size; state.hookOn = p.hookOn !== false; state.hero = p.hero || null; state.content = p.content || null; state.capOn = p.capOn !== false; state.cover = p.cover || null; state.enhance = p.enhance || 'off'; state.stock = p.stock || { mode: 'all', ids: null, counted: [] }; state.trans = p.trans || 'auto'; state.overlay = p.overlay !== false; state.color = { ...COLOR_DEFAULT, ...(p.color || {}) }; state.script = { area: '', rooms: {}, en: {}, enSrc: {}, ...(p.script || {}) }; state.skipMap = !!p.skipMap; state.clipSec = p.clipSec || 180; state.audio = { mode: 'single', single: null, chunks: {}, beatAud: {}, music: null, musicVol: 15, duck: true, duckBoost: 2.5, sfx: true, ...(p.audio || {}) }; state.mascot = { presenter: true, size: 0.28, side: 'left', ...(p.mascot || {}) }; state.stretch = p.stretch !== false; state.routeData = p.routeData || null; state.facts = { ...state.facts, ...(p.facts || {}) }; state.useArea = true; state.contact = { mode: 'std', ...(p.contact || {}), custom: { name: '', phone: '', line: '', ...((p.contact || {}).custom || {}) } }; state.items = p.items; nextId = Math.max(0, ...p.items.map(i => i.id)) + 1; }
 }
 
 const $ = s => document.querySelector(s);
@@ -880,6 +880,10 @@ async function viewColor() {
     <h2>3 สี: ปรับสีให้เข้ากัน</h2>
     <div id="selbar" class="tools"></div>
     <div class="ba"><div><canvas id="cb"></canvas><small>ก่อน</small></div><div><canvas id="ca"></canvas><small>หลัง</small></div></div>
+    <div class="seg"><b>✨ แต่งภาพให้สว่างเหมือนถ่ายด้วยกล้องโปร</b>
+      <p class="hint">เปิดเงามืด กดไฮไลต์ไม่ให้จ้า เพิ่มความคมชัดเฉพาะจุดและความสดของสี ใช้กับรูปบ้านทุกรูปตอนเรนเดอร์ (ดูตัวอย่างที่ภาพ "หลัง" ด้านบน) · ไม่ได้สร้างภาพใหม่ด้วย AI ภาพที่มืดหรือเบลอมาก ๆ แก้ได้จำกัด</p>
+      <div class="tools">${Object.keys(ENHANCE_LABELS).map(k => `<label class="sw" style="margin:0"><input type="radio" name="enh" value="${k}" ${state.enhance === k ? 'checked' : ''}> ${ENHANCE_LABELS[k]}</label>`).join('')}</div>
+      <div class="tools"><button class="ib wide" id="retBtn">🧹 ลบสายไฟ/สิ่งรบกวนในรูปนี้ (ระบายทับ)</button></div></div>
     <p class="hint" id="cap"></p>
     <input type="file" id="file3" accept="image/*,video/*" multiple hidden>
     <p class="hint" id="prog3"></p>
@@ -897,14 +901,14 @@ async function viewColor() {
   const draw = () => {
     const luts = isNeutral(c) ? null : makeLuts(stats, c);
     // แสดงตามกรอบคลิปที่เลือก (ภาพเต็มกรอบ ตัดส่วนเกิน) ให้ตรงกับที่จะออกในคลิปจริง
-    const put = (cv, bmp, lut, w) => { const z = sizeInfo(), h = Math.round(w * z.h / z.w), t = document.createElement('canvas'); t.width = w; t.height = h; drawCover(t.getContext('2d'), bmp, w, h, 1); cv.width = w; cv.height = h; cv.getContext('2d').drawImage(gradeToCanvas(t, lut), 0, 0); };
+    const put = (cv, bmp, lut, w, enh) => { const z = sizeInfo(), h = Math.round(w * z.h / z.w), t = document.createElement('canvas'); t.width = w; t.height = h; drawCover(t.getContext('2d'), bmp, w, h, 1); if (enh && state.enhance !== 'off') proEnhance(t, state.enhance); cv.width = w; cv.height = h; cv.getContext('2d').drawImage(gradeToCanvas(t, lut), 0, 0); };
     { const un = imgs.filter(x => !x.room).length;
       $('#prog3').innerHTML = un ? `🟧 ยังไม่ตั้งห้อง <b>${un}</b> จาก ${imgs.length} รูป · <button class="lnk" id="pickUn">เลือกที่ยังไม่ตั้งห้อง</button>` : `🟩 ตั้งห้องครบทั้ง ${imgs.length} รูปแล้ว`;
       const pu = $('#pickUn'); if (pu) pu.onclick = () => { selMode = true; picked.clear(); imgs.filter(x => !x.room).forEach(x => picked.add(x.id)); $('#selbar').innerHTML = selBarHtml(); draw(); }; }
     $('#cap').textContent = `รูปที่ ${sel + 1} จาก ${imgs.length} · ห้อง: ${imgs[sel].room || 'ยังไม่ตั้งห้อง'} · ปรับสี: ${c.auto ? 'อัตโนมัติ' : 'ปิด'}${(c.bright || c.contrast || c.warm) ? ' + ตั้งเอง' : ''}`;
-    put($('#cb'), smalls[sel], null, 240); put($('#ca'), smalls[sel], luts && luts[sel], 240);
+    put($('#cb'), smalls[sel], null, 240, false); put($('#ca'), smalls[sel], luts && luts[sel], 240, true);
     document.querySelectorAll('#th canvas').forEach(cv => {
-      const i = +cv.dataset.i; put(cv, smalls[i], luts && luts[i], 220); cv.classList.toggle('on', !selMode && i === sel);
+      const i = +cv.dataset.i; put(cv, smalls[i], luts && luts[i], 220, true); cv.classList.toggle('on', !selMode && i === sel);
       const kk = cv.width / 110, cw = 110, ch = cv.height / kk; cv.getContext('2d').save(); cv.getContext('2d').scale(kk, kk);
       { const x = cv.getContext('2d'), rm = imgs[i].room;
         x.fillStyle = rm ? 'rgba(30,110,60,.92)' : 'rgba(224,138,0,.95)'; x.fillRect(0, ch - 18, cw, 18);
@@ -924,6 +928,8 @@ async function viewColor() {
   draw();
   let raf = 0; const redraw = () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(draw); };
   $('#auto').onchange = e => { c.auto = e.target.checked; save(); redraw(); };
+  document.querySelectorAll('input[name=enh]').forEach(r => r.onchange = () => { state.enhance = r.value; save(); draw(); });
+  $('#retBtn').onclick = () => openRetouch(imgs[sel], () => { colorSel = sel; viewColor(); });
   document.querySelectorAll('input[type=range]').forEach(r => r.oninput = () => { c[r.dataset.k] = +r.value; $('#v_' + r.dataset.k).textContent = r.value; save(); redraw(); });
   enableDrag($('#th'), { itemSel: 'canvas', grid: true, onEnd: async (els, moved) => {
     const ids = els.map(c => +c.dataset.id), slots = [];
