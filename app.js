@@ -550,7 +550,7 @@ function hookDefault() {
   const x = num(f.price) ? Number(n(f.price).replace(/,/g, '')) : null, price = x == null ? n(f.price) : (x < 1000 ? `${x} ล้านบาท` : `${x.toLocaleString('th-TH')} บาท`);
   return `${n(f.name) ? 'นี่คือ ' + n(f.name) : 'นี่คือบ้านพักตากอากาศที่หัวหิน'} ${bits.join(' ')}${n(f.highlights) ? ' ' + n(f.highlights) : ''}${price ? ' ราคา ' + price : ''}`.replace(/\s+/g, ' ').trim();
 }
-const hookDur = () => { const au = segAudioSec().hook; if (au != null) return Math.min(12, Math.max(5, au + 0.35)); const g = scriptSegmentsAll().find(x => x.key === 'hook'); return g ? Math.min(10, Math.max(5, secOf(g.text) + 0.8)) : 5; };
+const hookDur = () => { const au = segAudioSec().hook; if (au != null) return Math.min(30, Math.max(5, au + 0.35)); const g = scriptSegmentsAll().find(x => x.key === 'hook'); return g ? Math.min(10, Math.max(5, secOf(g.text) + 0.8)) : 5; };
 
 // ---- บทเสียงแบ่งช่วงตามภาพ (Beat sheet): 1 ช่วง = ข้อความสั้นๆ + รูปที่แสดงตอนพูดช่วงนั้น + เวลา · ใช้สร้างเสียงทีละช่วงที่ AI Studio แล้วแก้เฉพาะช่วงได้ ----
 function cutText(t, m) {
@@ -982,10 +982,20 @@ function segPlan() {
   const segs = scriptSegments(), T = segTargets(), plan = {}, AUD = segAudioSec();
   segs.forEach(g => {
     const list = g.key === 'life' ? lifeItems() : g.key === 'area' ? areaItems() : state.items.filter(i => i.room === g.room);
-    plan[g.key] = { sec: AUD[g.key] != null ? AUD[g.key] + 0.25 : Math.max(secOf(g.text), T[g.key] || 0), imgs: list.filter(isMedia) };
+    const all = list.filter(isMedia);
+    plan[g.key] = { sec: AUD[g.key] != null ? AUD[g.key] + 0.25 : Math.max(secOf(g.text), T[g.key] || 0), imgs: all, nAll: all.length, dropped: [] };
+  });
+  // ไม่ให้รูปล้นเวลาเสียง: ถ้ารูปมากกว่าที่เวลาของท่อนนั้นรองรับ (รูปละ ≥ 2.2 วิ) เลือกรูปกระจายห่างๆ ให้พอดีเวลา · ส่วนที่ไม่ได้ใช้ไม่ถูกลบ แค่ข้ามในคลิปนี้ (ไม่ใช้กับโหมดแยกตามภาพ)
+  if (state.stretch && state.audio.mode !== 'beats') Object.values(plan).forEach(P => {
+    const vids = P.imgs.filter(i => i.type === 'video'), stills = P.imgs.filter(i => i.type !== 'video'), room = Math.max(0, P.sec - vids.reduce((s, v) => s + vidDur(v), 0)), maxS = Math.max(1, Math.floor(room / 2.2));
+    if (stills.length <= maxS) return;
+    const keep = new Set(); for (let i = 0; i < maxS; i++) keep.add(stills[maxS === 1 ? 0 : Math.round(i * (stills.length - 1) / (maxS - 1))].id);
+    P.dropped = stills.filter(x => !keep.has(x.id)); P.imgs = P.imgs.filter(x => x.type === 'video' || keep.has(x.id));
   });
   return plan;
 }
+const droppedIds = () => { const s = new Set(); Object.values(segPlan()).forEach(P => (P.dropped || []).forEach(i => s.add(i.id))); return s; };
+const keptMedia = arr => { const dr = droppedIds(); return arr.filter(i => isMedia(i) && !dr.has(i.id)); };
 // เวลาแสดงรูปนิ่งที่เหลือหลังหักเวลาคลิปวิดีโอ (คลิปใช้ความยาวของตัวเองไม่เกิน 8 วินาที)
 const stillShare = (items, totalSec) => { const vids = items.filter(i => i.type === 'video'), stills = items.length - vids.length; if (!stills) return STYLE.secPerImage; return Math.max(STYLE.secPerImage, (totalSec - vids.reduce((s, v) => s + vidDur(v), 0)) / stills); };
 function imageDurations(imgs) {
@@ -1003,15 +1013,15 @@ function imageDurations(imgs) {
 }
 function timelineImages() {
   const titleImg = (!lib.titleBuiltin && lib.title && lib.title.type === 'image') ? lib.title : null, closeImg = (!lib.closeBuiltin && lib.close && lib.close.type === 'image') ? lib.close : null;
-  const pre = titleImg ? [titleImg] : [], post = closeImg ? [closeImg] : [], hero = heroItem();
-  return { pre, hero, imgs: [...(hero ? [hero] : []), ...pre, ...areaLibOrdered().filter(isMedia), ...state.items.filter(isMedia), ...lifeItems().filter(isMedia), ...post] };
+  const pre = titleImg ? [titleImg] : [], post = closeImg ? [closeImg] : [], hero = heroItem(), dr = droppedIds(), kp = x => isMedia(x) && !dr.has(x.id);
+  return { pre, hero, imgs: [...(hero ? [hero] : []), ...pre, ...areaLibOrdered().filter(kp), ...state.items.filter(kp), ...lifeItems().filter(kp), ...post] };
 }
 const predictedTotal = () => imageDurations(timelineImages().imgs).reduce((a, p) => a + p.dur, 0) + fixedSec();
 // ขีดวัด: จำนวนรูปเทียบกับเวลาของช่วงนั้น (ส้ม=น้อยไป เขียว=พอดี แดง=เยอะไป)
 function fitMeterHtml(sl) {
   if (!state.stretch || getSlotScript(sl) === null) return '';
   const k = segKeyOfSlot(sl), P = segPlan()[k]; if (!P || !P.sec) return '';
-  const n = P.imgs.length, sec = Math.round(P.sec), lo = Math.max(1, Math.ceil(sec / MAXSHOT)), hi = Math.max(lo, Math.floor(sec / 2.5)), S = hi + Math.max(2, Math.round(hi * 0.4));
+  const n = P.nAll != null ? P.nAll : P.imgs.length, sec = Math.round(P.sec), lo = Math.max(1, Math.ceil(sec / MAXSHOT)), hi = Math.max(lo, Math.floor(sec / 2.5)), S = hi + Math.max(2, Math.round(hi * 0.4));
   const pos = Math.min(S, n) / S * 100, o = (lo - 0.5) / S * 100, g = (hi - lo + 1) / S * 100;
   const bad = n < lo || n > hi, verdict = n < lo ? `⚠️ น้อยไป ภาพจะซูมหลายมุมซ้ำ แนะนำเพิ่มอีก ${lo - n} รูป` : n > hi ? `⚠️ เยอะไป เกินเวลาช่วงนี้ ลดเหลือไม่เกิน ${hi} รูป หรือเพิ่มสคริปต์` : '✅ จำนวนรูปพอดีกับเวลา';
   return `<div class="fit"><b style="width:${o}%"></b><b class="g" style="width:${g}%"></b><b class="r"></b><i style="left:${pos}%"></i></div><small class="fitl ${bad ? 'w' : 'ok'}">🎞️ ช่วงนี้ ~${sec} วิ · รูปที่เหมาะ ${lo}–${hi} รูป · ตอนนี้ ${n} รูป${k === 'area' ? ' (รวมทั้งทำเล)' : ''} — ${verdict}</small>`;
@@ -1023,7 +1033,7 @@ function viewRender() {
   const blockers = sbBlockers();
   const skipped = state.items.length - imgs.filter(i => !isHeroId(i.id)).length;
   const routeOk = !!(state.routeData && state.routeData.size === state.size);
-  const routeAt = pre.length + areaLibOrdered().filter(isMedia).length + state.items.filter(i => isMedia(i) && (i.room === AREA_ROOM || i.room === MAP_ROOM)).length;
+  const routeAt = pre.length + keptMedia(areaLibOrdered()).length + keptMedia(state.items.filter(i => i.room === AREA_ROOM || i.room === MAP_ROOM)).length;
   $('#view').innerHTML = `
     <h2>เรนเดอร์เป็น MP4</h2>
     <p class="hint">ขนาด ${s.name} (${s.w}×${s.h}) · ${imgs.length} รูป/คลิป · ยาวประมาณ ${predictedTotal().toFixed(1)} วินาที (รวมฉากมาสคอต/คลิปรถวิ่งที่เปิดใช้)${skipped ? ` · คลิปสั้น ${skipped} ไฟล์ยังไม่ถูกใช้ (รอบหน้า)` : ''}</p>
@@ -1036,6 +1046,7 @@ function viewRender() {
     <p class="hint">ปรับสี: ${isNeutral(state.color) ? 'ปิด' : (state.color.auto ? 'อัตโนมัติ' : 'ตั้งเอง')}</p>
     <p class="hint">ระหว่างเรนเดอร์ ให้เปิดหน้าจอค้างไว้ อย่าสลับแอป</p>
     <button class="btn" id="go" ${imgs.length && !blockers.length ? '' : 'disabled'}>🎬 เริ่มเรนเดอร์</button>
+    ${(() => { try { if (!(state.audio.single || Object.keys(audStore()).length)) return ''; const bad = syncReport().filter(r => r.gap > 3 || r.gap < -0.6); return bad.length ? `<div class="soon" style="text-align:left;border-color:#b00020;color:#b00020"><b>⏱ ท่อนที่ภาพกับเสียงยังไม่พอดี (${bad.length})</b><br>${bad.map(r => `• ${r.label}: ภาพ ${r.video.toFixed(0)} วิ · เสียง ${r.voice.toFixed(0)} วิ → ${r.gap > 0 ? 'เงียบมีแต่เพลง ' + r.gap.toFixed(0) + ' วิ' : 'เสียงล้นภาพ ' + (-r.gap).toFixed(0) + ' วิ'}`).join('<br>')}<br><small>แก้: ตรวจรอยต่อเสียงที่ขั้น 5 ให้ครบ หรือลดรูปในท่อนนั้น</small></div>` : '<p class="hint">✅ ภาพกับเสียงทุกท่อนยาวพอดีกัน</p>'; } catch (e) { return ''; } })()}
     ${(() => { const c = coverItem(); return c ? `<div class="seg"><div class="seg-h"><b>🖼️ ภาพหน้าปกคลิป</b></div><div class="mini"><img src="${urlOf(c)}" alt=""><small>${c.room || 'ภาพที่เลือก'}${state.cover && state.cover.id === c.id ? '' : ' (เลือกให้อัตโนมัติ)'}</small></div><p class="hint">ใช้เป็นหน้าปกการ์ดในหน้า "คลิปของฉัน" และดาวน์โหลดเป็นไฟล์ภาพไปตั้งเป็นหน้าปกโพสต์ Facebook / YouTube ได้</p><div class="tools"><button class="ib wide" id="coverPick">🖼️ เลือกภาพหน้าปก</button><button class="ib wide" id="coverDl">⬇ ดาวน์โหลดภาพหน้าปก</button></div></div>` : ''; })()}
     <div id="saved"></div><div id="prog" class="hint"></div><div id="out"></div>
     <button class="btn alt" id="bk">← ย้อนกลับ</button>`;
@@ -1442,7 +1453,7 @@ function wavBlob(data, sr) {
 const MASCOT_SELL = ['room:หน้าบ้าน/ภายนอก', 'room:สระว่ายน้ำ', 'room:สวน/ระเบียง', 'life'];
 function makePlan() {
   const { pre, hero, imgs } = timelineImages(), routeOk = routeOkNow(), nH = hero ? 1 : 0;
-  const routeAt = nH + pre.length + areaLibOrdered().filter(isMedia).length + state.items.filter(i => isMedia(i) && (i.room === AREA_ROOM || i.room === MAP_ROOM)).length;
+  const routeAt = nH + pre.length + keptMedia(areaLibOrdered()).length + keptMedia(state.items.filter(i => i.room === AREA_ROOM || i.room === MAP_ROOM)).length;
   const durs = imageDurations(imgs), idKey = new Map(), idBeat = new Map();
   Object.entries(segPlan()).forEach(([k, P]) => P.imgs.forEach(i => idKey.set(i.id, k)));
   if (state.audio.mode === 'beats') beatsList().forEach(b => b.imgs.forEach(i => idBeat.set(i.id, b.id)));
@@ -1455,6 +1466,13 @@ function makePlan() {
   const starts = {}, sceneAt = {}; let acc = 0;
   entries.forEach(e => { if (e.key && starts[e.key] == null) starts[e.key] = acc; if (e.bkey && starts[e.bkey] == null) starts[e.bkey] = acc; if (e.title) sceneAt.title = acc; if (e.close) sceneAt.close = acc; acc += e.dur; });
   return { imgs, pre, hero, durs, entries, starts, sceneAt, routeOk, routeAt, total: acc + STYLE.fade };
+}
+// ตรวจจังหวะภาพกับเสียงของแต่ละท่อน: ภาพยาวกว่าเสียง = เงียบมีแต่เพลง · เสียงยาวกว่าภาพ = เสียงล้นไปท่อนถัดไป
+function syncReport() {
+  const P = makePlan(), AUD = segAudioSec(), sum = {}, out = [];
+  P.entries.forEach(e => { if (e.key) sum[e.key] = (sum[e.key] || 0) + e.dur; });
+  scriptSegmentsAll().filter(g => g.text.trim()).forEach(g => { const v = AUD[g.key], s = sum[g.key]; if (v == null || s == null) return; out.push({ key: g.key, label: g.edge ? (g.key === 'open' ? 'เปิดคลิป' : g.key === 'hook' ? 'ฮุก' : 'ปิดท้าย') : `ท่อน ${String(g.no).padStart(2, '0')} ${g.label}`, video: s, voice: v, gap: s - v }); });
+  return out;
 }
 function computeTimeline() { const P = makePlan(); return { starts: P.starts, sceneAt: P.sceneAt, total: P.total }; }
 async function buildMix(starts, total, sceneAt) {
