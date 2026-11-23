@@ -1253,9 +1253,9 @@ function viewAudio() {
       ${i ? `<div class="alb"><button class="ib sm" data-nudge="${x.key}|-0.2" aria-label="เลื่อนขอบเข้าก่อน">◀</button><button class="ib sm" data-listen="${x.a0}" aria-label="ฟังรอยต่อ">▶</button><button class="ib sm" data-nudge="${x.key}|0.2" aria-label="เลื่อนขอบถัดไป">▶▶</button></div>` : ''}</div>`; }).join('');
     return `<div class="seg"><div class="seg-h"><b>🎙️ ไฟล์เสียงทั้งคลิป</b><span class="badge">✅ ${fmtSec(S.dur)}</span></div><p class="hint">📄 ${S.name.replace(/</g, '&lt;')}</p>
       <audio id="singleAud" controls preload="metadata" src="${urlFor('s', S.blob)}" style="width:100%"></audio>
+      <div class="tools"><button class="ib wide" id="pickSingle">🔄 อัปโหลดไฟล์เสียงใหม่ (แทนไฟล์เดิม)</button><button class="ib wide danger" id="rmSingle" aria-label="ลบไฟล์เสียง">🗑️ ลบไฟล์เสียง</button></div>
       ${stale ? '<p class="stale">⚠️ สคริปต์ถูกแก้หลังอัปโหลดเสียง การแบ่งท่ออาจเพี้ยน และเสียงอาจไม่ตรงข้อความ</p>' : ''}
-      <p class="hint"><b>การแบ่งท่อนจากเสียง</b> (ตรวจรอยต่อแต่ละท่อน: กด ▶ ฟังตรงรอยต่อ ถ้าไม่ตรงกด ◀ ▶▶ เลื่อนครั้งละ 0.2 วินาที)</p>${rows}
-      <div class="tools"><button class="ib wide" id="pickSingle">↻ เปลี่ยนไฟล์</button><button class="ib" id="rmSingle" aria-label="ลบ">🗑️</button></div></div>`;
+      <p class="hint"><b>การแบ่งท่อนจากเสียง</b> (ตรวจรอยต่อแต่ละท่อน: กด ▶ ฟังตรงรอยต่อ ถ้าไม่ตรงกด ◀ ▶▶ เลื่อนครั้งละ 0.2 วินาที)</p>${rows}</div>`;
   };
   const chunkHtml = () => chunks.length ? `<button class="btn" id="multi">📂 เลือกไฟล์เสียงหลายไฟล์พร้อมกัน (จับคู่ตามเลขในชื่อไฟล์)</button>
     <p class="hint" id="audMsg">${have}/${chunks.length} ช่วงมีไฟล์เสียงแล้ว${have ? ` · เสียงพากย์รวม ${fmtSec(totalVoice)}` : ''}</p>
