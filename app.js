@@ -1262,33 +1262,38 @@ function openSeamWizard(done) {
   const label = g => g.edge ? (g.key === 'open' ? 'เปิดคลิป' : g.key === 'hook' ? 'ฮุก (ภาพเด่น)' : 'ปิดท้าย/ติดต่อ') : `ท่อน ${String(g.no).padStart(2, '0')} ${g.label}`;
   const url = URL.createObjectURL(S.blob), au = new Audio(url); let k = 1, timer = null;
   const first = i => segs[i].text.trim().replace(/\s+/g, ' ').slice(0, 42);
+  const last = i => { const t = segs[i].text.trim().replace(/\s+/g, ' '); return t.length > 40 ? '…' + t.slice(-40) : t; };
   const d = document.createElement('div'); d.className = 'sheet tall'; d.id = 'seamSheet';
   const stop = () => { clearTimeout(timer); au.pause(); };
   const close = () => { stop(); URL.revokeObjectURL(url); d.remove(); if (done) done(); };
   const cur = () => (singleAlign() || [])[k];
-  const play = () => { const x = cur(); if (!x) return; stop(); au.currentTime = Math.max(0, x.a0 - 1.2); au.play(); timer = setTimeout(() => au.pause(), 6500); };
+  const play = () => { const x = cur(); if (!x) return; stop(); au.currentTime = Math.max(0, x.a0 - 3.5); au.play(); timer = setTimeout(() => au.pause(), 8000); };
   const setT = async t => { S.fix[segs[k].key] = Math.round(Math.max(0.3, t) * 100) / 100; await save(); draw(); play(); };
   const pauses = () => (S.an.pauses || []).map(p => p.t).sort((x, y) => x - y);
   const draw = () => {
     const al = singleAlign() || [], x = al[k], n = segs.length - 1, fixedN = Object.keys(S.fix).length;
     d.innerHTML = `<div class="sh-head"><b>🧭 ตรวจรอยต่อทีละจุด (${k}/${n})</b><button class="ib" data-w="x" aria-label="ปิด">✕</button></div>
       <div class="sbar ok" style="height:8px"><i style="width:${Math.round(k / n * 100)}%"></i></div>
-      <div class="seg"><b>รอยต่อก่อน: ${label(segs[k])}</b>
-        <p class="hint">กด ▶ แล้วฟัง เสียงที่เริ่มหลังรอยต่อ <b>ควรขึ้นต้นด้วยคำว่า:</b></p>
-        <div class="soon" style="text-align:left;font-size:18px;font-weight:700">“${first(k).replace(/</g, '&lt;')}…”</div>
-        <p class="hint">ตอนนี้ตัดที่ ${fmtSec(x.a0)} (${x.a0.toFixed(1)} วิ)${x.fixed ? ' · ✅ ยืนยันแล้ว' : ''}</p>
-        <button class="btn" data-w="play">▶ ฟังตรงรอยต่อ (6 วินาที)</button>
+      <div class="seg"><b>รอยต่อระหว่าง 2 ท่อน</b>
+        <p class="hint">กด ▶ ฟัง 8 วินาที (เริ่มก่อนรอยต่อ 3.5 วินาที) แล้วฟังว่า <b>เสียงเปลี่ยนจากท่อนบนเป็นท่อนล่างตรงจุดที่ตัดไหม</b></p>
+        <div class="soon" style="text-align:left"><small>① ท่อนก่อนหน้า · ${label(segs[k - 1]).replace(/</g, '&lt;')} · ควร<b>จบ</b>ด้วย</small><br><b style="font-size:16px">“${last(k - 1).replace(/</g, '&lt;')}”</b></div>
+        <div class="soon" style="text-align:left;border-color:#2e7d4f"><small>② ท่อนถัดไป · ${label(segs[k]).replace(/</g, '&lt;')} · ควร<b>เริ่ม</b>ด้วย</small><br><b style="font-size:18px">“${first(k).replace(/</g, '&lt;')}…”</b></div>
+        <p class="hint">ตอนนี้ตัดที่ ${fmtSec(x.a0)} (${x.a0.toFixed(1)} วิ)${x.fixed ? ' · ✅ ยืนยันแล้ว' : ''}${x.a0 < 3 && k > 1 ? ' · ⚠️ ใกล้ต้นไฟล์มาก น่าจะผิด' : ''}</p>
+        ${k === 1 ? '<p class="hint">เคล็ดลับข้อนี้: ถ้าได้ยินคำขึ้นต้นของท่อน ① (เช่น "สวัสดีครับ") แปลว่าจุดตัดอยู่<b>ก่อน</b>ท่อน ② มาก ให้กด <b>"ช่วงเงียบถัดไป ▶"</b> ซ้ำจนได้ยินท่อน ② ขึ้นต้นหลังจุดตัด</p>' : ''}
+        <button class="btn" data-w="play">▶ ฟังตรงรอยต่อ (8 วินาที)</button>
         <div class="tools"><button class="ib wide" data-w="ok">✓ ใช่ ตรงแล้ว → ข้อถัดไป</button></div>
-        <p class="hint"><b>ถ้าไม่ใช่คำนั้น</b> กดเลื่อน แล้วฟังอีกครั้ง:</p>
+        <p class="hint"><b>ถ้ายังไม่ตรง</b> กดเลื่อน แล้วฟังอีกครั้ง (ได้ยินท่อน ① ต่ออยู่ = ตัดเร็วไป → กดถัดไป ▶ · ได้ยินท่อน ② ไปแล้ว = ตัดช้าไป → กด ◀ ก่อนหน้า):</p>
         <div class="tools"><button class="ib wide" data-w="prev">◀ ช่วงเงียบก่อนหน้า</button><button class="ib wide" data-w="next">ช่วงเงียบถัดไป ▶</button></div>
         <div class="tools"><button class="ib wide" data-w="m1">◀ ถอย 0.5 วิ</button><button class="ib wide" data-w="p1">เดิน 0.5 วิ ▶</button></div></div>
       <div class="tools"><button class="ib wide" data-w="back" ${k <= 1 ? 'disabled' : ''}>← ข้อก่อนหน้า</button><button class="ib wide" data-w="skip">ข้ามข้อนี้ →</button></div>
+      <div class="tools"><button class="ib wide danger" data-w="reset">🔁 ล้างที่ยืนยันทั้งหมด แล้วเริ่มข้อ 1 ใหม่</button></div>
       <p class="hint">ยืนยันแล้ว ${fixedN} จาก ${n} รอยต่อ · ยืนยันทีละข้อ แอปจะคำนวณรอยต่อที่เหลือใหม่ให้แม่นขึ้นเอง</p>`;
   };
   d.onclick = async e => {
     const b = e.target.closest('[data-w]'); if (!b) return; const w = b.dataset.w, x = cur(), n = segs.length - 1;
     if (w === 'x') return close();
     if (w === 'play') return play();
+    if (w === 'reset') { if (!confirm('ล้างรอยต่อที่ยืนยันไว้ทั้งหมด แล้วเริ่มใหม่ตั้งแต่ข้อ 1?')) return; S.fix = {}; S.adj = {}; await save(); k = 1; draw(); play(); return; }
     if (w === 'ok') { S.fix[segs[k].key] = Math.round(x.a0 * 100) / 100; await save(); stop(); if (k >= n) { alert('ตรวจครบทุกรอยต่อแล้ว'); return close(); } k++; draw(); play(); return; }
     if (w === 'skip') { stop(); if (k >= n) return close(); k++; draw(); play(); return; }
     if (w === 'back') { stop(); if (k > 1) k--; draw(); play(); return; }
