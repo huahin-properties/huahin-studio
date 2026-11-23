@@ -613,13 +613,18 @@ function analyzeAudio(buf) {
   return { dur: buf.duration, start: first * 0.01, end: (last + 1) * 0.01, pauses };
 }
 // แบ่งไฟล์เสียงเดียวเป็นท่อน: เลือก "ช่วงเงียบ" ที่ใกล้ตำแหน่งที่คาดไว้ (ตามความยาวข้อความ) และยาวที่สุด ด้วย DP
-function alignSegments(lengths, an, adj, keys) {
+function alignSegments(lengths, an, adj, keys, fixed = {}) {
   const N = lengths.length, total = lengths.reduce((a, b) => a + b, 0) || 1, L = Math.max(0.5, an.end - an.start);
   const cum = []; let c = 0; lengths.forEach(l => { c += l; cum.push(c); });
-  const exp = k => an.start + L * cum[k - 1] / total; // ตำแหน่งขอบก่อนท่อน k (k=1..N-1)
+  const before = k => (k <= 0 ? 0 : k >= N ? total : cum[k - 1]); // ตัวอักษรก่อนถึงท่อน k
+  // จุดยึด: ต้นเสียง + รอยต่อที่ผู้ใช้ยืนยันแล้ว + ท้ายเสียง · ตำแหน่งที่คาดของรอยต่ออื่นคิดสัดส่วนตัวอักษรเฉพาะระหว่างจุดยึดสองจุดที่ใกล้ที่สุด (ผิดไม่สะสมข้ามจุดที่ยืนยันแล้ว)
+  const anchors = [{ k: 0, t: an.start }]; for (let k = 1; k < N; k++) if (fixed[keys[k]] != null) anchors.push({ k, t: fixed[keys[k]] }); anchors.push({ k: N, t: an.end });
+  const span = k => { let a = anchors[0], b = anchors[anchors.length - 1]; anchors.forEach(x => { if (x.k < k && x.k >= a.k) a = x; }); for (let i = anchors.length - 1; i >= 0; i--) if (anchors[i].k > k) b = anchors[i]; return [a, b]; };
+  const exp = k => { const [a, b] = span(k), den = before(b.k) - before(a.k) || 1; return a.t + (b.t - a.t) * (before(k) - before(a.k)) / den; };
+  const loc = k => { const [a, b] = span(k); return Math.max(8, b.t - a.t); };
   const cand = an.pauses.filter(p => p.t > an.start + 0.3 && p.t < an.end - 0.3);
-  const opts = []; for (let k = 1; k < N; k++) opts[k] = [...cand.map(p => ({ t: p.t, dur: p.dur, fb: false })), { t: exp(k), dur: 0, fb: true }];
-  const cost = (k, o) => Math.abs(o.t - exp(k)) / L * 8 + (o.fb ? 1.0 : -Math.min(o.dur, 1.5) * 2.0); // ช่วงเงียบยาว = น่าจะเป็นรอยต่อย่อหน้า
+  const opts = []; for (let k = 1; k < N; k++) opts[k] = fixed[keys[k]] != null ? [{ t: fixed[keys[k]], dur: 2, fb: false, fx: true }] : [...cand.map(p => ({ t: p.t, dur: p.dur, fb: false })), { t: exp(k), dur: 0, fb: true }];
+  const cost = (k, o) => (o.fx ? 0 : Math.abs(o.t - exp(k)) / loc(k) * 8 + (o.fb ? 1.0 : -Math.min(o.dur, 1.5) * 2.0)); // ช่วงเงียบยาว = น่าจะเป็นรอยต่อย่อหน้า
   const best = [], back = [];
   for (let k = 1; k < N; k++) {
     best[k] = []; back[k] = [];
@@ -632,16 +637,16 @@ function alignSegments(lengths, an, adj, keys) {
   }
   const chosen = []; if (N > 1) {
     let bi = -1, bv = Infinity; best[N - 1].forEach((v, i) => { if (v < bv) { bv = v; bi = i; } });
-    if (bi < 0) { for (let k = 1; k < N; k++) chosen[k] = { t: exp(k), fb: true }; }
+    if (bi < 0) { for (let k = 1; k < N; k++) chosen[k] = { t: fixed[keys[k]] != null ? fixed[keys[k]] : exp(k), fb: fixed[keys[k]] == null, fx: fixed[keys[k]] != null }; }
     else for (let k = N - 1; k >= 1; k--) { chosen[k] = opts[k][bi]; bi = back[k][bi]; }
   }
-  const b = [Math.max(0, an.start - 0.08)]; for (let k = 1; k < N; k++) b.push(chosen[k].t + ((adj || {})[keys[k]] || 0)); b.push(Math.min(an.dur, an.end + 0.15));
-  return keys.map((key, i) => ({ key, a0: b[i], a1: Math.max(b[i] + 0.3, b[i + 1]), found: i === 0 ? true : !chosen[i].fb }));
+  const b = [Math.max(0, an.start - 0.08)]; for (let k = 1; k < N; k++) b.push(chosen[k].t + (chosen[k].fx ? 0 : (adj || {})[keys[k]] || 0)); b.push(Math.min(an.dur, an.end + 0.15));
+  return keys.map((key, i) => ({ key, a0: b[i], a1: Math.max(b[i] + 0.3, b[i + 1]), found: i === 0 ? true : !chosen[i].fb, fixed: i > 0 && !!chosen[i].fx }));
 }
 function singleAlign() {
   const S = state.audio.single; if (!S || !S.an) return null;
   const segs = scriptSegmentsAll().filter(g => g.text.trim()); if (!segs.length) return null;
-  return alignSegments(segs.map(g => g.text.trim().length), S.an, S.adj || {}, segs.map(g => g.key));
+  return alignSegments(segs.map(g => g.text.trim().length), S.an, S.adj || {}, segs.map(g => g.key), S.fix || {});
 }
 // ความยาวเสียงจริงของแต่ละท่อน: ไฟล์เดียว = ตามช่วงเงียบที่จับได้ · แยกช่วง = แบ่งตามสัดส่วนความยาวข้อความ
 function segAudioSec() {
@@ -1237,6 +1242,53 @@ async function setChunkAudio(idx, file) {
   audStore()[audKey(idx - 1, ch)] = { blob: file, name: file.name, dur: buf.duration, sig: chunkSig(ch) };
   return true;
 }
+
+// ---- ตรวจรอยต่อทีละจุด: ฟังตรงรอยต่อว่าได้ยินคำแรกของท่อนถัดไปไหน ไม่ตรงก็เลื่อนไปช่วงเงียบก่อนหน้า/ถัดไป · ยืนยันแล้วแอปคำนวณรอยต่อที่เหลือใหม่จากจุดที่ยืนยัน ----
+function openSeamWizard(done) {
+  document.querySelector('#seamSheet')?.remove();
+  const A = state.audio, S = A.single; if (!S) return; S.fix = S.fix || {};
+  const segs = scriptSegmentsAll().filter(g => g.text.trim()); if (segs.length < 2) { alert('มีท่อนเดียว ไม่ต้องตรวจรอยต่อ'); return; }
+  const label = g => g.edge ? (g.key === 'open' ? 'เปิดคลิป' : g.key === 'hook' ? 'ฮุก (ภาพเด่น)' : 'ปิดท้าย/ติดต่อ') : `ท่อน ${String(g.no).padStart(2, '0')} ${g.label}`;
+  const url = URL.createObjectURL(S.blob), au = new Audio(url); let k = 1, timer = null;
+  const first = i => segs[i].text.trim().replace(/\s+/g, ' ').slice(0, 42);
+  const d = document.createElement('div'); d.className = 'sheet tall'; d.id = 'seamSheet';
+  const stop = () => { clearTimeout(timer); au.pause(); };
+  const close = () => { stop(); URL.revokeObjectURL(url); d.remove(); if (done) done(); };
+  const cur = () => (singleAlign() || [])[k];
+  const play = () => { const x = cur(); if (!x) return; stop(); au.currentTime = Math.max(0, x.a0 - 1.2); au.play(); timer = setTimeout(() => au.pause(), 6500); };
+  const setT = async t => { S.fix[segs[k].key] = Math.round(Math.max(0.3, t) * 100) / 100; await save(); draw(); play(); };
+  const pauses = () => (S.an.pauses || []).map(p => p.t).sort((x, y) => x - y);
+  const draw = () => {
+    const al = singleAlign() || [], x = al[k], n = segs.length - 1, fixedN = Object.keys(S.fix).length;
+    d.innerHTML = `<div class="sh-head"><b>🧭 ตรวจรอยต่อทีละจุด (${k}/${n})</b><button class="ib" data-w="x" aria-label="ปิด">✕</button></div>
+      <div class="sbar ok" style="height:8px"><i style="width:${Math.round(k / n * 100)}%"></i></div>
+      <div class="seg"><b>รอยต่อก่อน: ${label(segs[k])}</b>
+        <p class="hint">กด ▶ แล้วฟัง เสียงที่เริ่มหลังรอยต่อ <b>ควรขึ้นต้นด้วยคำว่า:</b></p>
+        <div class="soon" style="text-align:left;font-size:18px;font-weight:700">“${first(k).replace(/</g, '&lt;')}…”</div>
+        <p class="hint">ตอนนี้ตัดที่ ${fmtSec(x.a0)} (${x.a0.toFixed(1)} วิ)${x.fixed ? ' · ✅ ยืนยันแล้ว' : ''}</p>
+        <button class="btn" data-w="play">▶ ฟังตรงรอยต่อ (6 วินาที)</button>
+        <div class="tools"><button class="ib wide" data-w="ok">✓ ใช่ ตรงแล้ว → ข้อถัดไป</button></div>
+        <p class="hint"><b>ถ้าไม่ใช่คำนั้น</b> กดเลื่อน แล้วฟังอีกครั้ง:</p>
+        <div class="tools"><button class="ib wide" data-w="prev">◀ ช่วงเงียบก่อนหน้า</button><button class="ib wide" data-w="next">ช่วงเงียบถัดไป ▶</button></div>
+        <div class="tools"><button class="ib wide" data-w="m1">◀ ถอย 0.5 วิ</button><button class="ib wide" data-w="p1">เดิน 0.5 วิ ▶</button></div></div>
+      <div class="tools"><button class="ib wide" data-w="back" ${k <= 1 ? 'disabled' : ''}>← ข้อก่อนหน้า</button><button class="ib wide" data-w="skip">ข้ามข้อนี้ →</button></div>
+      <p class="hint">ยืนยันแล้ว ${fixedN} จาก ${n} รอยต่อ · ยืนยันทีละข้อ แอปจะคำนวณรอยต่อที่เหลือใหม่ให้แม่นขึ้นเอง</p>`;
+  };
+  d.onclick = async e => {
+    const b = e.target.closest('[data-w]'); if (!b) return; const w = b.dataset.w, x = cur(), n = segs.length - 1;
+    if (w === 'x') return close();
+    if (w === 'play') return play();
+    if (w === 'ok') { S.fix[segs[k].key] = Math.round(x.a0 * 100) / 100; await save(); stop(); if (k >= n) { alert('ตรวจครบทุกรอยต่อแล้ว'); return close(); } k++; draw(); play(); return; }
+    if (w === 'skip') { stop(); if (k >= n) return close(); k++; draw(); play(); return; }
+    if (w === 'back') { stop(); if (k > 1) k--; draw(); play(); return; }
+    let lo = 0.6, hi = S.dur - 0.6; for (let j = k - 1; j >= 1; j--) if (S.fix[segs[j].key] != null) { lo = S.fix[segs[j].key] + 0.6; break; } for (let j = k + 1; j <= n; j++) if (S.fix[segs[j].key] != null) { hi = S.fix[segs[j].key] - 0.6; break; } const ps = pauses(); // จำกัดแค่ไม่ให้ข้ามรอยต่อที่ยืนยันแล้ว
+    if (w === 'prev') { const t = [...ps].reverse().find(p => p < x.a0 - 0.3 && p > lo); if (t == null) { alert('ไม่มีช่วงเงียบก่อนหน้านี้แล้ว'); return; } return setT(t); }
+    if (w === 'next') { const t = ps.find(p => p > x.a0 + 0.3 && p < hi); if (t == null) { alert('ไม่มีช่วงเงียบถัดไปแล้ว'); return; } return setT(t); }
+    if (w === 'm1') return setT(Math.max(lo, x.a0 - 0.5));
+    if (w === 'p1') return setT(Math.min(hi, x.a0 + 0.5));
+  };
+  document.body.appendChild(d); draw(); play();
+}
 function viewAudio() {
   const A = state.audio, chunks = ttsChunks(), single = A.mode === 'single', beatsM = A.mode === 'beats';
   const urls = viewAudio._u || (viewAudio._u = {});
@@ -1249,11 +1301,12 @@ function viewAudio() {
     const S = A.single;
     if (!S) return `<div class="seg"><b>🎙️ ไฟล์เสียงพากย์ทั้งคลิป (ไฟล์เดียว)</b><p class="hint">สร้างเสียงจากสคริปต์ทั้งหมดในครั้งเดียวที่ AI Studio (ที่ขั้น 4 กด 🔊 สร้างเสียง → 📋 คัดลอกทั้งคลิป) แล้วนำไฟล์มาใส่ที่นี่ แอปจะหา "ช่วงเงียบ" ระหว่างย่อหน้าเพื่อแบ่งท่อนให้ตรงกับภาพ</p><div class="tools"><button class="ib wide" id="pickSingle">+ เลือกไฟล์เสียงทั้งคลิป</button></div></div>`;
     const stale = S.sig !== fullSig();
-    const rows = (align || []).map((x, i) => { const g = segsAll[i]; return `<div class="alrow"><div class="alt"><b>${label(g)}</b><small>${fmtSec(x.a0)}–${fmtSec(x.a1)} · ${(x.a1 - x.a0).toFixed(1)} วิ · ${i === 0 ? 'จุดเริ่มเสียง' : (x.found ? '✓ พบช่วงเงียบตรงรอยต่อ' : '⚠️ ไม่พบช่วงเงียบ (ประมาณตามข้อความ)')}</small></div>
+    const rows = (align || []).map((x, i) => { const g = segsAll[i]; return `<div class="alrow"><div class="alt"><b>${label(g)}</b><small>${fmtSec(x.a0)}–${fmtSec(x.a1)} · ${(x.a1 - x.a0).toFixed(1)} วิ · ${i === 0 ? 'จุดเริ่มเสียง' : (x.fixed ? '✅ คุณยืนยันแล้ว' : x.found ? '✓ พบช่วงเงียบ (แอปเดา ยังไม่ได้ยืนยัน)' : '⚠️ ไม่พบช่วงเงียบ (ประมาณตามข้อความ)')}</small></div>
       ${i ? `<div class="alb"><button class="ib sm" data-nudge="${x.key}|-0.2" aria-label="เลื่อนขอบเข้าก่อน">◀</button><button class="ib sm" data-listen="${x.a0}" aria-label="ฟังรอยต่อ">▶</button><button class="ib sm" data-nudge="${x.key}|0.2" aria-label="เลื่อนขอบถัดไป">▶▶</button></div>` : ''}</div>`; }).join('');
     return `<div class="seg"><div class="seg-h"><b>🎙️ ไฟล์เสียงทั้งคลิป</b><span class="badge">✅ ${fmtSec(S.dur)}</span></div><p class="hint">📄 ${S.name.replace(/</g, '&lt;')}</p>
       <audio id="singleAud" controls preload="metadata" src="${urlFor('s', S.blob)}" style="width:100%"></audio>
       <div class="tools"><button class="ib wide" id="pickSingle">🔄 อัปโหลดไฟล์เสียงใหม่ (แทนไฟล์เดิม)</button><button class="ib wide danger" id="rmSingle" aria-label="ลบไฟล์เสียง">🗑️ ลบไฟล์เสียง</button></div>
+      <button class="btn" id="seamGo">🧭 ตรวจรอยต่อทีละจุด (แนะนำ ถ้าเสียงไม่ตรงภาพ)</button>
       ${stale ? '<p class="stale">⚠️ สคริปต์ถูกแก้หลังอัปโหลดเสียง การแบ่งท่ออาจเพี้ยน และเสียงอาจไม่ตรงข้อความ</p>' : ''}
       <p class="hint"><b>การแบ่งท่อนจากเสียง</b> (ตรวจรอยต่อแต่ละท่อน: กด ▶ ฟังตรงรอยต่อ ถ้าไม่ตรงกด ◀ ▶▶ เลื่อนครั้งละ 0.2 วินาที)</p>${rows}</div>`;
   };
@@ -1301,6 +1354,7 @@ function viewAudio() {
     try { const buf = await decodeBlob(f); A.single = { blob: f, name: f.name, dur: buf.duration, an: analyzeAudio(buf), adj: {}, sig: fullSig() }; await save(); }
     catch (e) { alert('อ่านไฟล์เสียงไม่ได้ ลองไฟล์ wav หรือ mp3'); } rerender();
   };
+  if ($('#seamGo')) $('#seamGo').onclick = () => openSeamWizard(() => rerender());
   if ($('#rmSingle')) $('#rmSingle').onclick = async () => { if (!confirm('ลบไฟล์เสียงทั้งคลิป?')) return; A.single = null; await save(); rerender(); };
   document.querySelectorAll('[data-nudge]').forEach(b => b.onclick = async () => { const [k, d] = b.dataset.nudge.split('|'); A.single.adj = A.single.adj || {}; A.single.adj[k] = Math.round(((A.single.adj[k] || 0) + +d) * 100) / 100; await save(); rerender(); });
   document.querySelectorAll('[data-listen]').forEach(b => b.onclick = () => { const au = $('#singleAud'); au.currentTime = Math.max(0, +b.dataset.listen - 1.2); au.play(); setTimeout(() => au.pause(), 3000); });
@@ -1340,13 +1394,13 @@ function viewAudio() {
 function checklistHtml() {
   const A = state.audio, segs = scriptSegmentsAll(), withText = segs.filter(g => g.text.trim()), allText = segs.length > 0 && withText.length === segs.length;
   const voice = A.mode === 'single' ? !!A.single : Object.keys(audStore()).length > 0, al = A.mode === 'single' && A.single ? singleAlign() : null;
-  const seams = al ? al.slice(1) : [], found = seams.filter(x => x.found).length, stale = A.mode === 'single' && A.single && A.single.sig !== fullSig();
+  const seams = al ? al.slice(1) : [], found = seams.filter(x => x.fixed).length, stale = A.mode === 'single' && A.single && A.single.sig !== fullSig();
   const row = (ok, t, sub) => `<div class="ckrow ${ok === true ? 'ok' : ok === false ? 'no' : ''}"><span>${ok === true ? '✅' : ok === false ? '⬜' : '➖'}</span><div><b>${t}</b>${sub ? `<small>${sub}</small>` : ''}</div></div>`;
   return `<div class="seg"><b>📋 ขั้นตอนทำเสียงให้เรียบร้อย</b>
     ${row(allText, '1) สคริปต์ครบทุกท่อน (เปิดคลิป → ห้องต่างๆ → ปิดท้าย) และตรวจข้อมูลแล้ว', allText ? '' : 'ยังมีท่อนว่าง กลับไปขั้น 4')}
     ${row(null, '2) นอกแอป: คัดลอกสไตล์ → ช่อง Style · คัดลอกทั้งคลิป → ช่องข้อความ · เลือกผู้พูดคนเดียว → Run → ดาวน์โหลด', 'ขั้น 4 กด 🔊 สร้างเสียง')}
     ${row(voice, '3) ใส่ไฟล์เสียงในแอป', voice ? '' : 'กดปุ่มด้านล่าง')}
-    ${row(A.mode === 'single' ? (al ? (found === seams.length && !stale) : false) : null, '4) รอยต่อแต่ละท่อนตรงกับเสียง', A.mode === 'single' ? (al ? `${found}/${seams.length} รอยต่อพบช่วงเงียบ${stale ? ' · สคริปต์ถูกแก้หลังอัปโหลดเสียง' : ''} · กด ▶ ฟังตรวจแต่ละรอยต่อ` : 'ยังไม่มีไฟล์เสียง') : (A.mode === 'beats' ? 'โหมดแยกตามภาพ: เวลาแสดงแต่ละรูปตั้งตามความยาวเสียงของช่วงนั้นพอดี' : 'โหมดแยกช่วง: เวลาในช่วงเดียวกันแบ่งตามความยาวข้อความ'))}
+    ${row(A.mode === 'single' ? (al ? (found === seams.length && !stale) : false) : null, '4) รอยต่อแต่ละท่อนตรงกับเสียง', A.mode === 'single' ? (al ? `คุณยืนยันแล้ว ${found}/${seams.length} รอยต่อ${stale ? ' · สคริปต์ถูกแก้หลังอัปโหลดเสียง' : ''} · กดปุ่ม 🧭 ตรวจรอยต่อทีละจุด` : 'ยังไม่มีไฟล์เสียง') : (A.mode === 'beats' ? 'โหมดแยกตามภาพ: เวลาแสดงแต่ละรูปตั้งตามความยาวเสียงของช่วงนั้นพอดี' : 'โหมดแยกช่วง: เวลาในช่วงเดียวกันแบ่งตามความยาวข้อความ'))}
     ${row(false, '5) ขั้น 6 ตรวจท่ามาสคอต แล้ว ขั้น 7 เรนเดอร์', '')}
   </div>`;
 }
