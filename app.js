@@ -646,7 +646,8 @@ function alignSegments(lengths, an, adj, keys, fixed = {}) {
 function singleAlign() {
   const S = state.audio.single; if (!S || !S.an) return null;
   const segs = scriptSegmentsAll().filter(g => g.text.trim()); if (!segs.length) return null;
-  return alignSegments(segs.map(g => g.text.trim().length), S.an, S.adj || {}, segs.map(g => g.key), S.fix || {});
+  const an = S.fix && S.fix.__start != null ? { ...S.an, start: S.fix.__start } : S.an; // จุดเริ่มเสียงที่ผู้ใช้ยืนยัน (ข้อ 0)
+  return alignSegments(segs.map(g => g.text.trim().length), an, S.adj || {}, segs.map(g => g.key), S.fix || {});
 }
 // ความยาวเสียงจริงของแต่ละท่อน: ไฟล์เดียว = ตามช่วงเงียบที่จับได้ · แยกช่วง = แบ่งตามสัดส่วนความยาวข้อความ
 function segAudioSec() {
@@ -685,6 +686,13 @@ async function translateTh2En(text) {
 }
 
 
+// บรรทัดแรกที่จะถูกคัดลอกไปสร้างเสียง (ต้องเป็นคำทักทายของท่อน "เริ่ม") + ตรวจว่าท่อนเริ่มมีข้อความ
+function copyStartInfo() {
+  const segs = scriptSegmentsAll().filter(g => g.text.trim()), f = segs[0], o = scriptSegmentsAll().find(g => g.key === 'open');
+  const first = f ? f.text.trim().replace(/\s+/g, ' ').slice(0, 48) : '', ok = !!(f && f.key === 'open');
+  return { first, ok, why: !o ? 'ปิดไตเติลของแอป จึงไม่มีท่อน "เริ่ม"' : !o.text.trim() ? 'ท่อน "เริ่ม" ว่างอยู่' : '' };
+}
+const copyStartHtml = () => { const s = copyStartInfo(); return s.ok ? `<div class="soon" style="text-align:left;border-color:#2e7d4f;color:#1e6b3a">✅ ข้อความที่คัดลอกจะ<b>ขึ้นต้นด้วย</b> “${s.first.replace(/</g, '&lt;')}…” (ท่อน "เริ่ม") · ตรวจตอนวางใน AI Studio ว่าบรรทัดแรกเป็นประโยคนี้</div>` : `<div class="soon" style="text-align:left;border-color:#b00020;color:#b00020">⚠️ ข้อความที่คัดลอกจะขึ้นต้นด้วย “${s.first.replace(/</g, '&lt;')}…” <b>ไม่มีคำทักทาย</b> (${s.why || 'ไม่มีท่อนเริ่ม'}) · กลับไปขั้น 4 ใส่ข้อความท่อน "เริ่ม" ก่อนสร้างเสียง</div>`; };
 function openBeatSheet() {
   document.querySelector('#beatSheet')?.remove();
   const beats = beatsList(), A = state.audio; if (!beats.length) { alert('ยังไม่มีสคริปต์ให้แบ่งช่วง'); return; }
@@ -697,6 +705,7 @@ function openBeatSheet() {
   const d = document.createElement('div'); d.className = 'sheet tall'; d.id = 'beatSheet';
   d.innerHTML = `<div class="sh-head"><b>🎙️ บทเสียงแบ่งช่วงตามภาพ</b><button class="ib" data-a="x" aria-label="ปิด">✕</button></div>
     <p class="hint">แต่ละช่วงคือ <b>ข้อความสั้นๆ ที่พูดตอนภาพนั้นขึ้น</b> พร้อมเวลาโดยประมาณ ใช้เป็นผังก่อนไปสร้างเสียงที่ Google AI Studio: <b>ปุ่ม "คัดลอกช่วงนี้" และ "ข้อความล้วน" ไม่มีหมายเลข/เวลาติดไป</b> วางสร้างเสียงได้ทันที (ส่วน "ตารางพร้อมเวลา" ไว้ดูเองเท่านั้น) · คัดลอกทีละช่วง → สร้างเสียงช่วงละไฟล์ → ที่ขั้น 5 เลือก "แยกตามภาพ" แล้วใส่ไฟล์ แอปจะตั้งเวลาแต่ละภาพตามเสียงจริง ช่วงไหนจังหวะไม่ลงตัว แก้ข้อความที่นี่ สร้างเสียงใหม่เฉพาะช่วงนั้นแล้วกด "↻ เปลี่ยนไฟล์" ช่วงอื่นไม่ต้องทำใหม่ (แก้ข้อความที่นี่ = แก้สคริปต์ท่อนนั้นด้วย)</p>
+    ${copyStartHtml()}
     <p class="hint">${beats.length} ช่วง · เสียงโดยประมาณรวม ~${Math.round(beats.reduce((s, b) => s + est(b), 0))} วินาที · เวลา "เริ่ม" คำนวณจากผังเวลาตอนนี้</p>
     <div class="tools"><button class="ib wide" id="bClean">📋 คัดลอกข้อความล้วน ทุกช่วง (สำหรับสร้างเสียง)</button><button class="ib wide" id="bAll">🗒️ คัดลอกตารางพร้อมเวลา (ไว้ดู ห้ามวางสร้างเสียง)</button><button class="ib wide" id="bMode">🎞️ ใช้โหมด "แยกตามภาพ" (ขั้น 5)</button></div>
     ${beats.map(row).join('')}<button class="btn alt" data-a="x">ปิด</button>`;
@@ -749,7 +758,7 @@ function viewScript() {
       <div class="tools"><button class="ib wide" id="ttsOpen">🔊 สร้างเสียง (คัดลอกทีละช่วง + เปิดหน้าสร้างเสียง)</button><button class="ib" id="linkEdit" title="แก้ลิงก์" aria-label="แก้ลิงก์">⚙️</button></div></div>
     <div class="tools"><button class="ib wide" id="trAll">🌐 แปลทั้งหมด</button><button class="ib wide" data-all="th">📋 ไทยทั้งหมด</button><button class="ib wide" data-all="en">📋 EN ทั้งหมด</button></div>
     <p class="hint" id="saved">💾 บันทึกอัตโนมัติทุกครั้งที่พิมพ์</p>
-    <p class="hint">เวลารวมโดยประมาณ <b id="tot">${mmss(total())}</b> (เป้าหมายประมาณ 3:00) · ไตเติลและหน้าปิดเป็นคลิปประจำ ไม่ต้องเขียนสคริปต์</p>
+    <p class="hint">เวลารวมโดยประมาณ <b id="tot">${mmss(total())}</b> (เป้าหมายประมาณ 3:00) · ท่อน "เริ่ม" (คำทักทาย เช่น สวัสดีครับ...) ท่อน "ฮุก" และท่อน "จบ" ต้องพูดเป็นเสียงเหมือนท่ออื่น และ<b>รวมอยู่ในข้อความที่คัดลอกไปสร้างเสียงเสมอ โดยขึ้นต้นด้วยท่อน "เริ่ม"</b> แก้ข้อความได้</p>
     <div class="soon" style="text-align:left">📋 <b>ปุ่มคัดลอกใช้ทำอะไร:</b> กด 📋 ไทย หรือ 📋 EN ที่ท่อนไหน แล้วนำไปวางใน <b>Google AI Studio</b> เพื่อสร้างเสียงพากย์ จากนั้นตั้งชื่อไฟล์เสียงตามเลขท่อน (01, 02, ...) แล้วนำมาอัปโหลดในขั้น 5 · ปุ่ม 📋 ไทยทั้งหมด / EN ทั้งหมด คัดลอกข้อความล้วนทุกท่อนต่อกัน (ไม่มี [01] [02]) เว้นบรรทัดระหว่างท่อน พร้อมวางสร้างเสียงทีเดียวได้<br>🌐 การแปลใช้บริการแปลฟรีออนไลน์ ต้องต่อเน็ต คุณภาพพื้นฐาน อ่านและแก้ก่อนใช้ทุกครั้ง</div>
     ${state.items.length ? '' : '<div class="soon">ยังไม่มีรูป กลับไปขั้น 2 เพื่อใส่รูปและติดแท็กห้องก่อน</div>'}
     ${(() => { const h = heroItem(), srcIt = h && state.items.find(i => i.id === h.srcId), hasI = state.items.some(i => i.type === 'image');
@@ -830,6 +839,7 @@ function viewScript() {
     const chunks = ttsChunks(); if (!chunks.length) { alert('ยังไม่มีสคริปต์ให้คัดลอก'); return; }
     const d = document.createElement('div'); d.className = 'sheet tall'; d.id = 'ttsSheet';
     d.innerHTML = `<div class="sh-head"><b>🔊 สร้างเสียง</b><button class="ib" data-a="x" aria-label="ปิด">✕</button></div>
+      ${copyStartHtml()}
       <p class="hint"><b>ลำดับที่ถูกต้อง:</b> ① คัดลอกสไตล์ → วางช่อง Style ② คัดลอกสคริปต์ → วางช่องข้อความ ③ เลือกผู้พูดคนเดียวตลอด ④ Run ⑤ ดาวน์โหลดไฟล์เสียง</p>
       ${styleCardHtml()}
       <p class="hint"><b>หรือแยกทำทีละช่วง</b> ตามลำดับ: กด <b>คัดลอก</b> → กด <b>เปิดหน้าสร้างเสียง</b> → ในช่องข้อความ <b>ลบของเก่าให้ว่างก่อน</b> แล้ววาง → ตรวจว่าบรรทัดแรกตรงกับ "ขึ้นต้นว่า" ด้านล่าง → สร้างเสียง → ตั้งชื่อไฟล์ตามเลขช่วง (เช่น ช่วง 1 = <b>01</b>) แล้วทำช่วงต่อไป</p>
@@ -1267,18 +1277,28 @@ function openSeamWizard(done) {
   const A = state.audio, S = A.single; if (!S) return; S.fix = S.fix || {};
   const segs = scriptSegmentsAll().filter(g => g.text.trim()); if (segs.length < 2) { alert('มีท่อนเดียว ไม่ต้องตรวจรอยต่อ'); return; }
   const label = g => g.edge ? (g.key === 'open' ? 'เปิดคลิป' : g.key === 'hook' ? 'ฮุก (ภาพเด่น)' : 'ปิดท้าย/ติดต่อ') : `ท่อน ${String(g.no).padStart(2, '0')} ${g.label}`;
-  const url = URL.createObjectURL(S.blob), au = new Audio(url); let k = 1, timer = null;
+  const url = URL.createObjectURL(S.blob), au = new Audio(url); let k = 0, timer = null;
   const first = i => segs[i].text.trim().replace(/\s+/g, ' ').slice(0, 42);
   const last = i => { const t = segs[i].text.trim().replace(/\s+/g, ' '); return t.length > 40 ? '…' + t.slice(-40) : t; };
   const d = document.createElement('div'); d.className = 'sheet tall'; d.id = 'seamSheet';
   const stop = () => { clearTimeout(timer); au.pause(); };
   const close = () => { stop(); URL.revokeObjectURL(url); d.remove(); if (done) done(); };
   const cur = () => (singleAlign() || [])[k];
-  const play = () => { const x = cur(); if (!x) return; stop(); au.currentTime = Math.max(0, x.a0 - 3.5); au.play(); timer = setTimeout(() => au.pause(), 8000); };
-  const setT = async t => { S.fix[segs[k].key] = Math.round(Math.max(0.3, t) * 100) / 100; await save(); draw(); play(); };
+  const play = () => { const x = cur(); if (!x) return; stop(); au.currentTime = Math.max(0, x.a0 - (k === 0 ? 0.3 : 3.5)); au.play(); timer = setTimeout(() => au.pause(), k === 0 ? 6000 : 8000); };
+  const setT = async t => { S.fix[k === 0 ? '__start' : segs[k].key] = Math.round(Math.max(0.1, t) * 100) / 100; await save(); draw(); play(); };
   const pauses = () => (S.an.pauses || []).map(p => p.t).sort((x, y) => x - y);
   const draw = () => {
-    const al = singleAlign() || [], x = al[k], n = segs.length - 1, fixedN = Object.keys(S.fix).length;
+    const al = singleAlign() || [], x = al[k], n = segs.length - 1, fixedN = Object.keys(S.fix).filter(q => q !== '__start').length;
+    if (k === 0) { d.innerHTML = `<div class="sh-head"><b>🧭 ข้อ 0 · จุดเริ่มต้นของไฟล์เสียง</b><button class="ib" data-w="x" aria-label="ปิด">✕</button></div>
+      <div class="seg"><b>เสียงต้องเริ่มที่ท่อนแรก</b>
+        <p class="hint">กด ▶ ฟัง 6 วินาทีแรกของเสียง ต้องได้ยินคำเปิดของท่อนแรก:</p>
+        <div class="soon" style="text-align:left;border-color:#2e7d4f"><small>ท่อนแรก · ${label(segs[0]).replace(/</g, '&lt;')} · ควร<b>เริ่ม</b>ด้วย</small><br><b style="font-size:18px">“${first(0).replace(/</g, '&lt;')}…”</b></div>
+        <p class="hint">ตอนนี้เริ่มที่ ${x.a0.toFixed(1)} วินาที${S.fix.__start != null ? ' · ✅ ยืนยันแล้ว' : ''}</p>
+        <button class="btn" data-w="play">▶ ฟังจุดเริ่มต้น (6 วินาที)</button>
+        <div class="tools"><button class="ib wide" data-w="ok">✓ ใช่ ตรงแล้ว → ข้อ 1</button></div>
+        <p class="hint">ถ้าเสียงขึ้นต้นด้วยคำอื่นก่อน (เช่น AI พูดอะไรที่ไม่ใช่สคริปต์) กด <b>"ข้ามช่วงที่ไม่ใช่สคริปต์ ▶"</b> ไปเริ่มหลังช่วงเงียบถัดไป</p>
+        <div class="tools"><button class="ib wide" data-w="next">ข้ามช่วงที่ไม่ใช่สคริปต์ ▶</button><button class="ib wide" data-w="startreset">↺ กลับค่าเริ่มต้น</button></div></div>
+      <div class="tools"><button class="ib wide" data-w="skip">ข้ามข้อ 0 →</button></div>`; return; }
     d.innerHTML = `<div class="sh-head"><b>🧭 ตรวจรอยต่อทีละจุด (${k}/${n})</b><button class="ib" data-w="x" aria-label="ปิด">✕</button></div>
       <div class="sbar ok" style="height:8px"><i style="width:${Math.round(k / n * 100)}%"></i></div>
       <div class="seg"><b>รอยต่อระหว่าง 2 ท่อน</b>
@@ -1292,7 +1312,7 @@ function openSeamWizard(done) {
         <p class="hint"><b>ถ้ายังไม่ตรง</b> กดเลื่อน แล้วฟังอีกครั้ง (ได้ยินท่อน ① ต่ออยู่ = ตัดเร็วไป → กดถัดไป ▶ · ได้ยินท่อน ② ไปแล้ว = ตัดช้าไป → กด ◀ ก่อนหน้า):</p>
         <div class="tools"><button class="ib wide" data-w="prev">◀ ช่วงเงียบก่อนหน้า</button><button class="ib wide" data-w="next">ช่วงเงียบถัดไป ▶</button></div>
         <div class="tools"><button class="ib wide" data-w="m1">◀ ถอย 0.5 วิ</button><button class="ib wide" data-w="p1">เดิน 0.5 วิ ▶</button></div></div>
-      <div class="tools"><button class="ib wide" data-w="back" ${k <= 1 ? 'disabled' : ''}>← ข้อก่อนหน้า</button><button class="ib wide" data-w="skip">ข้ามข้อนี้ →</button></div>
+      <div class="tools"><button class="ib wide" data-w="back">← ข้อก่อนหน้า</button><button class="ib wide" data-w="skip">ข้ามข้อนี้ →</button></div>
       <div class="tools"><button class="ib wide danger" data-w="reset">🔁 ล้างที่ยืนยันทั้งหมด แล้วเริ่มข้อ 1 ใหม่</button></div>
       <p class="hint">ยืนยันแล้ว ${fixedN} จาก ${n} รอยต่อ · ยืนยันทีละข้อ แอปจะคำนวณรอยต่อที่เหลือใหม่ให้แม่นขึ้นเอง</p>`;
   };
@@ -1300,11 +1320,13 @@ function openSeamWizard(done) {
     const b = e.target.closest('[data-w]'); if (!b) return; const w = b.dataset.w, x = cur(), n = segs.length - 1;
     if (w === 'x') return close();
     if (w === 'play') return play();
-    if (w === 'reset') { if (!confirm('ล้างรอยต่อที่ยืนยันไว้ทั้งหมด แล้วเริ่มใหม่ตั้งแต่ข้อ 1?')) return; S.fix = {}; S.adj = {}; await save(); k = 1; draw(); play(); return; }
+    if (w === 'startreset') { delete S.fix.__start; await save(); draw(); play(); return; }
+    if (w === 'reset') { if (!confirm('ล้างรอยต่อที่ยืนยันไว้ทั้งหมด แล้วเริ่มใหม่ตั้งแต่ข้อ 1?')) return; S.fix = {}; S.adj = {}; await save(); k = 0; draw(); play(); return; }
+    if (w === 'ok' && k === 0) { S.fix.__start = Math.round(Math.max(0.1, x.a0 + 0.08) * 100) / 100; await save(); stop(); k = 1; draw(); play(); return; }
     if (w === 'ok') { S.fix[segs[k].key] = Math.round(x.a0 * 100) / 100; await save(); stop(); if (k >= n) { alert('ตรวจครบทุกรอยต่อแล้ว'); return close(); } k++; draw(); play(); return; }
     if (w === 'skip') { stop(); if (k >= n) return close(); k++; draw(); play(); return; }
-    if (w === 'back') { stop(); if (k > 1) k--; draw(); play(); return; }
-    let lo = 0.6, hi = S.dur - 0.6; for (let j = k - 1; j >= 1; j--) if (S.fix[segs[j].key] != null) { lo = S.fix[segs[j].key] + 0.6; break; } for (let j = k + 1; j <= n; j++) if (S.fix[segs[j].key] != null) { hi = S.fix[segs[j].key] - 0.6; break; } const ps = pauses(); // จำกัดแค่ไม่ให้ข้ามรอยต่อที่ยืนยันแล้ว
+    if (w === 'back') { stop(); if (k > 0) k--; draw(); play(); return; }
+    let lo = 0.6, hi = S.dur - 0.6; if (k === 0) { hi = ((singleAlign() || [])[1] || { a0: S.dur }).a0 - 1; } for (let j = k - 1; j >= 1; j--) if (S.fix[segs[j].key] != null) { lo = S.fix[segs[j].key] + 0.6; break; } for (let j = k + 1; j <= n; j++) if (S.fix[segs[j].key] != null) { hi = S.fix[segs[j].key] - 0.6; break; } const ps = pauses(); // จำกัดแค่ไม่ให้ข้ามรอยต่อที่ยืนยันแล้ว
     if (w === 'prev') { const t = [...ps].reverse().find(p => p < x.a0 - 0.3 && p > lo); if (t == null) { alert('ไม่มีช่วงเงียบก่อนหน้านี้แล้ว'); return; } return setT(t); }
     if (w === 'next') { const t = ps.find(p => p > x.a0 + 0.3 && p < hi); if (t == null) { alert('ไม่มีช่วงเงียบถัดไปแล้ว'); return; } return setT(t); }
     if (w === 'm1') return setT(Math.max(lo, x.a0 - 0.5));
