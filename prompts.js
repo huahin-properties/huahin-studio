@@ -63,7 +63,6 @@ function openPromptPage() {
   const M = mpData(), esc = s => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;'), d = document.createElement('div'); d.id = 'promptPage';
   const flash = (btn, t) => { const o = btn.dataset.o || btn.innerHTML; btn.dataset.o = o; btn.innerHTML = t; setTimeout(() => { btn.innerHTML = o; }, 1800); };
   d.innerHTML = `<div class="pp-top"><div><b>มาสเตอร์พรอมต์</b><small>เก็บคำสั่งไว้ใช้ซ้ำทุกคลิป</small></div><button class="ib" id="ppBack">← กลับ</button></div>
-    <button class="pp-go" id="ppAi"><span class="pp-ico">🎙️</span><span class="pp-txt"><b>เปิด Google AI Studio · หน้าสร้างเสียง</b><small>aistudio.google.com/generate-speech<br>หน้าที่วางข้อความ · เลือกชื่อผู้พูด (Speaker) · ใส่สไตล์การพูด (Style) · กด Run</small></span><span class="pp-arrow">↗</span></button>
     <div class="pp-row"><label class="fl"><span>① ชื่อผู้เล่าเรื่อง (จดไว้ดู)</span><input class="ct" id="mp_name" maxlength="80" placeholder="เช่น น้องฮัวหิน / พี่ต้น" value="${esc(M.name)}"></label>
       <label class="fl"><span>② สไตล์การพูด (จดไว้ดู)</span><input class="ct" id="mp_style" maxlength="200" placeholder="เช่น อบอุ่น เป็นกันเอง" value="${esc(M.style)}"></label></div>
     <label class="fl"><span>③ พรอมต์หลัก (วางคำสั่งที่เตรียมไว้ ใช้ซ้ำได้ทุกบ้าน)</span><textarea class="sct pp-big" id="mp_prompt" rows="12" placeholder="วางพรอมต์หลักที่นี่">${esc(M.prompt)}</textarea></label>
@@ -83,7 +82,8 @@ function openPromptPage() {
     <div class="pp-btns"><button class="btn" id="ppTh"><span class="pp-b1">💬 สคริปต์ ภาษาไทย</span><small>คัดลอก แล้วเปิด ChatGPT</small></button><button class="btn alt" id="ppEn"><span class="pp-b1">💬 สคริปต์ English</span><small>คัดลอก แล้วเปิด ChatGPT</small></button></div>
     <p class="hint" id="ppMsg"></p>
     <p class="hint">คัดลอกอย่างเดียว (ไม่เปิด ChatGPT): <button class="lnk" id="ppCpTh">ไทย</button> · <button class="lnk" id="ppCpEn">English</button></p>
-    <details id="ppEnBox"><summary>👁 ดู/แก้คำแปลภาษาอังกฤษ (แปลแล้วเก็บไว้ แก้เองได้)</summary><label class="fl"><span>คำสั่งบังคับให้ผลลัพธ์เป็นภาษาอังกฤษ (ใส่ต้นข้อความ + ท้ายข้อความ ตอนกด Copy English)</span><textarea class="sct" id="mp_dir" rows="4">${esc(M.enDirective != null ? M.enDirective : MP_EN_DIRECTIVE)}</textarea></label><div id="ppEnFields"></div></details>`;
+    <details id="ppEnBox"><summary>👁 ดู/แก้คำแปลภาษาอังกฤษ (แปลแล้วเก็บไว้ แก้เองได้)</summary><label class="fl"><span>คำสั่งบังคับให้ผลลัพธ์เป็นภาษาอังกฤษ (ใส่ต้นข้อความ + ท้ายข้อความ ตอนกด Copy English)</span><textarea class="sct" id="mp_dir" rows="4">${esc(M.enDirective != null ? M.enDirective : MP_EN_DIRECTIVE)}</textarea></label><div id="ppEnFields"></div></details>
+    <p class="pp-aiRow"><button class="pp-aiMini" id="ppAi" title="เปิด Google AI Studio หน้าสร้างเสียง">🎙️ <span>เปิด Google AI Studio (สร้างเสียง)</span> ↗</button></p>`;
   document.body.appendChild(d);
   const $$ = s => d.querySelector(s);
   let t = null;
