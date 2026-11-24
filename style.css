@@ -176,3 +176,12 @@ header{display:flex;align-items:center;gap:8px;flex-wrap:wrap}header small{font-
 .pcard .ib.ic{flex:0 0 28px!important;width:28px!important;height:28px!important;font-size:13px!important;border-radius:7px}
 .pcard .pinfo{min-width:0}
 @media(max-width:420px){.pcard .pact{flex-wrap:wrap!important;max-width:92px!important;justify-content:flex-end}.pcard .ib.ic{flex:0 0 28px!important}}
+
+/* หน้ามาสเตอร์พรอมต์ (เต็มจอ ซ้อนทับแอป) */
+#promptPage{position:fixed;inset:0;z-index:40;background:var(--bg);overflow:auto;padding:12px 14px calc(24px + env(safe-area-inset-bottom));max-width:680px;margin:0 auto}
+.pp-top{display:flex;align-items:center;gap:12px;margin-bottom:12px}.pp-top>div{flex:1;display:flex;flex-direction:column}.pp-top b{font-family:Georgia,serif;font-size:20px}.pp-top small{color:var(--mute);font-size:12px}
+.pp-ai{width:56px;height:56px;border-radius:50%;border:2px solid var(--accent);background:#fff;font-size:28px;cursor:pointer;flex:0 0 auto;box-shadow:0 2px 8px rgba(122,31,43,.25)}
+.pp-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}.pp-row .fl{margin:0}
+.pp-big{min-height:260px}.pp-btns{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:8px}.pp-btns .btn{margin:0}
+#promptPage .fl{display:flex;flex-direction:column;gap:4px;margin:10px 0}#promptPage .fl span{font-size:13px;font-weight:600;color:var(--ink)}
+#promptPage details{margin-top:12px;background:#fff;border:1px solid var(--line);border-radius:12px;padding:8px 12px}#promptPage summary{cursor:pointer;font-weight:600}

@@ -1627,7 +1627,8 @@ function render() {
 (async () => {
   await loadLib(); await migrateProjects(); state.home = true; render();
   try { navigator.storage && navigator.storage.persist && navigator.storage.persist(); } catch (e) {}
-  $('#homeBtn').onclick = goHome;
+  $('#homeBtn').onclick = () => { document.querySelector('#promptPage')?.remove(); goHome(); };
+  $('#promptBtn').onclick = openPromptPage;
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
 })();
 

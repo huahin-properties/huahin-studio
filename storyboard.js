@@ -45,7 +45,7 @@ let libSeq = 1000000;
 const saveLib = () => DB.set('library', lib);
 async function loadLib() {
   const l = await DB.get('library'); if (!l) return;
-  lib.contact = { name: '', phone: '', line: '', ...(l.contact || {}) }; lib.brand = { ...lib.brand, ...(l.brand || {}) }; lib.links = { ...DEFAULT_LINKS, ...(l.links || {}) }; if (l.voiceStyle) lib.voiceStyle = l.voiceStyle; lib.titleBuiltin = l.titleBuiltin !== false; lib.closeBuiltin = l.closeBuiltin !== false; lib.title = l.title || null; lib.close = l.close || null; lib.area = l.area || []; lib.myPoses = l.myPoses || {}; lib.usage = l.usage || {}; if (l.places && l.places.length) lib.places = l.places;
+  lib.contact = { name: '', phone: '', line: '', ...(l.contact || {}) }; lib.brand = { ...lib.brand, ...(l.brand || {}) }; lib.links = { ...DEFAULT_LINKS, ...(l.links || {}) }; if (l.voiceStyle) lib.voiceStyle = l.voiceStyle; lib.titleBuiltin = l.titleBuiltin !== false; lib.closeBuiltin = l.closeBuiltin !== false; lib.title = l.title || null; lib.close = l.close || null; lib.area = l.area || []; lib.myPoses = l.myPoses || {}; lib.usage = l.usage || {}; if (l.mp) lib.mp = l.mp; if (l.places && l.places.length) lib.places = l.places;
   libSeq = Math.max(libSeq, ...lib.area.map(a => a.id || 0), (lib.title && lib.title.id) || 0, (lib.close && lib.close.id) || 0) + 1;
 }
 const libArea = cat => lib.area.filter(x => x.cat === cat);
