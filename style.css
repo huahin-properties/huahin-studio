@@ -200,3 +200,5 @@ header{display:flex;align-items:center;gap:8px;flex-wrap:wrap}header small{font-
 .pp-sec{margin:10px 0}.pp-sech{display:flex;align-items:center;gap:8px;margin-bottom:4px;font-size:14px}.pp-sech b{font-weight:600}
 .pp-dot{flex:0 0 26px;height:26px;border-radius:50%;border:2px solid #c9bfb2;color:#c9bfb2;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;background:#fff}
 .pp-dot.ok{background:#2e7d4f;border-color:#2e7d4f;color:#fff}.pp-cnt{font-weight:400;color:var(--mute);font-size:13px}
+
+.pp-guide{margin:0 0 6px 34px;background:#f3ead9;border-radius:8px;padding:6px 8px;color:#6b4a2b}
