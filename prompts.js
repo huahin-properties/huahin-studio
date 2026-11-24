@@ -7,6 +7,20 @@ const MP_FIELDS = [
   { k: 'promo', th: 'โปรโมชั่นของบ้านหลังนี้', en: 'Promotions for this property', rows: 4 },
   { k: 'details', th: 'รายละเอียดตัวบ้าน (ห้องนอน ห้องน้ำ ฯลฯ)', en: 'Property details', rows: 6 },
 ];
+// ลำดับเรื่องรายห้อง: ผู้ใช้กรอกรายละเอียดจริงตอนไปถึงหน้างาน (เช่น สีผ้าปู) · ช่องที่ว่างถูกข้าม · ปิดท้ายด้วยข้อมูลติดต่ออัตโนมัติ
+const MP_SECS = [
+  { k: 's1', th: 'เปิดคลิป: ทักทาย + ดึงโปรโมชั่น + จั่วหัวว่าหัวหินน่าเที่ยว/น่าอยู่อย่างไร', en: 'Opening: greeting, promotion hook, why Hua Hin is a great place', ph: 'เช่น ทักทายแขก พูดโปรโมชั่นเด่น แล้วเกริ่นว่าหัวหินน่าอยู่เพราะทะเลและตลาดใกล้ ๆ' },
+  { k: 's2', th: 'นำเข้าสู่ตัวบ้าน: บรรยากาศภายนอก หน้าบ้าน ที่จอดรถ', en: 'Arriving at the house: exterior, front of the house, parking', ph: 'เช่น ถนนเข้าโครงการ รั้ว ประตูไม้ ที่จอดรถ 2 คัน หน้าบ้านโล่ง' },
+  { k: 's3', th: 'ห้องโถง / ห้องนั่งเล่น และห้องครัว', en: 'Hall / living area and kitchen', ph: 'เช่น เพดานสูง โซฟาสีเทา ครัวเปิดเคาน์เตอร์หินอ่อน เครื่องดูดควัน' },
+  { k: 's4', th: 'ห้องนอนมาสเตอร์', en: 'Master bedroom', ph: 'เช่น ผ้าปูสีชมพู หัวเตียงสีเทา ตู้เสื้อผ้าบิวท์อิน โต๊ะเครื่องแป้ง ห้องน้ำในตัว' },
+  { k: 's5', th: 'ห้องนอนที่ 2', en: 'Bedroom 2', ph: 'เช่น ผ้าปูสีแดง เตียงคู่ ระเบียงเล็ก' },
+  { k: 's6', th: 'ห้องนอนที่ 3', en: 'Bedroom 3', ph: 'เช่น ผ้าปูสีขาว มีโต๊ะทำงาน' },
+  { k: 's7', th: 'ห้องนอนที่ 4 / ห้องพิเศษอื่น ๆ (ถ้ามี)', en: 'Bedroom 4 / other special rooms (if any)', ph: 'เช่น ห้องนอนที่ 4 หรือห้องกรีนเฮาส์ ห้องทำงาน ห้องเก็บของ' },
+  { k: 's8', th: 'ห้องน้ำ', en: 'Bathrooms', ph: 'เช่น กระเบื้องหินอ่อน ฝักบัวเรนชาวเวอร์ ห้องกระจกกั้น' },
+  { k: 's9', th: 'มุมนั่งเล่น / สระว่ายน้ำ', en: 'Sitting corner / swimming pool', ph: 'เช่น สระส่วนตัวกว้าง 3x8 เมตร ศาลานั่งเล่น เก้าอี้อาบแดด' },
+  { k: 's10', th: 'สวน / ระเบียง', en: 'Garden / terrace', ph: 'เช่น สวนหย่อมปลูกต้นปาล์ม สนามหญ้า ที่นั่งชมวิวภูเขา' },
+];
+MP_SECS.forEach(s => MP_FIELDS.push({ k: s.k, th: s.th, en: s.en, rows: 3 }));
 const mpData = () => { const M = (lib.mp = lib.mp || { name: '', style: '', prompt: '', promo: '', details: '', en: {}, enSrc: {}, withNameStyle: true }); M.contact = M.contact || { name: '', phone: '', line: '', web: '' }; return M; };
 // คำสั่งบังคับภาษาผลลัพธ์ (ใส่ต้นและท้ายข้อความเมื่อกด Copy English) · แก้ได้ในกล่อง "ดู/แก้คำแปล"
 const MP_EN_DIRECTIVE = 'IMPORTANT - OUTPUT LANGUAGE: Write your entire final answer (the voiceover script / copy) in natural, fluent English only. Even if any instruction below mentions Thai or asks for a Thai script, produce the final result in English. Do not answer in Thai.';
@@ -19,6 +33,8 @@ function mpCompose(lang) {
   if (M.withNameStyle !== false) { if (get('name')) parts.push(`${H.name}: ${get('name')}`); if (get('style')) parts.push(`${H.style}: ${get('style')}`); }
   if (get('promo')) parts.push(`${H.promo}:\n${get('promo')}`);
   if (get('details')) parts.push(`${H.details}:\n${get('details')}`);
+  const secs = MP_SECS.map((s, i) => [i + 1, s, get(s.k)]).filter(x => x[2]);
+  if (secs.length) parts.push((lang === 'en' ? 'Video story order (write the script in THIS order; skip any section that is not listed; finish with a short closing and the contact details below):' : 'ลำดับเรื่องของคลิป (ให้เขียนสคริปต์ตามลำดับนี้ ช่องที่ไม่ได้ระบุให้ข้ามไป และปิดท้ายด้วยการสรุปสั้น ๆ พร้อมข้อมูลติดต่อด้านล่าง):') + '\n' + secs.map(([n, s, t]) => `${n}) ${lang === 'en' ? s.en : s.th.split(' (')[0]}: ${t}`).join('\n'));
   const C = M.contact, cl = [[lang === 'en' ? 'Name' : 'ชื่อ', C.name], [lang === 'en' ? 'Phone' : 'โทร', C.phone], ['LINE', C.line], [lang === 'en' ? 'Website / Facebook' : 'เว็บไซต์ / Facebook', C.web]].filter(x => String(x[1] || '').trim()).map(x => `${x[0]}: ${String(x[1]).trim()}`);
   if (cl.length) parts.push(`${lang === 'en' ? 'Contact' : 'ข้อมูลติดต่อ'}:\n${cl.join('\n')}`); // ข้อมูลติดต่อไม่แปล (เบอร์/ชื่อ/ลิงก์ต้องตรงตัว)
   if (lang === 'en' && parts.length) { const dir = (M.enDirective != null ? M.enDirective : MP_EN_DIRECTIVE).trim(); if (dir) { parts.unshift(dir); parts.push(MP_EN_REMINDER); } }
@@ -53,11 +69,15 @@ function openPromptPage() {
     <label class="fl"><span>③ พรอมต์หลัก (วางคำสั่งที่เตรียมไว้ ใช้ซ้ำได้ทุกบ้าน)</span><textarea class="sct pp-big" id="mp_prompt" rows="12" placeholder="วางพรอมต์หลักที่นี่">${esc(M.prompt)}</textarea></label>
     <label class="fl"><span>④ โปรโมชั่นของบ้านหลังนี้</span><textarea class="sct" id="mp_promo" rows="4" placeholder="เช่น ฟรีเฟอร์นิเจอร์ ฟรีค่าโอน ผ่อน 0%">${esc(M.promo)}</textarea></label>
     <label class="fl"><span>⑤ รายละเอียดตัวบ้าน (ห้องนอน ห้องน้ำ ที่ดิน ราคา ฯลฯ)</span><textarea class="sct" id="mp_details" rows="6" placeholder="วางรายละเอียดบ้าน หรือกดดึงจากข้อมูลบ้านด้านล่าง">${esc(M.details)}</textarea></label>
+    <div class="seg" id="ppSecs"><b>🎬 ลำดับเรื่องรายห้อง (ช่อง 1–10) <span class="pp-cnt" id="ppCnt"></span></b>
+      <p class="hint">กรอกรายละเอียดจริงของแต่ละห้องตอนไปถึงหน้างาน เช่น สีผ้าปู ของตกแต่ง · ช่องไหนไม่มีก็เว้นว่าง แอปให้ AI ข้ามไป · ช่องที่กรอกแล้วขึ้นเครื่องหมายเขียว ✓ · สคริปต์เขียนตามลำดับ 1 → 10 แล้วปิดท้ายด้วยข้อมูลติดต่อ</p>
+      ${MP_SECS.map((s, i) => `<div class="pp-sec" data-sec="${s.k}"><div class="pp-sech"><span class="pp-dot" id="dot_${s.k}">○</span><b>ช่อง ${i + 1} · ${s.th}</b></div><textarea class="sct" id="ms_${s.k}" rows="3" placeholder="${esc(s.ph)}">${esc(M[s.k])}</textarea></div>`).join('')}
+    </div>
     <div class="seg"><b>⑥ ข้อมูลการติดต่อ (ใส่ท้ายข้อความที่คัดลอก ไม่แปล)</b>
       <div class="pp-row"><label class="fl"><span>ชื่อ / บริษัท</span><input class="ct" id="mc_name" maxlength="80" placeholder="เช่น Huahin Properties" value="${esc(M.contact.name)}"></label><label class="fl"><span>เบอร์โทร</span><input class="ct" id="mc_phone" type="tel" maxlength="40" placeholder="เช่น 081-234-5678" value="${esc(M.contact.phone)}"></label></div>
       <div class="pp-row"><label class="fl"><span>LINE</span><input class="ct" id="mc_line" maxlength="60" placeholder="เช่น @huahin" value="${esc(M.contact.line)}"></label><label class="fl"><span>เว็บไซต์ / Facebook</span><input class="ct" id="mc_web" maxlength="200" placeholder="เช่น facebook.com/huahinproperties" value="${esc(M.contact.web)}"></label></div>
       <div class="tools"><button class="ib wide" id="ppContact">📇 ดึงจากเบอร์ติดต่อของแอป</button></div></div>
-    <div class="tools"><button class="ib wide" id="ppFacts">🏠 ดึงจากข้อมูลบ้านของคลิปล่าสุด</button><button class="ib wide" id="ppClear">🧹 ล้างช่อง ④ ⑤ (เริ่มบ้านหลังใหม่)</button></div>
+    <div class="tools"><button class="ib wide" id="ppFacts">🏠 ดึงจากข้อมูลบ้านของคลิปล่าสุด</button><button class="ib wide" id="ppClear">🧹 ล้างช่อง ④ ⑤ และช่อง 1–10 (เริ่มบ้านหลังใหม่)</button></div>
     <label class="sw"><input type="checkbox" id="mp_wns" ${M.withNameStyle !== false ? 'checked' : ''}> รวมชื่อผู้เล่าและสไตล์ในข้อความที่คัดลอกด้วย</label>
     <p class="hint" id="ppSave">💾 บันทึกอัตโนมัติ ใช้ซ้ำได้ทุกคลิป</p>
     <div class="pp-btns"><button class="btn" id="ppTh"><span class="pp-b1">💬 สคริปต์ ภาษาไทย</span><small>คัดลอก แล้วเปิด ChatGPT</small></button><button class="btn alt" id="ppEn"><span class="pp-b1">💬 สคริปต์ English</span><small>คัดลอก แล้วเปิด ChatGPT</small></button></div>
@@ -70,6 +90,9 @@ function openPromptPage() {
   const stamp = () => { $$('#ppSave').textContent = '💾 บันทึกแล้ว ' + new Date().toLocaleTimeString('th-TH'); };
   const queue = () => { clearTimeout(t); t = setTimeout(async () => { await saveLib(); stamp(); }, 500); };
   ['name', 'style', 'prompt', 'promo', 'details'].forEach(k => { $$('#mp_' + k).oninput = e => { M[k] = e.target.value; queue(); }; });
+  const dots = () => { let n = 0; MP_SECS.forEach(s => { const on = !!(M[s.k] || '').trim(); if (on) n++; const d1 = $$('#dot_' + s.k); d1.textContent = on ? '✓' : '○'; d1.classList.toggle('ok', on); }); $$('#ppCnt').textContent = `· กรอกแล้ว ${n}/10`; };
+  MP_SECS.forEach(s => { $$('#ms_' + s.k).oninput = e => { M[s.k] = e.target.value; dots(); queue(); }; });
+  dots();
   $$('#mp_wns').onchange = e => { M.withNameStyle = e.target.checked; saveLib(); };
   const drawEn = () => { $$('#ppEnFields').innerHTML = MP_FIELDS.map(f => `<label class="fl"><span>${f.en || 'Master prompt'}${M.enSrc[f.k] === mpHash(M[f.k]) ? '' : ' · ยังไม่ได้แปลใหม่'}</span><textarea class="sct" data-en="${f.k}" rows="${Math.min(f.rows, 8)}">${esc(M.en[f.k] || '')}</textarea></label>`).join(''); };
   $$('#mp_dir').oninput = e => { M.enDirective = e.target.value; queue(); };
@@ -79,7 +102,7 @@ function openPromptPage() {
   $$('#ppContact').onclick = e => { const c = lib.contact || {}; if (!(c.name || c.phone || c.line)) { alert('ยังไม่ได้ตั้งเบอร์ติดต่อมาตรฐานของแอป (ตั้งที่แท็บ ☎️ ติดต่อ ในขั้น 2)'); return; } M.contact.name = c.name || M.contact.name; M.contact.phone = c.phone || M.contact.phone; M.contact.line = c.line || M.contact.line; ['name', 'phone', 'line'].forEach(k => { $$('#mc_' + k).value = M.contact[k]; }); saveLib(); stamp(); flash(e.currentTarget, '✓ ดึงแล้ว'); };
   $$('#ppBack').onclick = () => d.remove();
   $$('#ppFacts').onclick = async e => { const btn0 = e.currentTarget, t0 = await mpFactsText(); if (!t0) { alert('ยังไม่มีข้อมูลบ้านในคลิปไหนเลย กรอกที่ขั้น 4 ปุ่ม 🏠 ข้อมูลบ้าน ก่อน'); return; } if (M.details.trim() && !confirm('แทนที่ข้อความในช่อง ⑤ ด้วยข้อมูลบ้านของคลิปล่าสุด?')) return; M.details = t0; $$('#mp_details').value = t0; await saveLib(); stamp(); flash(btn0, '✓ ดึงแล้ว'); };
-  $$('#ppClear').onclick = async () => { if (!confirm('ล้างช่อง ④ โปรโมชั่น และ ⑤ รายละเอียดบ้าน? (พรอมต์หลัก ชื่อ และสไตล์ยังอยู่)')) return; M.promo = ''; M.details = ''; M.en.promo = ''; M.en.details = ''; $$('#mp_promo').value = ''; $$('#mp_details').value = ''; await saveLib(); drawEn(); stamp(); };
+  $$('#ppClear').onclick = async () => { if (!confirm('ล้างช่อง ④ โปรโมชั่น ⑤ รายละเอียดบ้าน และช่องรายห้อง 1–10? (พรอมต์หลัก ชื่อ สไตล์ และข้อมูลติดต่อยังอยู่)')) return; M.promo = ''; M.details = ''; M.en.promo = ''; M.en.details = ''; MP_SECS.forEach(s => { M[s.k] = ''; M.en[s.k] = ''; $$('#ms_' + s.k).value = ''; }); $$('#mp_promo').value = ''; $$('#mp_details').value = ''; await saveLib(); drawEn(); dots(); stamp(); };
   const GPT = () => lib.links.gpt || 'https://chatgpt.com/';
   const prepThai = async () => { const txt = mpCompose('th'); if (!txt.trim()) { alert('ยังไม่มีข้อความให้คัดลอก'); return null; } return (await copyText(txt)) ? txt : null; };
   // ภาษาอังกฤษ: แปลเฉพาะช่องที่เปลี่ยน (ใช้ cache) แล้วคัดลอก · คืนค่า { txt, n, slow }

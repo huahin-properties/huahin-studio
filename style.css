@@ -196,3 +196,7 @@ header{display:flex;align-items:center;gap:8px;flex-wrap:wrap}header small{font-
 
 .pp-btns .btn{display:flex;flex-direction:column;align-items:center;gap:2px;padding:12px 8px}.pp-btns .pp-b1{font-size:16px;font-weight:700}.pp-btns small{font-size:11px;opacity:.85;font-weight:400}
 #promptPage .lnk{background:none;border:0;color:var(--accent);text-decoration:underline;font:inherit;padding:0 4px;cursor:pointer}
+
+.pp-sec{margin:10px 0}.pp-sech{display:flex;align-items:center;gap:8px;margin-bottom:4px;font-size:14px}.pp-sech b{font-weight:600}
+.pp-dot{flex:0 0 26px;height:26px;border-radius:50%;border:2px solid #c9bfb2;color:#c9bfb2;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;background:#fff}
+.pp-dot.ok{background:#2e7d4f;border-color:#2e7d4f;color:#fff}.pp-cnt{font-weight:400;color:var(--mute);font-size:13px}
