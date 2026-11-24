@@ -79,10 +79,10 @@ function openPromptPage() {
     <div class="tools"><button class="ib wide" id="ppFacts">🏠 ดึงจากข้อมูลบ้านของคลิปล่าสุด</button><button class="ib wide" id="ppClear">🧹 ล้างช่อง ④ ⑤ และช่อง 2–10 (เริ่มบ้านหลังใหม่)</button></div>
     <label class="sw"><input type="checkbox" id="mp_wns" ${M.withNameStyle !== false ? 'checked' : ''}> รวมชื่อผู้เล่าและสไตล์ในข้อความที่คัดลอกด้วย</label>
     <p class="hint" id="ppSave">💾 บันทึกอัตโนมัติ ใช้ซ้ำได้ทุกคลิป</p>
-    <details id="ppEnBox"><summary>👁 ดู/แก้คำแปลภาษาอังกฤษ (แปลแล้วเก็บไว้ แก้เองได้)</summary><label class="fl"><span>คำสั่งบังคับให้ผลลัพธ์เป็นภาษาอังกฤษ (ใส่ต้นข้อความ + ท้ายข้อความ ตอนกด Copy English)</span><textarea class="sct" id="mp_dir" rows="4">${esc(M.enDirective != null ? M.enDirective : MP_EN_DIRECTIVE)}</textarea></label><div id="ppEnFields"></div></details>
     <p class="hint" id="ppMsg"></p>
     <div class="pp-pills"><button class="pp-aiMini" id="ppTh" title="คัดลอกสคริปต์ภาษาไทย แล้วเปิด ChatGPT">💬 <span>สคริปต์ ไทย → ChatGPT</span> ↗<small hidden>คัดลอก แล้วเปิด ChatGPT</small></button><button class="pp-aiMini" id="ppEn" title="คัดลอกสคริปต์ English แล้วเปิด ChatGPT">💬 <span>สคริปต์ English → ChatGPT</span> ↗<small hidden>คัดลอก แล้วเปิด ChatGPT</small></button><button class="pp-aiMini" id="ppAi" title="เปิด Google AI Studio หน้าสร้างเสียง">🎙️ <span>เปิด Google AI Studio (สร้างเสียง)</span> ↗</button></div>
-    <p class="hint pp-cponly">คัดลอกอย่างเดียว (ไม่เปิด ChatGPT): <button class="lnk" id="ppCpTh">ไทย</button> · <button class="lnk" id="ppCpEn">English</button></p>`;
+    <p class="hint pp-cponly">คัดลอกอย่างเดียว (ไม่เปิด ChatGPT): <button class="lnk" id="ppCpTh">ไทย</button> · <button class="lnk" id="ppCpEn">English</button></p>
+    <details id="ppEnBox"><summary>👁 ดู/แก้คำแปลภาษาอังกฤษ (แปลแล้วเก็บไว้ แก้เองได้)</summary><label class="fl"><span>คำสั่งบังคับให้ผลลัพธ์เป็นภาษาอังกฤษ (ใส่ต้นข้อความ + ท้ายข้อความ ตอนกด Copy English)</span><textarea class="sct" id="mp_dir" rows="4">${esc(M.enDirective != null ? M.enDirective : MP_EN_DIRECTIVE)}</textarea></label><div id="ppEnFields"></div></details>`;
   document.body.appendChild(d);
   const $$ = s => d.querySelector(s);
   let t = null;
