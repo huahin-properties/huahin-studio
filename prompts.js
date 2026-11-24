@@ -46,9 +46,12 @@ function openPromptPage() {
   document.querySelector('#promptPage')?.remove();
   const M = mpData(), esc = s => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;'), d = document.createElement('div'); d.id = 'promptPage';
   const flash = (btn, t) => { const o = btn.dataset.o || btn.innerHTML; btn.dataset.o = o; btn.innerHTML = t; setTimeout(() => { btn.innerHTML = o; }, 1800); };
-  d.innerHTML = `<div class="pp-top"><button class="pp-ai" id="ppAi" title="เปิด Google AI Studio" aria-label="เปิด Google AI Studio">🤖</button><div><b>มาสเตอร์พรอมต์</b><small>เก็บคำสั่งไว้ใช้ซ้ำ · แตะ 🤖 เพื่อเปิด Google AI Studio ทันที</small></div><button class="ib" id="ppBack">← กลับ</button></div>
-    <div class="pp-row"><label class="fl"><span>① ชื่อผู้เล่าเรื่อง</span><input class="ct" id="mp_name" maxlength="80" placeholder="เช่น น้องฮัวหิน / พี่ต้น" value="${esc(M.name)}"></label>
-      <label class="fl"><span>② สไตล์การพูด</span><input class="ct" id="mp_style" maxlength="200" placeholder="เช่น อบอุ่น เป็นกันเอง" value="${esc(M.style)}"></label></div>
+  d.innerHTML = `<div class="pp-top"><div><b>มาสเตอร์พรอมต์</b><small>เก็บคำสั่งไว้ใช้ซ้ำทุกคลิป</small></div><button class="ib" id="ppBack">← กลับ</button></div>
+    <button class="pp-go" id="ppAi"><span class="pp-ico">🎙️</span><span class="pp-txt"><b>เปิด Google AI Studio · หน้าสร้างเสียง</b><small>aistudio.google.com/generate-speech<br>หน้าที่วางข้อความ · เลือกชื่อผู้พูด (Speaker) · ใส่สไตล์การพูด (Style) · กด Run</small></span><span class="pp-arrow">↗</span></button>
+    <div class="tools"><button class="ib wide" id="ppAiChat">✍️ แชทเขียนสคริปต์ (AI Studio)</button><button class="ib wide" id="ppAiLink">🔗 คัดลอกลิงก์หน้าสร้างเสียง</button></div>
+    <div class="pp-row"><label class="fl"><span>① ชื่อผู้เล่าเรื่อง <button class="ib sm" id="ppCpName" type="button">📋 คัดลอก</button></span><input class="ct" id="mp_name" maxlength="80" placeholder="เช่น น้องฮัวหิน / พี่ต้น" value="${esc(M.name)}"></label>
+      <label class="fl"><span>② สไตล์การพูด <button class="ib sm" id="ppCpStyle" type="button">📋 คัดลอก</button></span><input class="ct" id="mp_style" maxlength="200" placeholder="เช่น อบอุ่น เป็นกันเอง" value="${esc(M.style)}"></label></div>
+    <p class="hint">ใน AI Studio หน้าสร้างเสียง: วางข้อความในช่องข้อความ (กด “คัดลอก ภาษาไทย” ด้านล่าง) · เลือก Speaker · วางสไตล์ในช่อง Style (กด 📋 ข้างช่อง ② แล้วไปวาง)</p>
     <label class="fl"><span>③ พรอมต์หลัก (วางคำสั่งที่เตรียมไว้ ใช้ซ้ำได้ทุกบ้าน)</span><textarea class="sct pp-big" id="mp_prompt" rows="12" placeholder="วางพรอมต์หลักที่นี่">${esc(M.prompt)}</textarea></label>
     <label class="fl"><span>④ โปรโมชั่นของบ้านหลังนี้</span><textarea class="sct" id="mp_promo" rows="4" placeholder="เช่น ฟรีเฟอร์นิเจอร์ ฟรีค่าโอน ผ่อน 0%">${esc(M.promo)}</textarea></label>
     <label class="fl"><span>⑤ รายละเอียดตัวบ้าน (ห้องนอน ห้องน้ำ ที่ดิน ราคา ฯลฯ)</span><textarea class="sct" id="mp_details" rows="6" placeholder="วางรายละเอียดบ้าน หรือกดดึงจากข้อมูลบ้านด้านล่าง">${esc(M.details)}</textarea></label>
@@ -75,7 +78,11 @@ function openPromptPage() {
   const drawEn = () => { $$('#ppEnFields').innerHTML = MP_FIELDS.map(f => `<label class="fl"><span>${f.en || 'Master prompt'}${M.enSrc[f.k] === mpHash(M[f.k]) ? '' : ' · ยังไม่ได้แปลใหม่'}</span><textarea class="sct" data-en="${f.k}" rows="${Math.min(f.rows, 8)}">${esc(M.en[f.k] || '')}</textarea></label>`).join(''); };
   $$('#mp_dir').oninput = e => { M.enDirective = e.target.value; queue(); };
   drawEn(); $$('#ppEnFields').oninput = e => { const k = e.target.dataset.en; if (k) { M.en[k] = e.target.value; M.enSrc[k] = mpHash(M[k]); queue(); } };
-  $$('#ppAi').onclick = () => openExternal(lib.links.chat);
+  $$('#ppAi').onclick = () => openExternal(lib.links.tts || 'https://aistudio.google.com/generate-speech');
+  $$('#ppAiChat').onclick = () => openExternal(lib.links.chat);
+  $$('#ppAiLink').onclick = async e => { const b0 = e.currentTarget, ok = await copyText(lib.links.tts || 'https://aistudio.google.com/generate-speech'); flash(b0, ok ? '✓ คัดลอกลิงก์แล้ว' : 'คัดลอกไม่ได้'); };
+  $$('#ppCpName').onclick = async e => { const b0 = e.currentTarget, ok = await copyText(M.name || ''); flash(b0, ok ? '✓' : '✗'); };
+  $$('#ppCpStyle').onclick = async e => { const b0 = e.currentTarget, ok = await copyText(M.style || ''); flash(b0, ok ? '✓' : '✗'); };
   [['name', 'mc_name'], ['phone', 'mc_phone'], ['line', 'mc_line'], ['web', 'mc_web']].forEach(([k, id]) => { $$('#' + id).oninput = e => { M.contact[k] = e.target.value; queue(); }; });
   $$('#ppContact').onclick = e => { const c = lib.contact || {}; if (!(c.name || c.phone || c.line)) { alert('ยังไม่ได้ตั้งเบอร์ติดต่อมาตรฐานของแอป (ตั้งที่แท็บ ☎️ ติดต่อ ในขั้น 2)'); return; } M.contact.name = c.name || M.contact.name; M.contact.phone = c.phone || M.contact.phone; M.contact.line = c.line || M.contact.line; ['name', 'phone', 'line'].forEach(k => { $$('#mc_' + k).value = M.contact[k]; }); saveLib(); stamp(); flash(e.currentTarget, '✓ ดึงแล้ว'); };
   $$('#ppGpt').onclick = () => openExternal(lib.links.gpt || 'https://chatgpt.com/');
