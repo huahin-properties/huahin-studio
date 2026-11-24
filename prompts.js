@@ -60,9 +60,9 @@ function openPromptPage() {
     <div class="tools"><button class="ib wide" id="ppFacts">🏠 ดึงจากข้อมูลบ้านของคลิปล่าสุด</button><button class="ib wide" id="ppClear">🧹 ล้างช่อง ④ ⑤ (เริ่มบ้านหลังใหม่)</button></div>
     <label class="sw"><input type="checkbox" id="mp_wns" ${M.withNameStyle !== false ? 'checked' : ''}> รวมชื่อผู้เล่าและสไตล์ในข้อความที่คัดลอกด้วย</label>
     <p class="hint" id="ppSave">💾 บันทึกอัตโนมัติ ใช้ซ้ำได้ทุกคลิป</p>
-    <div class="pp-btns"><button class="btn" id="ppTh">📋 คัดลอก ภาษาไทย</button><button class="btn alt" id="ppEn">📋 Copy English</button></div>
+    <div class="pp-btns"><button class="btn" id="ppTh"><span class="pp-b1">💬 สคริปต์ ภาษาไทย</span><small>คัดลอก แล้วเปิด ChatGPT</small></button><button class="btn alt" id="ppEn"><span class="pp-b1">💬 สคริปต์ English</span><small>คัดลอก แล้วเปิด ChatGPT</small></button></div>
     <p class="hint" id="ppMsg"></p>
-    <div class="pp-gptrow"><button class="pp-ai" id="ppGpt" title="เปิดแชท ChatGPT" aria-label="เปิดแชท ChatGPT">💬</button><b>⑦ ChatGPT</b></div>
+    <p class="hint">คัดลอกอย่างเดียว (ไม่เปิด ChatGPT): <button class="lnk" id="ppCpTh">ไทย</button> · <button class="lnk" id="ppCpEn">English</button></p>
     <details id="ppEnBox"><summary>👁 ดู/แก้คำแปลภาษาอังกฤษ (แปลแล้วเก็บไว้ แก้เองได้)</summary><label class="fl"><span>คำสั่งบังคับให้ผลลัพธ์เป็นภาษาอังกฤษ (ใส่ต้นข้อความ + ท้ายข้อความ ตอนกด Copy English)</span><textarea class="sct" id="mp_dir" rows="4">${esc(M.enDirective != null ? M.enDirective : MP_EN_DIRECTIVE)}</textarea></label><div id="ppEnFields"></div></details>`;
   document.body.appendChild(d);
   const $$ = s => d.querySelector(s);
@@ -77,18 +77,35 @@ function openPromptPage() {
   $$('#ppAi').onclick = () => openExternal(lib.links.tts || 'https://aistudio.google.com/generate-speech');
   [['name', 'mc_name'], ['phone', 'mc_phone'], ['line', 'mc_line'], ['web', 'mc_web']].forEach(([k, id]) => { $$('#' + id).oninput = e => { M.contact[k] = e.target.value; queue(); }; });
   $$('#ppContact').onclick = e => { const c = lib.contact || {}; if (!(c.name || c.phone || c.line)) { alert('ยังไม่ได้ตั้งเบอร์ติดต่อมาตรฐานของแอป (ตั้งที่แท็บ ☎️ ติดต่อ ในขั้น 2)'); return; } M.contact.name = c.name || M.contact.name; M.contact.phone = c.phone || M.contact.phone; M.contact.line = c.line || M.contact.line; ['name', 'phone', 'line'].forEach(k => { $$('#mc_' + k).value = M.contact[k]; }); saveLib(); stamp(); flash(e.currentTarget, '✓ ดึงแล้ว'); };
-  $$('#ppGpt').onclick = () => openExternal(lib.links.gpt || 'https://chatgpt.com/');
   $$('#ppBack').onclick = () => d.remove();
   $$('#ppFacts').onclick = async e => { const btn0 = e.currentTarget, t0 = await mpFactsText(); if (!t0) { alert('ยังไม่มีข้อมูลบ้านในคลิปไหนเลย กรอกที่ขั้น 4 ปุ่ม 🏠 ข้อมูลบ้าน ก่อน'); return; } if (M.details.trim() && !confirm('แทนที่ข้อความในช่อง ⑤ ด้วยข้อมูลบ้านของคลิปล่าสุด?')) return; M.details = t0; $$('#mp_details').value = t0; await saveLib(); stamp(); flash(btn0, '✓ ดึงแล้ว'); };
   $$('#ppClear').onclick = async () => { if (!confirm('ล้างช่อง ④ โปรโมชั่น และ ⑤ รายละเอียดบ้าน? (พรอมต์หลัก ชื่อ และสไตล์ยังอยู่)')) return; M.promo = ''; M.details = ''; M.en.promo = ''; M.en.details = ''; $$('#mp_promo').value = ''; $$('#mp_details').value = ''; await saveLib(); drawEn(); stamp(); };
-  $$('#ppTh').onclick = async e => { const txt = mpCompose('th'); if (!txt.trim()) { alert('ยังไม่มีข้อความให้คัดลอก'); return; } flash(e.currentTarget, (await copyText(txt)) ? `✓ คัดลอกแล้ว (${txt.length} ตัวอักษร)` : 'คัดลอกไม่ได้'); };
-  $$('#ppEn').onclick = async e => {
-    const btn = e.currentTarget; btn.disabled = true; const msg = $$('#ppMsg');
-    try {
-      const n = await mpTranslateAll(s => { msg.textContent = s; }); drawEn();
-      const txt = mpCompose('en'); if (!txt.trim()) { alert('ยังไม่มีข้อความให้คัดลอก'); msg.textContent = ''; btn.disabled = false; return; }
-      const ok = await copyText(txt); msg.textContent = `${n ? 'แปลใหม่ ' + n + ' ช่อง · ' : 'ใช้คำแปลเดิม · '}คัดลอกภาษาอังกฤษแล้ว (${txt.length} ตัวอักษร) · มีคำสั่งบังคับให้ผลลัพธ์เป็นภาษาอังกฤษ · ตรวจ/แก้คำแปลได้ที่ "ดู/แก้คำแปลภาษาอังกฤษ" ด้านล่าง`; flash(btn, ok ? '✓ Copied' : 'คัดลอกไม่ได้');
-    } catch (err) { msg.textContent = '❌ แปลไม่สำเร็จ (ต่ออินเทอร์เน็ตอยู่ไหม?) ' + (err.message || err); }
-    btn.disabled = false;
+  const GPT = () => lib.links.gpt || 'https://chatgpt.com/';
+  const prepThai = async () => { const txt = mpCompose('th'); if (!txt.trim()) { alert('ยังไม่มีข้อความให้คัดลอก'); return null; } return (await copyText(txt)) ? txt : null; };
+  // ภาษาอังกฤษ: แปลเฉพาะช่องที่เปลี่ยน (ใช้ cache) แล้วคัดลอก · คืนค่า { txt, n, slow }
+  const prepEn = async () => {
+    const msg = $$('#ppMsg'), t0 = performance.now();
+    const n = await mpTranslateAll(s => { msg.textContent = s; }); drawEn();
+    const txt = mpCompose('en'); if (!txt.trim()) { alert('ยังไม่มีข้อความให้คัดลอก'); return null; }
+    const ok = await copyText(txt); if (!ok) return null;
+    return { txt, n, slow: performance.now() - t0 > 3500 };
   };
+  $$('#ppTh').onclick = async e => {
+    const b0 = e.currentTarget; b0.disabled = true; const txt = await prepThai(); b0.disabled = false; if (!txt) return;
+    $$('#ppMsg').textContent = `คัดลอกสคริปต์ภาษาไทยแล้ว (${txt.length} ตัวอักษร) · เปิด ChatGPT แล้ววางในช่องแชท กดส่ง`; openExternal(GPT());
+  };
+  let enReady = false;
+  $$('#ppEn').onclick = async e => {
+    const b0 = e.currentTarget, msg = $$('#ppMsg'); b0.disabled = true;
+    try {
+      const r = await prepEn(); if (!r) { b0.disabled = false; return; }
+      const label = b0.querySelector('small');
+      if (r.slow && !enReady) { enReady = true; msg.textContent = '✓ แปลและคัดลอกแล้ว · แตะ "สคริปต์ English" อีกครั้ง เพื่อเปิด ChatGPT'; label.textContent = 'แปลเสร็จแล้ว แตะอีกครั้งเพื่อเปิด ChatGPT'; b0.disabled = false; return; }
+      enReady = false; label.textContent = 'คัดลอก แล้วเปิด ChatGPT';
+      msg.textContent = `${r.n ? 'แปลใหม่ ' + r.n + ' ช่อง · ' : 'ใช้คำแปลเดิม · '}คัดลอกสคริปต์ English แล้ว (${r.txt.length} ตัวอักษร) · เปิด ChatGPT แล้ววางในช่องแชท กดส่ง · ผลลัพธ์จะเป็นภาษาอังกฤษ`; openExternal(GPT());
+    } catch (err) { msg.textContent = '❌ แปลไม่สำเร็จ (ต่ออินเทอร์เน็ตอยู่ไหม?) ' + (err.message || err); }
+    b0.disabled = false;
+  };
+  $$('#ppCpTh').onclick = async e => { const b0 = e.currentTarget, txt = await prepThai(); if (txt) flash(b0, '✓ คัดลอกแล้ว'); };
+  $$('#ppCpEn').onclick = async e => { const b0 = e.currentTarget; b0.disabled = true; try { const r = await prepEn(); if (r) flash(b0, '✓ คัดลอกแล้ว'); } catch (err) { $$('#ppMsg').textContent = '❌ แปลไม่สำเร็จ ' + (err.message || err); } b0.disabled = false; };
 }
