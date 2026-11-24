@@ -8,6 +8,9 @@ const MP_FIELDS = [
   { k: 'details', th: 'รายละเอียดตัวบ้าน (ห้องนอน ห้องน้ำ ฯลฯ)', en: 'Property details', rows: 6 },
 ];
 const mpData = () => { const M = (lib.mp = lib.mp || { name: '', style: '', prompt: '', promo: '', details: '', en: {}, enSrc: {}, withNameStyle: true }); M.contact = M.contact || { name: '', phone: '', line: '', web: '' }; return M; };
+// คำสั่งบังคับภาษาผลลัพธ์ (ใส่ต้นและท้ายข้อความเมื่อกด Copy English) · แก้ได้ในกล่อง "ดู/แก้คำแปล"
+const MP_EN_DIRECTIVE = 'IMPORTANT - OUTPUT LANGUAGE: Write your entire final answer (the voiceover script / copy) in natural, fluent English only. Even if any instruction below mentions Thai or asks for a Thai script, produce the final result in English. Do not answer in Thai.';
+const MP_EN_REMINDER = 'Reminder: the final output must be written entirely in English.';
 const mpHash = t => { let h = 0; const s = String(t || ''); for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0; return h + ':' + s.length; };
 function mpCompose(lang) {
   const M = mpData(), get = k => (lang === 'en' ? (M.en[k] || '') : (M[k] || '')).trim(), H = { th: { name: 'ชื่อผู้เล่าเรื่อง', style: 'สไตล์การพูด', promo: 'โปรโมชั่นของบ้านหลังนี้', details: 'รายละเอียดของตัวบ้าน' }, en: { name: 'Narrator name', style: 'Speaking style', promo: 'Promotions for this property', details: 'Property details' } }[lang === 'en' ? 'en' : 'th'];
@@ -18,6 +21,7 @@ function mpCompose(lang) {
   if (get('details')) parts.push(`${H.details}:\n${get('details')}`);
   const C = M.contact, cl = [[lang === 'en' ? 'Name' : 'ชื่อ', C.name], [lang === 'en' ? 'Phone' : 'โทร', C.phone], ['LINE', C.line], [lang === 'en' ? 'Website / Facebook' : 'เว็บไซต์ / Facebook', C.web]].filter(x => String(x[1] || '').trim()).map(x => `${x[0]}: ${String(x[1]).trim()}`);
   if (cl.length) parts.push(`${lang === 'en' ? 'Contact' : 'ข้อมูลติดต่อ'}:\n${cl.join('\n')}`); // ข้อมูลติดต่อไม่แปล (เบอร์/ชื่อ/ลิงก์ต้องตรงตัว)
+  if (lang === 'en' && parts.length) { const dir = (M.enDirective != null ? M.enDirective : MP_EN_DIRECTIVE).trim(); if (dir) { parts.unshift(dir); parts.push(MP_EN_REMINDER); } }
   return parts.join('\n\n');
 }
 // แปลเฉพาะช่องที่ข้อความไทยเปลี่ยนจากที่เคยแปลไว้ (ใช้ translateTh2En ตัวเดียวกับขั้น 4)
@@ -60,7 +64,7 @@ function openPromptPage() {
     <div class="seg"><b>⑦ ส่งไปให้ ChatGPT ร่างให้</b>
       <div class="pp-gpt"><button class="pp-ai" id="ppGpt" title="เปิด ChatGPT" aria-label="เปิด ChatGPT">💬</button><div><p class="hint" style="margin:0">แตะ 💬 เพื่อเปิดแชท ChatGPT ทันที แล้ววางข้อความที่คัดลอกไว้ (กดคัดลอกไทย หรือ Copy English ด้านบนก่อน)</p></div></div>
       <button class="btn alt" id="ppGptTh">📋 คัดลอกไทย แล้วเปิด ChatGPT เลย</button></div>
-    <details id="ppEnBox"><summary>👁 ดู/แก้คำแปลภาษาอังกฤษ (แปลแล้วเก็บไว้ แก้เองได้)</summary><div id="ppEnFields"></div></details>`;
+    <details id="ppEnBox"><summary>👁 ดู/แก้คำแปลภาษาอังกฤษ (แปลแล้วเก็บไว้ แก้เองได้)</summary><label class="fl"><span>คำสั่งบังคับให้ผลลัพธ์เป็นภาษาอังกฤษ (ใส่ต้นข้อความ + ท้ายข้อความ ตอนกด Copy English)</span><textarea class="sct" id="mp_dir" rows="4">${esc(M.enDirective != null ? M.enDirective : MP_EN_DIRECTIVE)}</textarea></label><div id="ppEnFields"></div></details>`;
   document.body.appendChild(d);
   const $$ = s => d.querySelector(s);
   let t = null;
@@ -69,6 +73,7 @@ function openPromptPage() {
   ['name', 'style', 'prompt', 'promo', 'details'].forEach(k => { $$('#mp_' + k).oninput = e => { M[k] = e.target.value; queue(); }; });
   $$('#mp_wns').onchange = e => { M.withNameStyle = e.target.checked; saveLib(); };
   const drawEn = () => { $$('#ppEnFields').innerHTML = MP_FIELDS.map(f => `<label class="fl"><span>${f.en || 'Master prompt'}${M.enSrc[f.k] === mpHash(M[f.k]) ? '' : ' · ยังไม่ได้แปลใหม่'}</span><textarea class="sct" data-en="${f.k}" rows="${Math.min(f.rows, 8)}">${esc(M.en[f.k] || '')}</textarea></label>`).join(''); };
+  $$('#mp_dir').oninput = e => { M.enDirective = e.target.value; queue(); };
   drawEn(); $$('#ppEnFields').oninput = e => { const k = e.target.dataset.en; if (k) { M.en[k] = e.target.value; M.enSrc[k] = mpHash(M[k]); queue(); } };
   $$('#ppAi').onclick = () => openExternal(lib.links.chat);
   [['name', 'mc_name'], ['phone', 'mc_phone'], ['line', 'mc_line'], ['web', 'mc_web']].forEach(([k, id]) => { $$('#' + id).oninput = e => { M.contact[k] = e.target.value; queue(); }; });
@@ -84,7 +89,7 @@ function openPromptPage() {
     try {
       const n = await mpTranslateAll(s => { msg.textContent = s; }); drawEn();
       const txt = mpCompose('en'); if (!txt.trim()) { alert('ยังไม่มีข้อความให้คัดลอก'); msg.textContent = ''; btn.disabled = false; return; }
-      const ok = await copyText(txt); msg.textContent = `${n ? 'แปลใหม่ ' + n + ' ช่อง · ' : 'ใช้คำแปลเดิม · '}คัดลอกภาษาอังกฤษแล้ว (${txt.length} ตัวอักษร) · ตรวจ/แก้คำแปลได้ที่ "ดู/แก้คำแปลภาษาอังกฤษ" ด้านล่าง`; flash(btn, ok ? '✓ Copied' : 'คัดลอกไม่ได้');
+      const ok = await copyText(txt); msg.textContent = `${n ? 'แปลใหม่ ' + n + ' ช่อง · ' : 'ใช้คำแปลเดิม · '}คัดลอกภาษาอังกฤษแล้ว (${txt.length} ตัวอักษร) · มีคำสั่งบังคับให้ผลลัพธ์เป็นภาษาอังกฤษ · ตรวจ/แก้คำแปลได้ที่ "ดู/แก้คำแปลภาษาอังกฤษ" ด้านล่าง`; flash(btn, ok ? '✓ Copied' : 'คัดลอกไม่ได้');
     } catch (err) { msg.textContent = '❌ แปลไม่สำเร็จ (ต่ออินเทอร์เน็ตอยู่ไหม?) ' + (err.message || err); }
     btn.disabled = false;
   };
