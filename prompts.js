@@ -66,7 +66,7 @@ function openPromptPage() {
     <div class="pp-row"><label class="fl"><span>① ชื่อผู้เล่าเรื่อง (จดไว้ดู)</span><input class="ct" id="mp_name" maxlength="80" placeholder="เช่น น้องฮัวหิน / พี่ต้น" value="${esc(M.name)}"></label>
       <label class="fl"><span>② สไตล์การพูด (จดไว้ดู)</span><input class="ct" id="mp_style" maxlength="200" placeholder="เช่น อบอุ่น เป็นกันเอง" value="${esc(M.style)}"></label></div>
     <label class="fl"><span>③ พรอมต์หลัก (วางคำสั่งที่เตรียมไว้ ใช้ซ้ำได้ทุกบ้าน)</span><textarea class="sct pp-big" id="mp_prompt" rows="12" placeholder="วางพรอมต์หลักที่นี่">${esc(M.prompt)}</textarea></label>
-    <label class="fl"><span>④ โปรโมชั่นของบ้านหลังนี้</span><textarea class="sct" id="mp_promo" rows="4" placeholder="เช่น ฟรีเฟอร์นิเจอร์ ฟรีค่าโอน ผ่อน 0%">${esc(M.promo)}</textarea></label>
+    <label class="fl"><span>④ โปรโมชั่นของบ้านหลังนี้</span><textarea class="sct" id="mp_promo" rows="4" placeholder="ไกด์กันลืม: โปรโมชั่น - ของแถม - ฟรีเฟอร์นิเจอร์ - ฟรีค่าโอน - ส่วนลด - การผ่อน">${esc(M.promo)}</textarea></label>
     <label class="fl"><span>⑤ รายละเอียดตัวบ้าน (ห้องนอน ห้องน้ำ ที่ดิน ราคา ฯลฯ)</span><textarea class="sct" id="mp_details" rows="6" placeholder="ไกด์กันลืม: รายละเอียดบ้าน - พื้นที่ใช้สอย - ขนาดที่ดิน - จำนวนห้องนอน - ห้องน้ำ (หรือกดดึงจากข้อมูลบ้านด้านล่าง)">${esc(M.details)}</textarea></label>
     <div class="seg" id="ppSecs"><b>🎬 ลำดับเรื่องรายห้อง (ช่อง 1–10) <span class="pp-cnt" id="ppCnt"></span></b>
       <p class="hint">กรอกรายละเอียดจริงของแต่ละห้องตอนไปถึงหน้างาน เช่น สีผ้าปู ของตกแต่ง · ช่อง 1 ตั้งไว้ให้เองแล้ว · ช่อง 2–10 ช่องไหนไม่มีก็เว้นว่าง แอปให้ AI ข้ามไป · ช่องที่กรอกแล้วขึ้นเครื่องหมายเขียว ✓ · สคริปต์เขียนตามลำดับ 1 → 10 แล้วปิดท้ายด้วยข้อมูลติดต่อ</p>
