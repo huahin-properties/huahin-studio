@@ -34,7 +34,7 @@ const SLOTS = [
   { id: 'close', ico: '🏁', short: 'เครดิตปิด', label: 'เครดิตปิดท้าย (คลิปประจำ)', kind: 'lib', min: 1, rec: 1, max1: true, hint: 'คลิปเครดิต/ข้อมูลติดต่อปิดท้าย · 1 ไฟล์ · ใส่ครั้งเดียวใช้ซ้ำทุกคลิป' },
 ];
 const DEFAULT_PLACES = ['หาดหัวหิน', 'ตลาดโต้รุ่งหัวหิน', 'สถานีรถไฟหัวหิน', 'สนามบินหัวหิน', 'เขาตะเกียบ', 'ซีคาด้า มาร์เก็ต', 'มาร์เก็ต วิลเลจ'];
-const DEFAULT_LINKS = { chat: 'https://aistudio.google.com/prompts/new_chat', tts: 'https://aistudio.google.com/generate-speech' };
+const DEFAULT_LINKS = { chat: 'https://aistudio.google.com/prompts/new_chat', tts: 'https://aistudio.google.com/generate-speech', gpt: 'https://chatgpt.com/' };
 const VOICE_STYLES = {
   doc_en: { label: 'สารคดี (English)', text: 'Narrate in the style of a premium travel and lifestyle documentary: calm, warm and confident, like a nature-documentary narrator. Medium-slow pace, clear and natural Thai pronunciation, a gentle smile in the voice, never rushed. Pause for about one second at the end of each paragraph. Keep exactly the same voice, pace and energy from the first line to the last.' },
   doc_th: { label: 'สารคดี (ภาษาไทย)', text: 'บรรยายสไตล์สารคดีท่องเที่ยวระดับพรีเมียม น้ำเสียงนุ่มลึก สงบ อบอุ่น น่าเชื่อถือ เหมือนผู้บรรยายสารคดี จังหวะช้าถึงปานกลาง ออกเสียงภาษาไทยชัดเจนเป็นธรรมชาติ ไม่เร่งรีบ หยุดเว้นจังหวะประมาณ 1 วินาทีเมื่อจบแต่ละย่อหน้า รักษาน้ำเสียง จังหวะ และอารมณ์ให้คงที่ตั้งแต่บรรทัดแรกถึงบรรทัดสุดท้าย' },

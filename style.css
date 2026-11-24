@@ -185,3 +185,5 @@ header{display:flex;align-items:center;gap:8px;flex-wrap:wrap}header small{font-
 .pp-big{min-height:260px}.pp-btns{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:8px}.pp-btns .btn{margin:0}
 #promptPage .fl{display:flex;flex-direction:column;gap:4px;margin:10px 0}#promptPage .fl span{font-size:13px;font-weight:600;color:var(--ink)}
 #promptPage details{margin-top:12px;background:#fff;border:1px solid var(--line);border-radius:12px;padding:8px 12px}#promptPage summary{cursor:pointer;font-weight:600}
+
+.pp-gpt{display:flex;align-items:center;gap:12px;margin:8px 0}

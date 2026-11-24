@@ -7,7 +7,7 @@ const MP_FIELDS = [
   { k: 'promo', th: 'โปรโมชั่นของบ้านหลังนี้', en: 'Promotions for this property', rows: 4 },
   { k: 'details', th: 'รายละเอียดตัวบ้าน (ห้องนอน ห้องน้ำ ฯลฯ)', en: 'Property details', rows: 6 },
 ];
-const mpData = () => (lib.mp = lib.mp || { name: '', style: '', prompt: '', promo: '', details: '', en: {}, enSrc: {}, withNameStyle: true });
+const mpData = () => { const M = (lib.mp = lib.mp || { name: '', style: '', prompt: '', promo: '', details: '', en: {}, enSrc: {}, withNameStyle: true }); M.contact = M.contact || { name: '', phone: '', line: '', web: '' }; return M; };
 const mpHash = t => { let h = 0; const s = String(t || ''); for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0; return h + ':' + s.length; };
 function mpCompose(lang) {
   const M = mpData(), get = k => (lang === 'en' ? (M.en[k] || '') : (M[k] || '')).trim(), H = { th: { name: 'ชื่อผู้เล่าเรื่อง', style: 'สไตล์การพูด', promo: 'โปรโมชั่นของบ้านหลังนี้', details: 'รายละเอียดของตัวบ้าน' }, en: { name: 'Narrator name', style: 'Speaking style', promo: 'Promotions for this property', details: 'Property details' } }[lang === 'en' ? 'en' : 'th'];
@@ -16,6 +16,8 @@ function mpCompose(lang) {
   if (M.withNameStyle !== false) { if (get('name')) parts.push(`${H.name}: ${get('name')}`); if (get('style')) parts.push(`${H.style}: ${get('style')}`); }
   if (get('promo')) parts.push(`${H.promo}:\n${get('promo')}`);
   if (get('details')) parts.push(`${H.details}:\n${get('details')}`);
+  const C = M.contact, cl = [[lang === 'en' ? 'Name' : 'ชื่อ', C.name], [lang === 'en' ? 'Phone' : 'โทร', C.phone], ['LINE', C.line], [lang === 'en' ? 'Website / Facebook' : 'เว็บไซต์ / Facebook', C.web]].filter(x => String(x[1] || '').trim()).map(x => `${x[0]}: ${String(x[1]).trim()}`);
+  if (cl.length) parts.push(`${lang === 'en' ? 'Contact' : 'ข้อมูลติดต่อ'}:\n${cl.join('\n')}`); // ข้อมูลติดต่อไม่แปล (เบอร์/ชื่อ/ลิงก์ต้องตรงตัว)
   return parts.join('\n\n');
 }
 // แปลเฉพาะช่องที่ข้อความไทยเปลี่ยนจากที่เคยแปลไว้ (ใช้ translateTh2En ตัวเดียวกับขั้น 4)
@@ -46,11 +48,18 @@ function openPromptPage() {
     <label class="fl"><span>③ พรอมต์หลัก (วางคำสั่งที่เตรียมไว้ ใช้ซ้ำได้ทุกบ้าน)</span><textarea class="sct pp-big" id="mp_prompt" rows="12" placeholder="วางพรอมต์หลักที่นี่">${esc(M.prompt)}</textarea></label>
     <label class="fl"><span>④ โปรโมชั่นของบ้านหลังนี้</span><textarea class="sct" id="mp_promo" rows="4" placeholder="เช่น ฟรีเฟอร์นิเจอร์ ฟรีค่าโอน ผ่อน 0%">${esc(M.promo)}</textarea></label>
     <label class="fl"><span>⑤ รายละเอียดตัวบ้าน (ห้องนอน ห้องน้ำ ที่ดิน ราคา ฯลฯ)</span><textarea class="sct" id="mp_details" rows="6" placeholder="วางรายละเอียดบ้าน หรือกดดึงจากข้อมูลบ้านด้านล่าง">${esc(M.details)}</textarea></label>
+    <div class="seg"><b>⑥ ข้อมูลการติดต่อ (ใส่ท้ายข้อความที่คัดลอก ไม่แปล)</b>
+      <div class="pp-row"><label class="fl"><span>ชื่อ / บริษัท</span><input class="ct" id="mc_name" maxlength="80" placeholder="เช่น Huahin Properties" value="${esc(M.contact.name)}"></label><label class="fl"><span>เบอร์โทร</span><input class="ct" id="mc_phone" type="tel" maxlength="40" placeholder="เช่น 081-234-5678" value="${esc(M.contact.phone)}"></label></div>
+      <div class="pp-row"><label class="fl"><span>LINE</span><input class="ct" id="mc_line" maxlength="60" placeholder="เช่น @huahin" value="${esc(M.contact.line)}"></label><label class="fl"><span>เว็บไซต์ / Facebook</span><input class="ct" id="mc_web" maxlength="200" placeholder="เช่น facebook.com/huahinproperties" value="${esc(M.contact.web)}"></label></div>
+      <div class="tools"><button class="ib wide" id="ppContact">📇 ดึงจากเบอร์ติดต่อของแอป</button></div></div>
     <div class="tools"><button class="ib wide" id="ppFacts">🏠 ดึงจากข้อมูลบ้านของคลิปล่าสุด</button><button class="ib wide" id="ppClear">🧹 ล้างช่อง ④ ⑤ (เริ่มบ้านหลังใหม่)</button></div>
     <label class="sw"><input type="checkbox" id="mp_wns" ${M.withNameStyle !== false ? 'checked' : ''}> รวมชื่อผู้เล่าและสไตล์ในข้อความที่คัดลอกด้วย</label>
     <p class="hint" id="ppSave">💾 บันทึกอัตโนมัติ ใช้ซ้ำได้ทุกคลิป</p>
     <div class="pp-btns"><button class="btn" id="ppTh">📋 คัดลอก ภาษาไทย</button><button class="btn alt" id="ppEn">📋 Copy English</button></div>
     <p class="hint" id="ppMsg"></p>
+    <div class="seg"><b>⑦ ส่งไปให้ ChatGPT ร่างให้</b>
+      <div class="pp-gpt"><button class="pp-ai" id="ppGpt" title="เปิด ChatGPT" aria-label="เปิด ChatGPT">💬</button><div><p class="hint" style="margin:0">แตะ 💬 เพื่อเปิดแชท ChatGPT ทันที แล้ววางข้อความที่คัดลอกไว้ (กดคัดลอกไทย หรือ Copy English ด้านบนก่อน)</p></div></div>
+      <button class="btn alt" id="ppGptTh">📋 คัดลอกไทย แล้วเปิด ChatGPT เลย</button></div>
     <details id="ppEnBox"><summary>👁 ดู/แก้คำแปลภาษาอังกฤษ (แปลแล้วเก็บไว้ แก้เองได้)</summary><div id="ppEnFields"></div></details>`;
   document.body.appendChild(d);
   const $$ = s => d.querySelector(s);
@@ -62,8 +71,12 @@ function openPromptPage() {
   const drawEn = () => { $$('#ppEnFields').innerHTML = MP_FIELDS.map(f => `<label class="fl"><span>${f.en || 'Master prompt'}${M.enSrc[f.k] === mpHash(M[f.k]) ? '' : ' · ยังไม่ได้แปลใหม่'}</span><textarea class="sct" data-en="${f.k}" rows="${Math.min(f.rows, 8)}">${esc(M.en[f.k] || '')}</textarea></label>`).join(''); };
   drawEn(); $$('#ppEnFields').oninput = e => { const k = e.target.dataset.en; if (k) { M.en[k] = e.target.value; M.enSrc[k] = mpHash(M[k]); queue(); } };
   $$('#ppAi').onclick = () => openExternal(lib.links.chat);
+  [['name', 'mc_name'], ['phone', 'mc_phone'], ['line', 'mc_line'], ['web', 'mc_web']].forEach(([k, id]) => { $$('#' + id).oninput = e => { M.contact[k] = e.target.value; queue(); }; });
+  $$('#ppContact').onclick = e => { const c = lib.contact || {}; if (!(c.name || c.phone || c.line)) { alert('ยังไม่ได้ตั้งเบอร์ติดต่อมาตรฐานของแอป (ตั้งที่แท็บ ☎️ ติดต่อ ในขั้น 2)'); return; } M.contact.name = c.name || M.contact.name; M.contact.phone = c.phone || M.contact.phone; M.contact.line = c.line || M.contact.line; ['name', 'phone', 'line'].forEach(k => { $$('#mc_' + k).value = M.contact[k]; }); saveLib(); stamp(); flash(e.currentTarget, '✓ ดึงแล้ว'); };
+  $$('#ppGpt').onclick = () => openExternal(lib.links.gpt || 'https://chatgpt.com/');
+  $$('#ppGptTh').onclick = async e => { const btn0 = e.currentTarget, txt = mpCompose('th'); if (!txt.trim()) { alert('ยังไม่มีข้อความให้คัดลอก'); return; } const ok = await copyText(txt); flash(btn0, ok ? '✓ คัดลอกแล้ว กำลังเปิด ChatGPT' : 'คัดลอกไม่ได้'); if (ok) openExternal(lib.links.gpt || 'https://chatgpt.com/'); };
   $$('#ppBack').onclick = () => d.remove();
-  $$('#ppFacts').onclick = async e => { const t0 = await mpFactsText(); if (!t0) { alert('ยังไม่มีข้อมูลบ้านในคลิปไหนเลย กรอกที่ขั้น 4 ปุ่ม 🏠 ข้อมูลบ้าน ก่อน'); return; } if (M.details.trim() && !confirm('แทนที่ข้อความในช่อง ⑤ ด้วยข้อมูลบ้านของคลิปล่าสุด?')) return; M.details = t0; $$('#mp_details').value = t0; await saveLib(); stamp(); flash(e.currentTarget, '✓ ดึงแล้ว'); };
+  $$('#ppFacts').onclick = async e => { const btn0 = e.currentTarget, t0 = await mpFactsText(); if (!t0) { alert('ยังไม่มีข้อมูลบ้านในคลิปไหนเลย กรอกที่ขั้น 4 ปุ่ม 🏠 ข้อมูลบ้าน ก่อน'); return; } if (M.details.trim() && !confirm('แทนที่ข้อความในช่อง ⑤ ด้วยข้อมูลบ้านของคลิปล่าสุด?')) return; M.details = t0; $$('#mp_details').value = t0; await saveLib(); stamp(); flash(btn0, '✓ ดึงแล้ว'); };
   $$('#ppClear').onclick = async () => { if (!confirm('ล้างช่อง ④ โปรโมชั่น และ ⑤ รายละเอียดบ้าน? (พรอมต์หลัก ชื่อ และสไตล์ยังอยู่)')) return; M.promo = ''; M.details = ''; M.en.promo = ''; M.en.details = ''; $$('#mp_promo').value = ''; $$('#mp_details').value = ''; await saveLib(); drawEn(); stamp(); };
   $$('#ppTh').onclick = async e => { const txt = mpCompose('th'); if (!txt.trim()) { alert('ยังไม่มีข้อความให้คัดลอก'); return; } flash(e.currentTarget, (await copyText(txt)) ? `✓ คัดลอกแล้ว (${txt.length} ตัวอักษร)` : 'คัดลอกไม่ได้'); };
   $$('#ppEn').onclick = async e => {
