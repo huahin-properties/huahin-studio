@@ -64,9 +64,7 @@ function openPromptPage() {
     <p class="hint" id="ppSave">💾 บันทึกอัตโนมัติ ใช้ซ้ำได้ทุกคลิป</p>
     <div class="pp-btns"><button class="btn" id="ppTh">📋 คัดลอก ภาษาไทย</button><button class="btn alt" id="ppEn">📋 Copy English</button></div>
     <p class="hint" id="ppMsg"></p>
-    <div class="seg"><b>⑦ ส่งไปให้ ChatGPT ร่างให้</b>
-      <div class="pp-gpt"><button class="pp-ai" id="ppGpt" title="เปิด ChatGPT" aria-label="เปิด ChatGPT">💬</button><div><p class="hint" style="margin:0">แตะ 💬 เพื่อเปิดแชท ChatGPT ทันที แล้ววางข้อความที่คัดลอกไว้ (กดคัดลอกไทย หรือ Copy English ด้านบนก่อน)</p></div></div>
-      <button class="btn alt" id="ppGptTh">📋 คัดลอกไทย แล้วเปิด ChatGPT เลย</button></div>
+    <div class="pp-gptrow"><button class="pp-ai" id="ppGpt" title="เปิดแชท ChatGPT" aria-label="เปิดแชท ChatGPT">💬</button><b>⑦ ChatGPT</b></div>
     <details id="ppEnBox"><summary>👁 ดู/แก้คำแปลภาษาอังกฤษ (แปลแล้วเก็บไว้ แก้เองได้)</summary><label class="fl"><span>คำสั่งบังคับให้ผลลัพธ์เป็นภาษาอังกฤษ (ใส่ต้นข้อความ + ท้ายข้อความ ตอนกด Copy English)</span><textarea class="sct" id="mp_dir" rows="4">${esc(M.enDirective != null ? M.enDirective : MP_EN_DIRECTIVE)}</textarea></label><div id="ppEnFields"></div></details>`;
   document.body.appendChild(d);
   const $$ = s => d.querySelector(s);
@@ -86,7 +84,6 @@ function openPromptPage() {
   [['name', 'mc_name'], ['phone', 'mc_phone'], ['line', 'mc_line'], ['web', 'mc_web']].forEach(([k, id]) => { $$('#' + id).oninput = e => { M.contact[k] = e.target.value; queue(); }; });
   $$('#ppContact').onclick = e => { const c = lib.contact || {}; if (!(c.name || c.phone || c.line)) { alert('ยังไม่ได้ตั้งเบอร์ติดต่อมาตรฐานของแอป (ตั้งที่แท็บ ☎️ ติดต่อ ในขั้น 2)'); return; } M.contact.name = c.name || M.contact.name; M.contact.phone = c.phone || M.contact.phone; M.contact.line = c.line || M.contact.line; ['name', 'phone', 'line'].forEach(k => { $$('#mc_' + k).value = M.contact[k]; }); saveLib(); stamp(); flash(e.currentTarget, '✓ ดึงแล้ว'); };
   $$('#ppGpt').onclick = () => openExternal(lib.links.gpt || 'https://chatgpt.com/');
-  $$('#ppGptTh').onclick = async e => { const btn0 = e.currentTarget, txt = mpCompose('th'); if (!txt.trim()) { alert('ยังไม่มีข้อความให้คัดลอก'); return; } const ok = await copyText(txt); flash(btn0, ok ? '✓ คัดลอกแล้ว กำลังเปิด ChatGPT' : 'คัดลอกไม่ได้'); if (ok) openExternal(lib.links.gpt || 'https://chatgpt.com/'); };
   $$('#ppBack').onclick = () => d.remove();
   $$('#ppFacts').onclick = async e => { const btn0 = e.currentTarget, t0 = await mpFactsText(); if (!t0) { alert('ยังไม่มีข้อมูลบ้านในคลิปไหนเลย กรอกที่ขั้น 4 ปุ่ม 🏠 ข้อมูลบ้าน ก่อน'); return; } if (M.details.trim() && !confirm('แทนที่ข้อความในช่อง ⑤ ด้วยข้อมูลบ้านของคลิปล่าสุด?')) return; M.details = t0; $$('#mp_details').value = t0; await saveLib(); stamp(); flash(btn0, '✓ ดึงแล้ว'); };
   $$('#ppClear').onclick = async () => { if (!confirm('ล้างช่อง ④ โปรโมชั่น และ ⑤ รายละเอียดบ้าน? (พรอมต์หลัก ชื่อ และสไตล์ยังอยู่)')) return; M.promo = ''; M.details = ''; M.en.promo = ''; M.en.details = ''; $$('#mp_promo').value = ''; $$('#mp_details').value = ''; await saveLib(); drawEn(); stamp(); };
