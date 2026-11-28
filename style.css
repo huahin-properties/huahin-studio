@@ -204,3 +204,5 @@ header{display:flex;align-items:center;gap:8px;flex-wrap:wrap}header small{font-
 .pp-aiRow{margin:12px 0 4px;text-align:center}.pp-aiMini{display:inline-flex;align-items:center;gap:6px;background:#fff;border:1px solid var(--accent);color:var(--accent);border-radius:999px;padding:5px 12px;font-size:13px;cursor:pointer}
 
 .pp-pills{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin:12px 0 4px}.pp-cponly{text-align:center}
+
+.trow{display:flex;gap:12px;margin:8px 0 2px}.tchip{flex:1;display:flex;flex-direction:column;gap:3px;min-width:0}.tchip .th{height:90px;display:flex;align-items:center;justify-content:center;background:#f7efe3}.tchip .th img,.tchip .th video{width:100%;height:100%;object-fit:cover}.tchip b{font-size:13px}.tchip small{font-size:11px;color:var(--mute)}

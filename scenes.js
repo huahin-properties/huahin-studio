@@ -116,6 +116,6 @@ async function closeScene() {
 const sceneMaker = id => (id === 'title' ? titleScene : closeScene);
 // วาดภาพเล่นวนในแคนวาส (พรีวิว) / วาดเฟรมนิ่ง
 function previewScene(cv, which) {
-  const cx = cv.getContext('2d'); sceneMaker(which)().then(sc => { const t0 = performance.now(); const tick = () => { if (!cv.isConnected) return; const t = ((performance.now() - t0) / 1000) % (sc.dur + 1); cx.save(); sc.draw(cx, cv.width, cv.height, Math.min(t, sc.dur)); cx.restore(); requestAnimationFrame(tick); }; tick(); });
+  const cx = cv.getContext('2d'); sceneMaker(which)().then(sc => { const t0 = performance.now(); const tick = () => { if (!cv.isConnected) return; const t = Math.min(((performance.now() - t0) / 1000) % (sc.dur + 1), sc.dur), go = () => { cx.save(); sc.draw(cx, cv.width, cv.height, t); cx.restore(); requestAnimationFrame(tick); }; if (sc.prepare) sc.prepare(t).then(go, go); else go(); }; tick(); });
 }
-function paintSceneFrame(cv, which, t) { sceneMaker(which)().then(sc => { const cx = cv.getContext('2d'); cx.save(); sc.draw(cx, cv.width, cv.height, t); cx.restore(); }); }
+function paintSceneFrame(cv, which, t) { sceneMaker(which)().then(async sc => { if (which === 'title' && state.house && typeof titleHouseAt === 'function') t = Math.min(sc.dur - 0.2, titleHouseAt(sc.dur) + 0.9); if (sc.prepare) { try { await sc.prepare(t); } catch (e) {} } const cx = cv.getContext('2d'); cx.save(); sc.draw(cx, cv.width, cv.height, t); cx.restore(); }); }

@@ -378,6 +378,11 @@ function titleMediaHtml() {
     ${h ? `<div class="sgrid"><div class="th">${tmThumb(h, '<button class="x" data-thdel="1" aria-label="ลบ">✕</button>')}</div></div>` : ''}
     <button class="btn alt" data-a="thadd">${h ? '↻ เปลี่ยนรูป/คลิปบ้าน' : '＋ เลือกรูป/คลิปบ้าน'}</button></div>`;
 }
+// สรุปรูป/คลิปที่ใส่ไว้ในการ์ดไตเติล ให้เห็นว่าอะไรเป็นพื้นหลัง อะไรคือบ้าน
+function titleChosenHtml() {
+  const bg = titleBgRec(), h = state.house, box = (lab, r) => `<div class="tchip"><div class="th">${r ? tmThumb(r, '') : '<small style="padding:4px;text-align:center">ไม่ได้ใส่</small>'}</div><b>${lab}</b><small>${r ? (r.type === 'video' ? '🎬 คลิป' : '🖼️ รูป') + ' · ' + esc((r.name || '').slice(0, 14)) : 'ใช้พื้นครีมมาตรฐาน'}</small></div>`;
+  return `<div class="trow">${box('① พื้นหลังมาสคอต', bg)}${box('② บ้านที่นำเสนอ', h)}</div>`;
+}
 const sceneModeHtml = sl => `<label class="sw"><input type="radio" name="tmode" value="builtin" ${lib[sl.id + 'Builtin'] ? 'checked' : ''}> 🎬 ใช้${sl.id === 'title' ? 'ไตเติล' : 'เครดิตปิด'}ของแอป (มาสคอต Huahin Properties)</label>
   <label class="sw"><input type="radio" name="tmode" value="custom" ${lib[sl.id + 'Builtin'] ? '' : 'checked'}> ใช้ไฟล์ของฉันเอง</label>
   ${lib[sl.id + 'Builtin'] ? `<canvas id="scenePrev" class="rprev"></canvas><p class="hint">${sl.id === 'title' ? 'มาสคอตโผล่มาโบกมือ พร้อมชื่อแบรนด์ สโลแกน และชื่อโครงการ (จาก 🏠 ข้อมูลบ้าน)' : 'มาสคอตส่งกุญแจบ้าน พร้อมเบอร์โทร/LINE ตามที่ตั้งในแท็บ ☎️ ติดต่อ'} · ต่อเข้า MP4 ให้อัตโนมัติ</p>
@@ -462,7 +467,7 @@ function viewSlots() {
         return;
       }
       if ((sl.id === 'title' || sl.id === 'close') && lib[sl.id + 'Builtin']) {
-        done.push(`<div class="gsec" data-sec="${sl.id}"><div class="gh"><b>${sl.ico} ${sl.id === 'title' ? 'ไตเติลของแอป (มาสคอต)' : 'เครดิตปิดของแอป (มาสคอต)'}</b><button class="ib sm" data-open="${sl.id}">จัดการ</button></div><canvas class="sprev" data-scene="${sl.id}"></canvas></div>`); return;
+        done.push(`<div class="gsec" data-sec="${sl.id}"><div class="gh"><b>${sl.ico} ${sl.id === 'title' ? 'ไตเติลของแอป (มาสคอต)' : 'เครดิตปิดของแอป (มาสคอต)'}</b><button class="ib sm" data-open="${sl.id}">จัดการ</button></div><canvas class="sprev" data-scene="${sl.id}"></canvas>${sl.id === 'title' ? titleChosenHtml() : ''}</div>`); return;
       }
       const items = slotItems(sl);
       if (!items.length) return;
