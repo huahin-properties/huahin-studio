@@ -369,12 +369,12 @@ function scriptBarHtml(sl) {
 const tmUrl = r => { try { return URL.createObjectURL(r.blob); } catch (e) { return ''; } };
 const tmThumb = (r, extra) => (r.type === 'video' ? `<video src="${tmUrl(r)}#t=0.1" muted playsinline></video>` : `<img src="${tmUrl(r)}" alt="">`) + extra;
 function titleMediaHtml() {
-  const bgs = lib.titleBgs || [], sel = lib.titleBgSel, h = state.house;
-  return `<div class="seg"><b>🖼️ ส่วนที่ 1 · พื้นหลังของฉากมาสคอต</b><p class="hint">อัปโหลดได้หลายแบบ (รูปหรือคลิป) แตะรูปเพื่อเลือกใช้ · ตั้งครั้งเดียว ใช้กับทุกคลิป</p>
-    <div class="sgrid"><div class="th${sel == null ? '' : ' off'}" data-tbg="none" style="display:flex;align-items:center;justify-content:center;background:#f7efe3">${sel == null ? '<span class="tick">✓</span>' : ''}<small style="text-align:center;padding:4px">พื้นหลังครีม<br>มาตรฐาน</small></div>
+  const bgs = lib.titleBgs || [], cur = titleBgRec(), sel = cur ? cur.id : 0, h = state.house;
+  return `<div class="seg"><b>🖼️ ส่วนที่ 1 · พื้นหลังของฉากมาสคอต</b><p class="hint">ใส่รูปหรือคลิป (ภาพเคลื่อนไหวก็ได้) ภาพแรกที่ใส่จะเป็นพื้นหลังทันที มาสคอตลอยอยู่บนภาพนั้น · อัปโหลดไว้หลายแบบแล้วแตะรูปเพื่อสลับได้ · ตั้งครั้งเดียว ใช้กับทุกคลิป</p>
+    <div class="sgrid"><div class="th${sel ? ' off' : ''}" data-tbg="none" style="display:flex;align-items:center;justify-content:center;background:#f7efe3">${sel ? '' : '<span class="tick">✓</span>'}<small style="text-align:center;padding:4px">ไม่ใช้ภาพ<br>(พื้นครีมมาตรฐาน)</small></div>
     ${bgs.map(r => `<div class="th${sel === r.id ? '' : ' off'}" data-tbg="${r.id}">${sel === r.id ? '<span class="tick">✓</span>' : ''}${tmThumb(r, `<button class="x" data-tbgdel="${r.id}" aria-label="ลบ">✕</button>`)}</div>`).join('')}</div>
     <button class="btn alt" data-a="tbgadd">＋ เพิ่มพื้นหลัง (รูป/คลิป)</button></div>
-  <div class="seg"><b>🏠 ส่วนที่ 2 · บ้านที่กำลังนำเสนอ (คลิปนี้)</b><p class="hint">รูปหรือคลิปบ้านที่จะโชว์ในฉากแรก พร้อมชื่อโครงการจากแท็บ 🏠 ข้อมูลบ้าน · ใส่เฉพาะคลิปนี้</p>
+  <div class="seg"><b>🏠 ส่วนที่ 2 · บ้านที่กำลังนำเสนอ (คลิปนี้)</b><p class="hint">ใส่รูปหรือคลิปบ้านหลังนี้ ตอนที่มาสคอตพูดถึงบ้าน/โครงการ รูปบ้านจะโผล่ขึ้นมากลางจอทันที (จับจังหวะจากสคริปต์ช่วงเปิดคลิป) · ใส่เฉพาะคลิปนี้</p>
     ${h ? `<div class="sgrid"><div class="th">${tmThumb(h, '<button class="x" data-thdel="1" aria-label="ลบ">✕</button>')}</div></div>` : ''}
     <button class="btn alt" data-a="thadd">${h ? '↻ เปลี่ยนรูป/คลิปบ้าน' : '＋ เลือกรูป/คลิปบ้าน'}</button></div>`;
 }
@@ -412,8 +412,8 @@ function openSlot(id) {
     if (e.target.closest('[data-a=genroute]')) { const st = d.querySelector('#routeStat'), btn = e.target.closest('[data-a=genroute]'); btn.disabled = true; try { const rd = await buildRouteData(st); if (rd) { state.routeData = rd; state.skipMap = false; await save(); updateSb(); openSlot(id); } } catch (err) { st.textContent = '❌ สร้างไม่สำเร็จ (ต่อเน็ตอยู่ไหม?) ' + (err.message || err); } btn.disabled = false; return; }
     if (e.target.closest('[data-a=genmap]')) { const st = d.querySelector('#genStat'), btn = e.target.closest('[data-a=genmap]'); btn.disabled = true; const n = await generateMapImages(st); btn.disabled = false; if (n) { updateSb(); openSlot(id); } return; }
     { const td = e.target.closest('[data-tbgdel]'); if (td) { if (confirm('ลบพื้นหลังนี้ใช่ไหม?')) { lib.titleBgs = (lib.titleBgs || []).filter(r => r.id !== +td.dataset.tbgdel); if (lib.titleBgSel === +td.dataset.tbgdel) lib.titleBgSel = null; await saveLib(); openSlot(id); } return; }
-      const tb = e.target.closest('[data-tbg]'); if (tb) { lib.titleBgSel = tb.dataset.tbg === 'none' ? null : +tb.dataset.tbg; await saveLib(); openSlot(id); return; }
-      if (e.target.closest('[data-a=tbgadd]')) { const fs = await pickFiles('image/*,video/*', true); if (fs.length) { lib.titleBgs = lib.titleBgs || []; fs.forEach(f => lib.titleBgs.push({ id: libSeq++, blob: f, type: f.type.startsWith('video') ? 'video' : 'image', name: f.name })); lib.titleBgSel = lib.titleBgs[lib.titleBgs.length - 1].id; await saveLib(); openSlot(id); } return; }
+      const tb = e.target.closest('[data-tbg]'); if (tb) { lib.titleBgSel = tb.dataset.tbg === 'none' ? 0 : +tb.dataset.tbg; await saveLib(); openSlot(id); return; }
+      if (e.target.closest('[data-a=tbgadd]')) { const fs = await pickFiles('image/*,video/*', true); if (fs.length) { lib.titleBgs = lib.titleBgs || []; const had = lib.titleBgs.length; fs.forEach(f => lib.titleBgs.push({ id: libSeq++, blob: f, type: f.type.startsWith('video') ? 'video' : 'image', name: f.name })); if (lib.titleBgSel === 0 && !had) lib.titleBgSel = null; await saveLib(); openSlot(id); } return; }
       if (e.target.closest('[data-thdel]')) { state.house = null; await save(); openSlot(id); return; }
       if (e.target.closest('[data-a=thadd]')) { const [f] = await pickFiles('image/*,video/*', false); if (f) { state.house = { blob: f, type: f.type.startsWith('video') ? 'video' : 'image', name: f.name }; await save(); openSlot(id); } return; } }
     if (e.target.closest('[data-a=add]')) { const fs = await pickFiles('image/*,video/*', !sl.max1); if (fs.length) { await addToSlot(sl, fs); updateSb(); openSlot(id); } return; }
@@ -680,6 +680,20 @@ function segAudioSec() {
   return out;
 }
 // ความยาวฉากเปิด/ปิด ปรับตามความยาวเสียงพูด (อย่างน้อยเท่าค่ามาตรฐาน)
+// พื้นหลังฉากมาสคอต: รูป/คลิปแรกที่อัปโหลดคือพื้นหลังอัตโนมัติ (แตะรูปอื่นเพื่อเปลี่ยน · 0 = ไม่ใช้)
+const titleBgRec = () => { const L = lib.titleBgs || []; if (!L.length || lib.titleBgSel === 0) return null; return L.find(b => b.id === lib.titleBgSel) || L[0]; };
+// เวลาที่บ้านโผล่ขึ้น: ตรงกับช่วงที่คำบรรยายเริ่มพูดถึงบ้าน/โครงการ (หาจากตำแหน่งในสคริปต์ช่วงเปิดคลิป)
+function titleHouseAt(dur) {
+  const g = typeof scriptSegmentsAll === 'function' ? scriptSegmentsAll().find(x => x.key === 'open') : null, txt = g ? String(g.text || '') : '';
+  let frac = 0.45;
+  if (txt.length > 10) {
+    const nm = ((state.facts && state.facts.name) || '').trim(), cand = [];
+    if (nm) { const i = txt.indexOf(nm); if (i > 0) cand.push(i); }
+    const m = /(ขอแนะนำ|ขอนำเสนอ|นำเสนอ|แนะนำ|พาไปดู|พาชม|วันนี้|บ้านหลัง|โครงการ)/.exec(txt.slice(Math.min(8, txt.length))); if (m) cand.push(m.index + Math.min(8, txt.length));
+    if (cand.length) frac = Math.min(...cand) / txt.length;
+  }
+  return Math.max(2.4, Math.min(dur - 1.6, frac * dur - 0.2));
+}
 const titleDur = () => { const au = segAudioSec().open; if (au != null) return Math.max(TITLE_DUR, au + 0.3); const g = scriptSegmentsAll().find(x => x.key === 'open'); return g ? Math.max(TITLE_DUR, secOf(g.text) + 1.5) : TITLE_DUR; };
 const closeDur = () => { const au = segAudioSec().close; if (au != null) return Math.max(CLOSE_DUR, au + 1.5); const g = scriptSegmentsAll().find(x => x.key === 'close'); return g ? Math.max(CLOSE_DUR, secOf(g.text) + 2) : CLOSE_DUR; };
 

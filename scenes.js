@@ -57,16 +57,16 @@ function drawMascot(ctx, pose, cx, bottom, h, yoff = 0, rot = 0) {
 function layoutFor(W, H) { return W > H * 1.2 ? 'land' : 'port'; }
 
 function houseCard(ctx, x, y, w, h, t, at, house) {
-  const a = _c((t - at) / 0.7, 0, 1); if (a <= 0 || w < 20 || h < 20) return; const e = easeOut(a), r = Math.min(w, h) * 0.06, pad = Math.max(5, Math.min(w, h) * 0.025);
+  const a = _c((t - at) / 0.35, 0, 1); if (a <= 0 || w < 20 || h < 20) return; const e = easeOut(a), sc = 0.8 + 0.2 * easeOutBounce(a), r = Math.min(w, h) * 0.06, pad = Math.max(5, Math.min(w, h) * 0.025);
   const rr = (X, Y, Wd, Hd, R) => { ctx.beginPath(); ctx.moveTo(X + R, Y); ctx.arcTo(X + Wd, Y, X + Wd, Y + Hd, R); ctx.arcTo(X + Wd, Y + Hd, X, Y + Hd, R); ctx.arcTo(X, Y + Hd, X, Y, R); ctx.arcTo(X, Y, X + Wd, Y, R); ctx.closePath(); };
-  ctx.save(); ctx.globalAlpha *= e; ctx.translate(0, (1 - e) * 40);
+  ctx.save(); ctx.globalAlpha *= e; ctx.translate(x + w / 2, y + h / 2); ctx.scale(sc, sc); ctx.translate(-(x + w / 2), -(y + h / 2));
   ctx.shadowColor = 'rgba(60,30,20,.4)'; ctx.shadowBlur = 26; ctx.shadowOffsetY = 8; ctx.fillStyle = '#fff'; rr(x, y, w, h, r); ctx.fill(); ctx.shadowColor = 'transparent';
   ctx.save(); rr(x + pad, y + pad, w - pad * 2, h - pad * 2, Math.max(2, r - pad * 0.5)); ctx.clip(); ctx.translate(x + pad, y + pad); house.draw(ctx, w - pad * 2, h - pad * 2); ctx.restore();
   ctx.restore();
 }
 async function titleScene() {
   const M = await loadMascots(), dur = typeof titleDur === 'function' ? titleDur() : TITLE_DUR;
-  const bgRec = (lib.titleBgs || []).find(b => b.id === lib.titleBgSel), bg = await sceneMedia(bgRec, dur), house = await sceneMedia(state.house, dur), hasH = !!house;
+  const bgRec = typeof titleBgRec === 'function' ? titleBgRec() : null, bg = await sceneMedia(bgRec, dur), house = await sceneMedia(state.house, dur), hasH = !!house;
   return {
     dur,
     async prepare(t) { if (bg && bg.prepare) await bg.prepare(t); if (house && house.prepare) await house.prepare(t); },
@@ -85,7 +85,7 @@ async function titleScene() {
       brandLine(ctx, tx, y0 + 120 * u, 78 * u, t, 1.7, mw);
       drawText(ctx, B.tagline, tx, y0 + 195 * u, { t, at: 2.3, size: 32 * u, color: '#b8862d', family: SANS, maxW: mw, spacing: `${5 * u}px`, weight: '600' });
       drawText(ctx, sub, tx, y0 + 270 * u, { t, at: 3.0, size: 46 * u, color: '#2e2220', family: SANS, maxW: mw, weight: '600' });
-      if (hasH) { const top = y0 + 270 * u + 52 * u, room = H - 64 * u - top, ch = Math.min(room, H * (land ? 0.46 : 0.3)), cw = Math.min(mw, ch * 1.6); houseCard(ctx, tx - cw / 2, top, cw, cw === mw ? cw / 1.6 : ch, t, 3.4, house); }
+      if (hasH) { const top = y0 + 270 * u + 52 * u, room = H - 64 * u - top, ch = Math.min(room, H * (land ? 0.46 : 0.3)), cw = Math.min(mw, ch * 1.6); houseCard(ctx, tx - cw / 2, top, cw, cw === mw ? cw / 1.6 : ch, t, typeof titleHouseAt === 'function' ? titleHouseAt(dur) : 3.4, house); }
     },
   };
 }
