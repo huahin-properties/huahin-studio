@@ -335,7 +335,11 @@ function stockEvent(e) {
     return true; }
   if (e.type === 'click') {
     const b = e.target.closest('[data-stk=roll]'); if (b) { autoPickStock(true); return true; }
-    const th = e.target.closest('.th[data-lib]'); if (th && !e.target.closest('[data-del]')) { toggleStock(+th.dataset.id); return true; }
+    const th = e.target.closest('.th[data-lib]'); if (th && !e.target.closest('[data-del]')) {
+      // แตะแล้วเปลี่ยนสีทันที (✓ เขียว / จางลง) ก่อนค่อยทำงานหนักตามหลัง
+      const id = +th.dataset.id, will = !selectedStockIds().includes(id), t0 = th.querySelector('.tick');
+      th.classList.toggle('off', !will); if (will && !t0) { const s = document.createElement('span'); s.className = 'tick'; s.textContent = '✓'; th.prepend(s); } else if (!will && t0) t0.remove();
+      toggleStock(id); return 'defer'; }
   }
   return false;
 }
@@ -388,7 +392,7 @@ function openSlot(id) {
     ${sc !== null ? `<label class="sl"><span>📝 สคริปต์ของช่วงนี้${sl.cat && sl.cat !== 'lifestyle' ? ' (ใช้ร่วมกันทั้ง 4 แท็บทำเล)' : ''}</span></label><textarea class="sct" id="slotScript" rows="3" placeholder="พิมพ์เรื่องเล่าของช่วงนี้ (ไม่ใส่ก็ได้ เขียนทีหลังได้ที่ขั้น 4)">${sc.replace(/</g, '&lt;')}</textarea>` : ''}
     <button class="btn" data-a="x">เสร็จ</button>`;
   d.onclick = async e => {
-    if (sl.cat && stockEvent(e)) { updateSb(); openSlot(id); return; }
+    if (sl.cat) { const r = stockEvent(e); if (r === 'defer') { requestAnimationFrame(() => setTimeout(() => { updateSb(); openSlot(id); }, 0)); return; } if (r) { updateSb(); openSlot(id); return; } }
     if (e.target.closest('[data-a=places]')) { openPlaces(() => { updateSb(); openSlot(id); }); return; }
     if (e.target.closest('[data-a=x]')) { d.remove(); refreshAll(); return; }
     if (e.target.closest('[data-a=rmroute]')) { if (confirm('ลบคลิปเส้นทางรถวิ่ง?')) { state.routeData = null; await save(); updateSb(); openSlot(id); } return; }
@@ -398,7 +402,7 @@ function openSlot(id) {
     const b = e.target.closest('[data-del]'); if (b && confirm('ลบไฟล์นี้ใช่ไหม?')) { await removeFromSlot(sl, +b.dataset.del); updateSb(); openSlot(id); }
   };
   d.addEventListener('input', e => { if (e.target.dataset && e.target.dataset.nm) { const it = findItemById(+e.target.dataset.nm); if (it) { it.title = e.target.value; if (it.placeId) { const pl = lib.places.find(p => p.id === it.placeId); if (pl) { pl.name = e.target.value; placePhotos(pl).forEach(x => { x.title = e.target.value; }); } } if (it.cat) saveLib(); else save(); } return; } if (e.target.id === 'slotScript') setSlotScript(sl, e.target.value); if (e.target.dataset.b) { lib.brand[e.target.dataset.b] = e.target.value; saveLib(); } });
-  d.addEventListener('change', async e => { if (sl.cat && stockEvent(e)) { updateSb(); openSlot(id); return; } if (e.target.name === 'tmode') { lib[id + 'Builtin'] = e.target.value === 'builtin'; await saveLib(); updateSb(); openSlot(id); return; } if (e.target.id === 'skipMap') { state.skipMap = e.target.checked; save(); updateSb(); } });
+  d.addEventListener('change', async e => { if (sl.cat) { const r = stockEvent(e); if (r === 'defer') { requestAnimationFrame(() => setTimeout(() => { updateSb(); openSlot(id); }, 0)); return; } if (r) { updateSb(); openSlot(id); return; } } if (e.target.name === 'tmode') { lib[id + 'Builtin'] = e.target.value === 'builtin'; await saveLib(); updateSb(); openSlot(id); return; } if (e.target.id === 'skipMap') { state.skipMap = e.target.checked; save(); updateSb(); } });
   if (sl.kind === 'contact') bindContact(d, () => openSlot(id));
   document.body.appendChild(d);
   const sp = d.querySelector('#scenePrev'); if (sp) { const z = sizeInfo(); sp.width = Math.round(z.w / 3); sp.height = Math.round(z.h / 3); previewScene(sp, id); }
@@ -480,12 +484,12 @@ function viewSlots() {
   refreshChips = () => { if ($('#chips')) { renderChips(); renderDone(); } };
   $('#chips').onclick = e => { const b = e.target.closest('.chip'); if (!b) return; if (b.dataset.places) { openPlaces(() => { updateSb(); refreshAll(); }); return; } openSlot(b.dataset.s); };
   $('#gallery').onchange = async e => {
-    if (stockEvent(e)) { updateSb(); refreshAll(); return; }
+    { const r = stockEvent(e); if (r === 'defer') { requestAnimationFrame(() => setTimeout(() => { updateSb(); refreshAll(); }, 0)); return; } if (r) { updateSb(); refreshAll(); return; } }
     const m = e.target.closest('[data-mv]'); if (!m || !m.value) return;
     const it = state.items.find(x => x.id === +m.dataset.mv); if (it) { it.room = m.value; await save(); updateSb(); refreshAll(); }
   };
   $('#gallery').onclick = async e => {
-    if (stockEvent(e)) { updateSb(); refreshAll(); return; }
+    { const r = stockEvent(e); if (r === 'defer') { requestAnimationFrame(() => setTimeout(() => { updateSb(); refreshAll(); }, 0)); return; } if (r) { updateSb(); refreshAll(); return; } }
     const o = e.target.closest('[data-open]'); if (o) { openSlot(o.dataset.open); return; }
     const x = e.target.closest('[data-del]'); if (!x) return;
     if (x.closest('.gsec').dataset.sec === 'orphan') { if (confirm('ลบรูปนี้ใช่ไหม?')) { removeItem(+x.dataset.del); await save(); updateSb(); refreshAll(); } return; }
