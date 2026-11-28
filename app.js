@@ -373,15 +373,25 @@ function titleMediaHtml() {
   return `<div class="seg"><b>🖼️ ส่วนที่ 1 · พื้นหลังของฉากมาสคอต</b><p class="hint">ใส่รูปหรือคลิป (ภาพเคลื่อนไหวก็ได้) ภาพแรกที่ใส่จะเป็นพื้นหลังทันที มาสคอตลอยอยู่บนภาพนั้น · อัปโหลดไว้หลายแบบแล้วแตะรูปเพื่อสลับได้ · ตั้งครั้งเดียว ใช้กับทุกคลิป</p>
     <div class="sgrid"><div class="th${sel ? ' off' : ''}" data-tbg="none" style="display:flex;align-items:center;justify-content:center;background:#f7efe3">${sel ? '' : '<span class="tick">✓</span>'}<small style="text-align:center;padding:4px">ไม่ใช้ภาพ<br>(พื้นครีมมาตรฐาน)</small></div>
     ${bgs.map(r => `<div class="th${sel === r.id ? '' : ' off'}" data-tbg="${r.id}">${sel === r.id ? '<span class="tick">✓</span>' : ''}${tmThumb(r, `<button class="x" data-tbgdel="${r.id}" aria-label="ลบ">✕</button>`)}</div>`).join('')}</div>
-    <button class="btn alt" data-a="tbgadd">＋ เพิ่มพื้นหลัง (รูป/คลิป)</button></div>
+    ${titleMeter('bg')}<button class="btn alt" data-a="tbgadd">＋ เพิ่มพื้นหลัง (รูป/คลิป)</button></div>
   <div class="seg"><b>🏠 ส่วนที่ 2 · บ้านที่กำลังนำเสนอ (คลิปนี้)</b><p class="hint">ใส่รูปหรือคลิปบ้านหลังนี้ ตอนที่มาสคอตพูดถึงบ้าน/โครงการ รูปบ้านจะโผล่ขึ้นมากลางจอทันที (จับจังหวะจากสคริปต์ช่วงเปิดคลิป) · ใส่เฉพาะคลิปนี้</p>
     ${h ? `<div class="sgrid"><div class="th">${tmThumb(h, '<button class="x" data-thdel="1" aria-label="ลบ">✕</button>')}</div></div>` : ''}
-    <button class="btn alt" data-a="thadd">${h ? '↻ เปลี่ยนรูป/คลิปบ้าน' : '＋ เลือกรูป/คลิปบ้าน'}</button></div>`;
+    ${titleMeter('house')}<button class="btn alt" data-a="thadd">${h ? '↻ เปลี่ยนรูป/คลิปบ้าน' : '＋ เลือกรูป/คลิปบ้าน'}</button></div>`;
+}
+// ขีดวัดของฉากไตเติล: พื้นหลัง = ต้องเติมเต็มความยาวฉาก · บ้าน = ต้องเติมตั้งแต่จังหวะที่โผล่จนจบฉาก (หลักเดียวกับทุกช่วง)
+let _tProbing = false;
+function titleMeter(kind) {
+  const r = kind === 'bg' ? titleBgRec() : state.house; if (!r) return '';
+  const dur = titleDur(), need = Math.max(1, kind === 'bg' ? dur : dur - titleHouseAt(dur));
+  if (r.type !== 'video') return `<div class="fit1"><b style="width:100%"></b></div><small class="fitl ok">รูปนิ่ง เติมได้เต็มเวลา ${Math.round(need)} วิ (100%) ✅</small>`;
+  if (!r.dur) { if (!_tProbing) { _tProbing = true; probeItems([r]).then(async () => { _tProbing = false; if (r.dur) { if (kind === 'bg') await saveLib(); else await save(); refreshAll(); } }); } return '<small class="fitl w">⏳ กำลังอ่านความยาวคลิป…</small>'; }
+  const pct = Math.round(r.dur / need * 100);
+  return `<div class="fit1"><b style="width:${Math.min(100, pct)}%"></b></div><small class="fitl ${pct >= 100 ? 'ok' : 'w'}">คลิปยาว ${Math.round(r.dur)} วิ · ฉากนี้ต้องใช้ ${Math.round(need)} วิ (${pct}%) — ${pct >= 100 ? '✅ ยาวพอ ตัดที่ ' + Math.round(need) + ' วิ' : '➕ สั้นกว่าเวลา จะเล่นซ้ำให้เต็ม (ใช้คลิปที่ยาวกว่านี้จะดีกว่า)'}</small>`;
 }
 // สรุปรูป/คลิปที่ใส่ไว้ในการ์ดไตเติล ให้เห็นว่าอะไรเป็นพื้นหลัง อะไรคือบ้าน
 function titleChosenHtml() {
-  const bg = titleBgRec(), h = state.house, box = (lab, r) => `<div class="tchip"><div class="th">${r ? tmThumb(r, '') : '<small style="padding:4px;text-align:center">ไม่ได้ใส่</small>'}</div><b>${lab}</b><small>${r ? (r.type === 'video' ? '🎬 คลิป' : '🖼️ รูป') + ' · ' + esc((r.name || '').slice(0, 14)) : 'ใช้พื้นครีมมาตรฐาน'}</small></div>`;
-  return `<div class="trow">${box('① พื้นหลังมาสคอต', bg)}${box('② บ้านที่นำเสนอ', h)}</div>`;
+  const bg = titleBgRec(), h = state.house, box = (lab, r, kind) => `<div class="tchip"><div class="th">${r ? tmThumb(r, '') : '<small style="padding:4px;text-align:center">ไม่ได้ใส่</small>'}</div><b>${lab}</b><small>${r ? (r.type === 'video' ? '🎬 คลิป' : '🖼️ รูป') + ' · ' + esc((r.name || '').slice(0, 14)) : 'ใช้พื้นครีมมาตรฐาน'}</small>${titleMeter(kind)}</div>`;
+  return `<div class="trow">${box('① พื้นหลังมาสคอต', bg, 'bg')}${box('② บ้านที่นำเสนอ', h, 'house')}</div>`;
 }
 const sceneModeHtml = sl => `<label class="sw"><input type="radio" name="tmode" value="builtin" ${lib[sl.id + 'Builtin'] ? 'checked' : ''}> 🎬 ใช้${sl.id === 'title' ? 'ไตเติล' : 'เครดิตปิด'}ของแอป (มาสคอต Huahin Properties)</label>
   <label class="sw"><input type="radio" name="tmode" value="custom" ${lib[sl.id + 'Builtin'] ? '' : 'checked'}> ใช้ไฟล์ของฉันเอง</label>
@@ -418,9 +428,9 @@ function openSlot(id) {
     if (e.target.closest('[data-a=genmap]')) { const st = d.querySelector('#genStat'), btn = e.target.closest('[data-a=genmap]'); btn.disabled = true; const n = await generateMapImages(st); btn.disabled = false; if (n) { updateSb(); openSlot(id); } return; }
     { const td = e.target.closest('[data-tbgdel]'); if (td) { if (confirm('ลบพื้นหลังนี้ใช่ไหม?')) { lib.titleBgs = (lib.titleBgs || []).filter(r => r.id !== +td.dataset.tbgdel); if (lib.titleBgSel === +td.dataset.tbgdel) lib.titleBgSel = null; await saveLib(); openSlot(id); } return; }
       const tb = e.target.closest('[data-tbg]'); if (tb) { lib.titleBgSel = tb.dataset.tbg === 'none' ? 0 : +tb.dataset.tbg; await saveLib(); openSlot(id); return; }
-      if (e.target.closest('[data-a=tbgadd]')) { const fs = await pickFiles('image/*,video/*', true); if (fs.length) { lib.titleBgs = lib.titleBgs || []; const had = lib.titleBgs.length; fs.forEach(f => lib.titleBgs.push({ id: libSeq++, blob: f, type: f.type.startsWith('video') ? 'video' : 'image', name: f.name })); if (lib.titleBgSel === 0 && !had) lib.titleBgSel = null; await saveLib(); openSlot(id); } return; }
+      if (e.target.closest('[data-a=tbgadd]')) { const fs = await pickFiles('image/*,video/*', true); if (fs.length) { lib.titleBgs = lib.titleBgs || []; const had = lib.titleBgs.length; fs.forEach(f => lib.titleBgs.push({ id: libSeq++, blob: f, type: f.type.startsWith('video') ? 'video' : 'image', name: f.name })); await probeItems(lib.titleBgs); if (lib.titleBgSel === 0 && !had) lib.titleBgSel = null; await saveLib(); openSlot(id); } return; }
       if (e.target.closest('[data-thdel]')) { state.house = null; await save(); openSlot(id); return; }
-      if (e.target.closest('[data-a=thadd]')) { const [f] = await pickFiles('image/*,video/*', false); if (f) { state.house = { blob: f, type: f.type.startsWith('video') ? 'video' : 'image', name: f.name }; await save(); openSlot(id); } return; } }
+      if (e.target.closest('[data-a=thadd]')) { const [f] = await pickFiles('image/*,video/*', false); if (f) { state.house = { blob: f, type: f.type.startsWith('video') ? 'video' : 'image', name: f.name }; await probeItems([state.house]); await save(); openSlot(id); } return; } }
     if (e.target.closest('[data-a=add]')) { const fs = await pickFiles('image/*,video/*', !sl.max1); if (fs.length) { await addToSlot(sl, fs); updateSb(); openSlot(id); } return; }
     const b = e.target.closest('[data-del]'); if (b && confirm('ลบไฟล์นี้ใช่ไหม?')) { await removeFromSlot(sl, +b.dataset.del); updateSb(); openSlot(id); }
   };
