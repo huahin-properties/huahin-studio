@@ -1098,10 +1098,12 @@ const predictedTotal = () => imageDurations(timelineImages().imgs).reduce((a, p)
 function fitMeterHtml(sl) {
   if (!state.stretch || getSlotScript(sl) === null) return '';
   const k = segKeyOfSlot(sl), P = segPlan()[k]; if (!P || !P.sec) return '';
-  const n = P.nAll != null ? P.nAll : P.imgs.length, sec = Math.round(P.sec), lo = Math.max(1, Math.ceil(sec / MAXSHOT)), hi = Math.max(lo, Math.floor(sec / 2.5)), S = hi + Math.max(2, Math.round(hi * 0.4));
-  const pos = Math.min(S, n) / S * 100, o = (lo - 0.5) / S * 100, g = (hi - lo + 1) / S * 100;
-  const bad = n < lo, verdict = n < lo ? `⚠️ น้อยไป ภาพจะซูมหลายมุมซ้ำ แนะนำเพิ่มอีก ${lo - n} รูป` : n > hi ? `ℹ️ มีรูปเกินเวลาช่วงนี้ แอปจะเลือกใช้ ~${hi} รูปให้พอดีเวลา (ที่เหลือเก็บไว้ ไม่ลบ)` : '✅ จำนวนรูปพอดีกับเวลา';
-  return `<div class="fit"><b style="width:${o}%"></b><b class="g" style="width:${g}%"></b><b class="r"></b><i style="left:${pos}%"></i></div><small class="fitl ${bad ? 'w' : 'ok'}">🎞️ ช่วงนี้ ~${sec} วิ · รูปที่เหมาะ ${lo}–${hi} รูป · ตอนนี้ ${n} รูป${k === 'area' ? ' (รวมทั้งทำเล)' : ''} — ${verdict}</small>`;
+  const all = [...P.imgs, ...(P.dropped || [])], sec = Math.round(P.sec), STILL_SEC = 5;
+  // ขีดเดียว: ความยาวที่รูป/คลิปที่ใส่ไว้ "เติมเวลา" ได้ เทียบกับเวลาของช่วงนี้ (รูป ≈ 5 วิ · คลิป = ความยาวจริง)
+  const have = all.reduce((s, i) => s + (i.type === 'video' ? rawVidSec(i) : STILL_SEC), 0), pct = Math.round(have / P.sec * 100), fill = Math.min(100, pct);
+  const need = Math.max(0, P.sec - have), moreImgs = Math.ceil(need / STILL_SEC);
+  const verdict = pct >= 100 ? (all.length > P.imgs.length ? `✅ เต็มแล้ว · มีเกินเวลา แอปเลือกใช้ ${P.imgs.length} ชิ้นให้พอดี (ที่เหลือเก็บไว้ ไม่ลบ)` : '✅ เต็มแล้ว พอดีกับเวลา') : `➕ ยังไม่เต็ม · เพิ่มอีกประมาณ ${Math.round(need)} วิ (รูปราว ${moreImgs} รูป หรือคลิปสั้น ๆ)`;
+  return `<div class="fit1"><b style="width:${fill}%"></b></div><small class="fitl ${pct >= 100 ? 'ok' : 'w'}">🎞️ ช่วงนี้ ${sec} วิ · ใส่แล้วเติมได้ ~${Math.round(have)} วิ (${pct}%)${k === 'area' ? ' · รวมทั้งทำเล' : ''} — ${verdict}</small>`;
 }
 
 function viewRender() {

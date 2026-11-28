@@ -206,3 +206,5 @@ header{display:flex;align-items:center;gap:8px;flex-wrap:wrap}header small{font-
 .pp-pills{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin:12px 0 4px}.pp-cponly{text-align:center}
 
 .trow{display:flex;gap:12px;margin:8px 0 2px}.tchip{flex:1;display:flex;flex-direction:column;gap:3px;min-width:0}.tchip .th{height:90px;display:flex;align-items:center;justify-content:center;background:#f7efe3}.tchip .th img,.tchip .th video{width:100%;height:100%;object-fit:cover}.tchip b{font-size:13px}.tchip small{font-size:11px;color:var(--mute)}
+
+.fit1{height:10px;border-radius:6px;background:#e4dccf;overflow:hidden;margin:6px 0 2px}.fit1 b{display:block;height:100%;background:#2e7d4f;border-radius:6px;transition:width .25s}
