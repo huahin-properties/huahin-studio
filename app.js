@@ -806,7 +806,7 @@ function viewScript() {
       return `<div class="seg"><div class="seg-h"><b>🌟 ฮุกหลังไตเติล: ภาพบ้านเด่นที่สุด + เสียงบอกจุดเด่นทันที</b><span class="badge">${h ? '~' + Math.round(hookDur()) + ' วิ' : 'ปิดอยู่'}</span></div>
       <p class="hint">คลิปเริ่มที่ <b>ไตเติลมาสคอตทักทาย</b> แล้วต่อด้วย <b>ภาพบ้านที่เด่นที่สุด</b> พร้อมเสียงบอกจุดเด่นทันที (ข้อความแก้ได้ที่ท่อน "ฮุก" ด้านล่าง) จากนั้นจึงพาไปดูทำเล → รายละเอียดห้องต่างๆ</p>
       ${srcIt ? `<div class="mini"><img src="${urlOf(srcIt)}" alt=""><small>ภาพเด่นที่ใช้: ${(srcIt.room || 'ยังไม่ตั้งห้อง')}${state.hero && state.hero.id === srcIt.id ? '' : ' (เลือกให้อัตโนมัติ)'}</small></div>` : ''}
-      <div class="tools"><button class="ib wide" id="heroPick" ${hasI ? '' : 'disabled'}>🖼️ เปลี่ยนภาพเด่น</button><button class="ib wide" id="hookTog" ${hasI ? '' : 'disabled'}>${state.hookOn === false ? '▶ เปิดฮุก' : '⏹ ปิดฮุก'}</button></div></div>`; })()}
+      ${hookMeterHtml(h)}<div class="tools"><button class="ib wide" id="heroPick" ${hasI ? '' : 'disabled'}>🖼️ เปลี่ยนภาพเด่น</button><button class="ib wide" id="hookTog" ${hasI ? '' : 'disabled'}>${state.hookOn === false ? '▶ เปิดฮุก' : '⏹ ปิดฮุก'}</button></div></div>`; })()}
     <div id="segs">${segs.map(card).join('')}</div>
     <p class="hint" id="warn"></p>
     <button class="btn" id="nx">ถัดไป: 5 เสียง →</button>
@@ -1104,6 +1104,14 @@ function fitMeterHtml(sl) {
   const need = Math.max(0, P.sec - have), moreImgs = Math.ceil(need / STILL_SEC);
   const verdict = pct >= 100 ? (all.length > P.imgs.length ? `✅ เต็มแล้ว · มีเกินเวลา แอปเลือกใช้ ${P.imgs.length} ชิ้นให้พอดี (ที่เหลือเก็บไว้ ไม่ลบ)` : '✅ เต็มแล้ว พอดีกับเวลา') : `➕ ยังไม่เต็ม · เพิ่มอีกประมาณ ${Math.round(need)} วิ (รูปราว ${moreImgs} รูป หรือคลิปสั้น ๆ)`;
   return `<div class="fit1"><b style="width:${fill}%"></b></div><small class="fitl ${pct >= 100 ? 'ok' : 'w'}">🎞️ ช่วงนี้ ${sec} วิ · ใส่แล้วเติมได้ ~${Math.round(have)} วิ (${pct}%)${k === 'area' ? ' · รวมทั้งทำเล' : ''} — ${verdict}</small>`;
+}
+
+// ขีดวัดของช่วงฮุก (หลังไตเติล): ใช้หลักเดียวกับทุกช่วง แต่ฮุกใช้ภาพเด่น "ภาพเดียว" ซูมได้หลายมุม (ภาพละ ~8 วิ)
+function hookMeterHtml(on) {
+  if (!on) return '';
+  const sec = hookDur(), cap = MAXSHOT, pct = Math.round(cap / sec * 100), fill = Math.min(100, pct);
+  const verdict = pct >= 100 ? '✅ เต็มแล้ว ภาพเด่นภาพเดียวพอดีกับเวลาฮุก' : `ℹ️ ฮุกยาว ${Math.round(sec)} วิ แต่ภาพเด่นภาพเดียวเติมได้ ~${cap} วิ จึงซูมหลายมุมต่อกัน · อยากให้เต็มพอดี แนะนำย่อสคริปต์ฮุกให้ไม่เกิน ~${cap} วิ`;
+  return `<div class="fit1"><b style="width:${fill}%"></b></div><small class="fitl ${pct >= 100 ? 'ok' : 'w'}">🎞️ ช่วงฮุก ${Math.round(sec)} วิ · ภาพเด่นเติมได้ ~${cap} วิ (${pct}%) — ${verdict}</small>`;
 }
 
 function viewRender() {
