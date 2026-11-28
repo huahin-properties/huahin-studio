@@ -33,7 +33,7 @@ async function makeVideoItem(blob, dur) {
   await new Promise((res, rej) => { v.onloadeddata = res; v.onerror = () => rej(new Error('เปิดคลิปวิดีโอไม่ได้ (ลองใช้ไฟล์ mp4 ขนาดไม่เกิน 1080p)')); setTimeout(() => rej(new Error('อ่านคลิปวิดีโอนานเกินไป')), 20000); });
   let at = -1;
   return { isVideo: true, dur, vid: v,
-    async prepare(t) { const tg = Math.min(Math.max(0, t), Math.max(0, (v.duration || dur) - 0.04)); if (Math.abs(tg - at) < 0.0005) return; at = tg; v.currentTime = tg; await new Promise(r => { let d = false; const f = () => { if (!d) { d = true; v.removeEventListener('seeked', f); r(); } }; v.addEventListener('seeked', f); setTimeout(f, 2500); }); },
+    async prepare(t) { const L = Math.max(0.5, (v.duration || dur) - 0.04), tg = Math.max(0, t) % L; /* ยาวเกินเวลา = ตัดที่เวลาที่ล็อก · สั้นเกิน = เล่นซ้ำ */ if (Math.abs(tg - at) < 0.0005) return; at = tg; v.currentTime = tg; await new Promise(r => { let d = false; const f = () => { if (!d) { d = true; v.removeEventListener('seeked', f); r(); } }; v.addEventListener('seeked', f); setTimeout(f, 2500); }); },
     draw(ctx, W, H) { drawCover(ctx, v, W, H, 1); },
     close() { URL.revokeObjectURL(url); v.removeAttribute('src'); v.load(); } };
 }

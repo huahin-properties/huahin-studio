@@ -1029,6 +1029,27 @@ async function viewColor() {
 // ถ้ารูปละนานเกิน 8 วิ แตกเป็นหลายช็อตซูม/แพนคนละมุม · ผลรวมทั้งคลิป ≥ ความยาวเป้าหมาย (3:00) เสมอ
 const MAXSHOT = 8;
 function segKeyOfSlot(sl) { return sl.cat === 'lifestyle' ? 'life' : sl.cat ? 'area' : 'room:' + sl.room; }
+// เวลาเป็นตัวตั้ง: ทุกช่วงมีเวลาของตัวเอง (เสียงบรรยาย) · ถ้าภาพ/คลิปเยอะเกินให้เลือกใช้เฉพาะที่พอดีเวลา (รูปละ ≥ 2.2 วิ)
+const MINSHOT = 2.2;
+function thinTo(list, maxN) {
+  if (list.length <= maxN) return { keep: list, gone: [] };
+  const ids = new Set(); for (let i = 0; i < maxN; i++) ids.add(list[maxN === 1 ? 0 : Math.round(i * (list.length - 1) / (maxN - 1))].id);
+  return { keep: list.filter(x => ids.has(x.id)), gone: list.filter(x => !ids.has(x.id)) };
+}
+const rawVidSec = it => Math.max(2, +it.dur || 5);
+// แบ่งเวลา sec ให้สื่อของช่วงนั้น: คลิปที่สั้นกว่าส่วนแบ่งใช้ความยาวตัวเอง (เหลือเวลาให้ตัวอื่น) · คลิปที่ยาวกว่าถูกตัดให้เหลือเท่าส่วนแบ่ง · ถ้าคลิปสั้นหมดจนเวลาเหลือ เล่นซ้ำให้เต็มเวลา
+function allocTimes(items, sec) {
+  const out = new Map(); if (!items.length) return out;
+  let free = items.slice(), rem = sec;
+  for (;;) {
+    const base = rem / free.length, short = free.filter(i => i.type === 'video' && rawVidSec(i) < base - 0.01);
+    if (!short.length) break;
+    short.forEach(v => { out.set(v.id, rawVidSec(v)); rem -= rawVidSec(v); }); free = free.filter(i => !short.includes(i)); if (!free.length) break;
+  }
+  if (free.length) free.forEach(i => out.set(i.id, Math.max(0.5, rem / free.length)));
+  else if (rem > 0.05) { const add = rem / items.length; items.forEach(i => out.set(i.id, out.get(i.id) + add)); }
+  return out;
+}
 function segPlan() {
   const segs = scriptSegments(), T = segTargets(), plan = {}, AUD = segAudioSec();
   segs.forEach(g => {
@@ -1039,16 +1060,11 @@ function segPlan() {
   // ไม่ให้รูปล้นเวลาเสียง: ถ้ารูปมากกว่าที่เวลาของท่อนนั้นรองรับ (รูปละ ≥ 2.2 วิ) เลือกรูปกระจายห่างๆ ให้พอดีเวลา · ส่วนที่ไม่ได้ใช้ไม่ถูกลบ แค่ข้ามในคลิปนี้ (ไม่ใช้กับโหมดแยกตามภาพ)
   if (state.stretch && state.audio.mode === 'beats') beatsList().forEach(b => { // โหมดแยกตามภาพ: เวลาของแต่ละช่วงเสียงเป็นตัวตั้ง
     const P = plan[b.segKey]; if (!P || b.edge) return;
-    const au = beatAudioSec(b.id), sec = au != null ? au + 0.25 : P.sec * b.share, vids = b.imgs.filter(i => i.type === 'video'), stills = b.imgs.filter(i => i.type !== 'video'), room = Math.max(0, sec - vids.reduce((s, v) => s + vidDur(v), 0)), maxS = Math.max(1, Math.floor(room / 2.2));
-    if (stills.length <= maxS) return;
-    const keep = new Set(); for (let i = 0; i < maxS; i++) keep.add(stills[maxS === 1 ? 0 : Math.round(i * (stills.length - 1) / (maxS - 1))].id);
-    const gone = stills.filter(x => !keep.has(x.id)); P.dropped.push(...gone); const gs = new Set(gone.map(x => x.id)); P.imgs = P.imgs.filter(x => !gs.has(x.id));
+    const au = beatAudioSec(b.id), sec = au != null ? au + 0.25 : P.sec * b.share, { gone } = thinTo(b.imgs, Math.max(1, Math.floor(sec / MINSHOT)));
+    if (!gone.length) return; P.dropped.push(...gone); const gs = new Set(gone.map(x => x.id)); P.imgs = P.imgs.filter(x => !gs.has(x.id));
   });
   if (state.stretch && state.audio.mode !== 'beats') Object.values(plan).forEach(P => {
-    const vids = P.imgs.filter(i => i.type === 'video'), stills = P.imgs.filter(i => i.type !== 'video'), room = Math.max(0, P.sec - vids.reduce((s, v) => s + vidDur(v), 0)), maxS = Math.max(1, Math.floor(room / 2.2));
-    if (stills.length <= maxS) return;
-    const keep = new Set(); for (let i = 0; i < maxS; i++) keep.add(stills[maxS === 1 ? 0 : Math.round(i * (stills.length - 1) / (maxS - 1))].id);
-    P.dropped = stills.filter(x => !keep.has(x.id)); P.imgs = P.imgs.filter(x => x.type === 'video' || keep.has(x.id));
+    const { keep, gone } = thinTo(P.imgs, Math.max(1, Math.floor(P.sec / MINSHOT))); if (!gone.length) return; P.dropped = gone; P.imgs = keep;
   });
   return plan;
 }
@@ -1060,13 +1076,16 @@ function imageDurations(imgs) {
   const plan = segPlan(), idToKey = new Map();
   Object.entries(plan).forEach(([k, P]) => P.imgs.forEach(i => idToKey.set(i.id, k)));
   const BM = state.audio && state.audio.mode === 'beats' ? beatMap() : null, DR = droppedIds();
+  const cache = new Map(), getAlloc = (key, items, sec) => { if (!cache.has(key)) cache.set(key, allocTimes(items, sec)); return cache.get(key); };
   return imgs.map(i => {
     if (isHeroId(i.id)) { const d = hookDur(); return { dur: d, shots: d > MAXSHOT ? Math.ceil(d / MAXSHOT) : 1 }; }
-    if (i.type === 'video') return { dur: vidDur(i), shots: 1 };
-    const k = idToKey.get(i.id); if (!k || !state.stretch) return { dur: STYLE.secPerImage, shots: 1 };
-    const bt = BM && BM.get(i.id); if (bt) { const au = beatAudioSec(bt.id), P0 = plan[k], sec = au != null ? au + 0.25 : P0.sec * bt.share, d0 = stillShare(bt.imgs.filter(x => !DR.has(x.id)), sec); return { dur: d0, shots: d0 > MAXSHOT ? Math.ceil(d0 / MAXSHOT) : 1 }; }
-    const P = plan[k], d = stillShare(P.imgs, P.sec);
-    return { dur: d, shots: d > MAXSHOT ? Math.ceil(d / MAXSHOT) : 1 };
+    const k = idToKey.get(i.id), isV = i.type === 'video';
+    if (!k || !state.stretch) return isV ? { dur: vidDur(i), shots: 1 } : { dur: STYLE.secPerImage, shots: 1 };
+    const bt = BM && BM.get(i.id); let a;
+    if (bt) { const au = beatAudioSec(bt.id), P0 = plan[k], sec = au != null ? au + 0.25 : P0.sec * bt.share; a = getAlloc('b' + bt.id, bt.imgs.filter(x => !DR.has(x.id)), sec).get(i.id); }
+    else { const P = plan[k]; a = getAlloc(k, P.imgs, P.sec).get(i.id); }
+    if (a == null) a = isV ? vidDur(i) : STYLE.secPerImage;
+    return { dur: a, shots: isV ? 1 : (a > MAXSHOT ? Math.ceil(a / MAXSHOT) : 1) };
   });
 }
 function timelineImages() {
