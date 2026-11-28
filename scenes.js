@@ -18,8 +18,16 @@ async function sceneMedia(rec, dur) {
     const bmp = await createImageBitmap(rec.blob); return { draw: (c, W, H) => drawCover(c, bmp, W, H, 1), close: () => { try { bmp.close(); } catch (e) {} } };
   } catch (e) { return null; }
 }
+// ลำดับสื่อหลายชิ้น (รูป/คลิป) เล่นต่อกันในช่วง dur วินาที: แบ่งเวลาด้วย allocTimes (คลิปสั้นใช้ความยาวตัวเอง · คลิปยาวถูกตัด · เหลือเวลาก็ยืด/เล่นซ้ำ)
+async function sceneSeq(recs, dur) {
+  const items = []; for (const r of recs || []) { const m = await sceneMedia(r, dur); if (m) items.push({ r, m }); }
+  if (!items.length) return null;
+  const al = allocTimes(items.map(x => ({ id: x.r.id, type: x.r.type, dur: x.r.dur })), dur); let acc = 0; items.forEach(x => { x.at = acc; acc += al.get(x.r.id) || 0; x.end = acc; });
+  const pick = t => items.find(x => t < x.end) || items[items.length - 1];
+  return { draw(ctx, W, H, t) { pick(t || 0).m.draw(ctx, W, H); }, async prepare(t) { const x = pick(t || 0); if (x.m.prepare) await x.m.prepare(Math.max(0, (t || 0) - x.at)); }, close() { items.forEach(x => x.m.close()); } };
+}
 function sceneBackground(ctx, W, H, t, bg) {
-  if (bg) { bg.draw(ctx, W, H); ctx.fillStyle = 'rgba(247,239,227,.34)'; ctx.fillRect(0, 0, W, H); const u0 = Math.min(W, H) / 1080; ctx.strokeStyle = 'rgba(255,255,255,.85)'; ctx.lineWidth = 3 * u0; ctx.strokeRect(36 * u0, 36 * u0, W - 72 * u0, H - 72 * u0); return; }
+  if (bg) { bg.draw(ctx, W, H, t); ctx.fillStyle = 'rgba(247,239,227,.34)'; ctx.fillRect(0, 0, W, H); const u0 = Math.min(W, H) / 1080; ctx.strokeStyle = 'rgba(255,255,255,.85)'; ctx.lineWidth = 3 * u0; ctx.strokeRect(36 * u0, 36 * u0, W - 72 * u0, H - 72 * u0); return; }
   const g = ctx.createLinearGradient(0, 0, 0, H); g.addColorStop(0, '#f7efe3'); g.addColorStop(1, '#ead9bf'); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
   const u = Math.min(W, H) / 1080;
   // วงกลมทองแบบเหรียญโลโก้ (ลอยเบาๆ)
@@ -66,10 +74,10 @@ function houseCard(ctx, x, y, w, h, t, at, house) {
 }
 async function titleScene() {
   const M = await loadMascots(), dur = typeof titleDur === 'function' ? titleDur() : TITLE_DUR;
-  const bgRec = typeof titleBgRec === 'function' ? titleBgRec() : null, bg = await sceneMedia(bgRec, dur), house = await sceneMedia(state.house, dur), hasH = !!house;
+  const hAt = typeof titleHouseAt === 'function' ? titleHouseAt(dur) : 3.4, bg = await sceneSeq(typeof titleBgList === 'function' ? titleBgList() : [], dur), house = await sceneSeq(state.houses || [], Math.max(1, dur - hAt)), hasH = !!house;
   return {
     dur,
-    async prepare(t) { if (bg && bg.prepare) await bg.prepare(t); if (house && house.prepare) await house.prepare(t); },
+    async prepare(t) { if (bg) await bg.prepare(t); if (house && t >= hAt) await house.prepare(t - hAt); },
     close() { if (bg) bg.close(); if (house) house.close(); },
     draw(ctx, W, H, t, abs = 0) {
       SCENE_T = abs + t; const u = Math.min(W, H) / 1080, land = layoutFor(W, H) === 'land'; sceneBackground(ctx, W, H, t, bg);
@@ -85,7 +93,7 @@ async function titleScene() {
       brandLine(ctx, tx, y0 + 120 * u, 78 * u, t, 1.7, mw);
       drawText(ctx, B.tagline, tx, y0 + 195 * u, { t, at: 2.3, size: 32 * u, color: '#b8862d', family: SANS, maxW: mw, spacing: `${5 * u}px`, weight: '600' });
       drawText(ctx, sub, tx, y0 + 270 * u, { t, at: 3.0, size: 46 * u, color: '#2e2220', family: SANS, maxW: mw, weight: '600' });
-      if (hasH) { const top = y0 + 270 * u + 52 * u, room = H - 64 * u - top, ch = Math.min(room, H * (land ? 0.46 : 0.3)), cw = Math.min(mw, ch * 1.6); houseCard(ctx, tx - cw / 2, top, cw, cw === mw ? cw / 1.6 : ch, t, typeof titleHouseAt === 'function' ? titleHouseAt(dur) : 3.4, house); }
+      if (hasH) { const top = y0 + 270 * u + 52 * u, room = H - 64 * u - top, ch = Math.min(room, H * (land ? 0.46 : 0.3)), cw = Math.min(mw, ch * 1.6); houseCard(ctx, tx - cw / 2, top, cw, cw === mw ? cw / 1.6 : ch, t, hAt, { draw: (c2, w2, h2) => house.draw(c2, w2, h2, t - hAt) }); }
     },
   };
 }
@@ -118,4 +126,4 @@ const sceneMaker = id => (id === 'title' ? titleScene : closeScene);
 function previewScene(cv, which) {
   const cx = cv.getContext('2d'); sceneMaker(which)().then(sc => { const t0 = performance.now(); const tick = () => { if (!cv.isConnected) return; const t = Math.min(((performance.now() - t0) / 1000) % (sc.dur + 1), sc.dur), go = () => { cx.save(); sc.draw(cx, cv.width, cv.height, t); cx.restore(); requestAnimationFrame(tick); }; if (sc.prepare) sc.prepare(t).then(go, go); else go(); }; tick(); });
 }
-function paintSceneFrame(cv, which, t) { sceneMaker(which)().then(async sc => { if (which === 'title' && state.house && typeof titleHouseAt === 'function') t = Math.min(sc.dur - 0.2, titleHouseAt(sc.dur) + 0.9); if (sc.prepare) { try { await sc.prepare(t); } catch (e) {} } const cx = cv.getContext('2d'); cx.save(); sc.draw(cx, cv.width, cv.height, t); cx.restore(); }); }
+function paintSceneFrame(cv, which, t) { sceneMaker(which)().then(async sc => { if (which === 'title' && (state.houses || []).length && typeof titleHouseAt === 'function') t = Math.min(sc.dur - 0.2, titleHouseAt(sc.dur) + 0.9); if (sc.prepare) { try { await sc.prepare(t); } catch (e) {} } const cx = cv.getContext('2d'); cx.save(); sc.draw(cx, cv.width, cv.height, t); cx.restore(); }); }

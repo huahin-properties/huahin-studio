@@ -24,10 +24,10 @@ const DB = {
   async set(k, v) { const db = await this.open(); return new Promise((res, rej) => { const tx = db.transaction('kv', 'readwrite'); tx.objectStore('kv').put(v, k); tx.oncomplete = res; tx.onerror = tx.onabort = () => rej(tx.error || new Error('บันทึกไม่ได้ (พื้นที่เต็ม?)')); }); },
   async del(k) { const db = await this.open(); return new Promise((res, rej) => { const tx = db.transaction('kv', 'readwrite'); tx.objectStore('kv').delete(k); tx.oncomplete = res; tx.onerror = tx.onabort = () => rej(tx.error); }); },
 };
-const projData = () => ({ v: 2, hookOn: state.hookOn, hero: state.hero, content: state.content, stock: state.stock, capOn: state.capOn, cover: state.cover, enhance: state.enhance, trans: state.trans, overlay: state.overlay, mascot: state.mascot, audio: state.audio, stretch: state.stretch, clipSec: state.clipSec, routeData: state.routeData, skipMap: state.skipMap, facts: state.facts, useArea: state.useArea, contact: state.contact, size: state.size, color: state.color, script: state.script, house: state.house || null, items: state.items.map(({ id, blob, type, room, name, title, orig }) => ({ id, blob, type, room, name, title, orig })) });
+const projData = () => ({ v: 2, hookOn: state.hookOn, hero: state.hero, content: state.content, stock: state.stock, capOn: state.capOn, cover: state.cover, enhance: state.enhance, trans: state.trans, overlay: state.overlay, mascot: state.mascot, audio: state.audio, stretch: state.stretch, clipSec: state.clipSec, routeData: state.routeData, skipMap: state.skipMap, facts: state.facts, useArea: state.useArea, contact: state.contact, size: state.size, color: state.color, script: state.script, houses: state.houses || [], items: state.items.map(({ id, blob, type, room, name, title, orig }) => ({ id, blob, type, room, name, title, orig })) });
 const save = () => { if (typeof updateSb === 'function') updateSb(); if (!state.pid) return Promise.resolve(); if (typeof schedMeta === 'function') schedMeta(); return DB.set('project:' + state.pid, projData()).catch(() => {}); };
 function applyProject(p) {
-  if (p) { if (!p.v) p.items.forEach(i => { if (i.room === 'หน้าบ้าน/ภายนอก') i.room = ''; }); state.size = p.size; state.hookOn = p.hookOn !== false; state.hero = p.hero || null; state.content = p.content || null; state.capOn = p.capOn !== false; state.cover = p.cover || null; state.enhance = p.enhance || 'off'; state.stock = p.stock || { mode: 'all', ids: null, counted: [] }; state.trans = p.trans || 'auto'; state.overlay = p.overlay !== false; state.color = { ...COLOR_DEFAULT, ...(p.color || {}) }; state.script = { area: '', rooms: {}, en: {}, enSrc: {}, ...(p.script || {}) }; state.skipMap = !!p.skipMap; state.house = p.house || null; state.clipSec = p.clipSec || 180; state.audio = { mode: 'single', single: null, chunks: {}, beatAud: {}, music: null, musicVol: 15, duck: true, duckBoost: 2.5, sfx: true, ...(p.audio || {}) }; state.mascot = { presenter: true, size: 0.28, side: 'left', ...(p.mascot || {}) }; state.stretch = p.stretch !== false; state.routeData = p.routeData || null; state.facts = { ...state.facts, ...(p.facts || {}) }; state.useArea = true; state.contact = { mode: 'std', ...(p.contact || {}), custom: { name: '', phone: '', line: '', ...((p.contact || {}).custom || {}) } }; state.items = p.items; nextId = Math.max(0, ...p.items.map(i => i.id)) + 1; }
+  if (p) { if (!p.v) p.items.forEach(i => { if (i.room === 'หน้าบ้าน/ภายนอก') i.room = ''; }); state.size = p.size; state.hookOn = p.hookOn !== false; state.hero = p.hero || null; state.content = p.content || null; state.capOn = p.capOn !== false; state.cover = p.cover || null; state.enhance = p.enhance || 'off'; state.stock = p.stock || { mode: 'all', ids: null, counted: [] }; state.trans = p.trans || 'auto'; state.overlay = p.overlay !== false; state.color = { ...COLOR_DEFAULT, ...(p.color || {}) }; state.script = { area: '', rooms: {}, en: {}, enSrc: {}, ...(p.script || {}) }; state.skipMap = !!p.skipMap; state.houses = (p.houses || (p.house ? [p.house] : [])).map(h => ({ ...h, id: h.id || libSeq++ })); state.clipSec = p.clipSec || 180; state.audio = { mode: 'single', single: null, chunks: {}, beatAud: {}, music: null, musicVol: 15, duck: true, duckBoost: 2.5, sfx: true, ...(p.audio || {}) }; state.mascot = { presenter: true, size: 0.28, side: 'left', ...(p.mascot || {}) }; state.stretch = p.stretch !== false; state.routeData = p.routeData || null; state.facts = { ...state.facts, ...(p.facts || {}) }; state.useArea = true; state.contact = { mode: 'std', ...(p.contact || {}), custom: { name: '', phone: '', line: '', ...((p.contact || {}).custom || {}) } }; state.items = p.items; nextId = Math.max(0, ...p.items.map(i => i.id)) + 1; }
 }
 
 const $ = s => document.querySelector(s);
@@ -369,29 +369,33 @@ function scriptBarHtml(sl) {
 const tmUrl = r => { try { return URL.createObjectURL(r.blob); } catch (e) { return ''; } };
 const tmThumb = (r, extra) => (r.type === 'video' ? `<video src="${tmUrl(r)}#t=0.1" muted playsinline></video>` : `<img src="${tmUrl(r)}" alt="">`) + extra;
 function titleMediaHtml() {
-  const bgs = lib.titleBgs || [], cur = titleBgRec(), sel = cur ? cur.id : 0, h = state.house;
-  return `<div class="seg"><b>🖼️ ส่วนที่ 1 · พื้นหลังของฉากมาสคอต</b><p class="hint">ใส่รูปหรือคลิป (ภาพเคลื่อนไหวก็ได้) ภาพแรกที่ใส่จะเป็นพื้นหลังทันที มาสคอตลอยอยู่บนภาพนั้น · อัปโหลดไว้หลายแบบแล้วแตะรูปเพื่อสลับได้ · ตั้งครั้งเดียว ใช้กับทุกคลิป</p>
-    <div class="sgrid"><div class="th${sel ? ' off' : ''}" data-tbg="none" style="display:flex;align-items:center;justify-content:center;background:#f7efe3">${sel ? '' : '<span class="tick">✓</span>'}<small style="text-align:center;padding:4px">ไม่ใช้ภาพ<br>(พื้นครีมมาตรฐาน)</small></div>
-    ${bgs.map(r => `<div class="th${sel === r.id ? '' : ' off'}" data-tbg="${r.id}">${sel === r.id ? '<span class="tick">✓</span>' : ''}${tmThumb(r, `<button class="x" data-tbgdel="${r.id}" aria-label="ลบ">✕</button>`)}</div>`).join('')}</div>
-    ${titleMeter('bg')}<button class="btn alt" data-a="tbgadd">＋ เพิ่มพื้นหลัง (รูป/คลิป)</button></div>
-  <div class="seg"><b>🏠 ส่วนที่ 2 · บ้านที่กำลังนำเสนอ (คลิปนี้)</b><p class="hint">ใส่รูปหรือคลิปบ้านหลังนี้ ตอนที่มาสคอตพูดถึงบ้าน/โครงการ รูปบ้านจะโผล่ขึ้นมากลางจอทันที (จับจังหวะจากสคริปต์ช่วงเปิดคลิป) · ใส่เฉพาะคลิปนี้</p>
-    ${h ? `<div class="sgrid"><div class="th">${tmThumb(h, '<button class="x" data-thdel="1" aria-label="ลบ">✕</button>')}</div></div>` : ''}
-    ${titleMeter('house')}<button class="btn alt" data-a="thadd">${h ? '↻ เปลี่ยนรูป/คลิปบ้าน' : '＋ เลือกรูป/คลิปบ้าน'}</button></div>`;
+  const bgs = lib.titleBgs || [], on = new Set(titleBgList().map(b => b.id)), hs = state.houses || [];
+  return `<div class="seg"><b>🖼️ ส่วนที่ 1 · พื้นหลังของฉากมาสคอต</b><p class="hint">ใส่ได้หลายรูป/หลายคลิป (ภาพเคลื่อนไหวก็ได้) แตะเพื่อ <b>เลือก ✓ หลายภาพ</b> ภาพที่เลือกจะเล่นต่อกันตามลำดับ แบ่งเวลาให้เต็มความยาวฉาก มาสคอตลอยอยู่บนภาพ · อัปโหลดครั้งเดียว ใช้กับทุกคลิป</p>
+    <div class="sgrid"><div class="th${on.size ? ' off' : ''}" data-tbg="none" style="display:flex;align-items:center;justify-content:center;background:#f7efe3">${on.size ? '' : '<span class="tick">✓</span>'}<small style="text-align:center;padding:4px">ไม่ใช้ภาพ<br>(พื้นครีมมาตรฐาน)</small></div>
+    ${bgs.map(r => `<div class="th${on.has(r.id) ? '' : ' off'}" data-tbg="${r.id}">${on.has(r.id) ? '<span class="tick">✓</span>' : ''}${tmThumb(r, `<button class="x" data-tbgdel="${r.id}" aria-label="ลบ">✕</button>`)}${r.type === 'video' ? `<span class="tdur">${Math.round(r.dur || 0) || '…'} วิ</span>` : ''}</div>`).join('')}</div>
+    ${titleMeter('bg')}<button class="btn alt" data-a="tbgadd">＋ เพิ่มพื้นหลัง (รูป/คลิป เลือกได้หลายไฟล์)</button></div>
+  <div class="seg"><b>🏠 ส่วนที่ 2 · บ้านที่กำลังนำเสนอ (คลิปนี้)</b><p class="hint">ใส่ได้หลายรูป/หลายคลิปของบ้านหลังนี้ ตอนที่มาสคอตพูดถึงบ้าน/โครงการ ภาพบ้านจะโผล่ขึ้นกลางจอทันทีแล้วเล่นต่อกันตามลำดับจนจบฉาก (จับจังหวะจากสคริปต์ช่วงเปิดคลิป) · ใส่เฉพาะคลิปนี้</p>
+    ${hs.length ? `<div class="sgrid">${hs.map(h => `<div class="th">${tmThumb(h, `<button class="x" data-thdel="${h.id}" aria-label="ลบ">✕</button>`)}${h.type === 'video' ? `<span class="tdur">${Math.round(h.dur || 0) || '…'} วิ</span>` : ''}</div>`).join('')}</div>` : ''}
+    ${titleMeter('house')}<button class="btn alt" data-a="thadd">＋ เพิ่มรูป/คลิปบ้าน (เลือกได้หลายไฟล์)</button></div>`;
 }
-// ขีดวัดของฉากไตเติล: พื้นหลัง = ต้องเติมเต็มความยาวฉาก · บ้าน = ต้องเติมตั้งแต่จังหวะที่โผล่จนจบฉาก (หลักเดียวกับทุกช่วง)
+// รายการพื้นหลังที่เลือกใช้ (เรียงตามลำดับในรายการ) · ของเก่าที่ยังไม่มีเครื่องหมายเลือก = ภาพแรก/ภาพที่เคยเลือกไว้
+const titleBgList = () => { const L = lib.titleBgs || []; if (!L.length) return []; if (L.some(b => b.on != null)) return L.filter(b => b.on); if (lib.titleBgSel === 0) return []; return [L.find(b => b.id === lib.titleBgSel) || L[0]]; };
+const titleBgMaterialize = () => { const L = lib.titleBgs || []; if (!L.some(b => b.on != null)) { const cur = titleBgList(); L.forEach(b => { b.on = cur.includes(b); }); } };
+// ขีดวัดของฉากไตเติล: พื้นหลัง = ต้องเติมเต็มความยาวฉาก · บ้าน = ต้องเติมตั้งแต่จังหวะที่โผล่จนจบฉาก (หลักเดียวกับทุกช่วง: รูปนับ ~5 วิ · คลิปนับตามความยาวจริง)
 let _tProbing = false;
 function titleMeter(kind) {
-  const r = kind === 'bg' ? titleBgRec() : state.house; if (!r) return '';
-  const dur = titleDur(), need = Math.max(1, kind === 'bg' ? dur : dur - titleHouseAt(dur));
-  if (r.type !== 'video') return `<div class="fit1"><b style="width:100%"></b></div><small class="fitl ok">รูปนิ่ง เติมได้เต็มเวลา ${Math.round(need)} วิ (100%) ✅</small>`;
-  if (!r.dur) { if (!_tProbing) { _tProbing = true; probeItems([r]).then(async () => { _tProbing = false; if (r.dur) { if (kind === 'bg') await saveLib(); else await save(); refreshAll(); } }); } return '<small class="fitl w">⏳ กำลังอ่านความยาวคลิป…</small>'; }
-  const pct = Math.round(r.dur / need * 100);
-  return `<div class="fit1"><b style="width:${Math.min(100, pct)}%"></b></div><small class="fitl ${pct >= 100 ? 'ok' : 'w'}">คลิปยาว ${Math.round(r.dur)} วิ · ฉากนี้ต้องใช้ ${Math.round(need)} วิ (${pct}%) — ${pct >= 100 ? '✅ ยาวพอ ตัดที่ ' + Math.round(need) + ' วิ' : '➕ สั้นกว่าเวลา จะเล่นซ้ำให้เต็ม (ใช้คลิปที่ยาวกว่านี้จะดีกว่า)'}</small>`;
+  const list = kind === 'bg' ? titleBgList() : (state.houses || []); if (!list.length) return '';
+  const dur = titleDur(), need = Math.max(1, kind === 'bg' ? dur : dur - titleHouseAt(dur)), STILL = 5;
+  const miss = list.filter(r => r.type === 'video' && !r.dur);
+  if (miss.length) { if (!_tProbing) { _tProbing = true; probeItems(miss).then(async () => { _tProbing = false; if (kind === 'bg') await saveLib(); else await save(); refreshAll(); }); } return '<small class="fitl w">⏳ กำลังอ่านความยาวคลิป…</small>'; }
+  const have = list.reduce((a, r) => a + (r.type === 'video' ? r.dur : STILL), 0), pct = Math.round(have / need * 100), nv = list.filter(r => r.type === 'video').length;
+  const parts = `${list.length - nv ? (list.length - nv) + ' รูป (~5 วิ/รูป)' : ''}${list.length - nv && nv ? ' + ' : ''}${nv ? nv + ' คลิป' : ''}`;
+  return `<div class="fit1"><b style="width:${Math.min(100, pct)}%"></b></div><small class="fitl ${pct >= 100 ? 'ok' : 'w'}">${parts} · เติมได้ ~${Math.round(have)} วิ จากที่ฉากนี้ต้องใช้ ${Math.round(need)} วิ (${pct}%) — ${pct >= 100 ? '✅ เต็มแล้ว ' + (have > need + 0.5 ? 'แอปตัดให้พอดีเวลา' : 'พอดีเวลา') : '➕ ยังไม่เต็ม เพิ่มอีกประมาณ ' + Math.round(need - have) + ' วิ (หรือจะให้ภาพ/คลิปเล่นซ้ำให้เต็มก็ได้)'}</small>`;
 }
 // สรุปรูป/คลิปที่ใส่ไว้ในการ์ดไตเติล ให้เห็นว่าอะไรเป็นพื้นหลัง อะไรคือบ้าน
 function titleChosenHtml() {
-  const bg = titleBgRec(), h = state.house, box = (lab, r, kind) => `<div class="tchip"><div class="th">${r ? tmThumb(r, '') : '<small style="padding:4px;text-align:center">ไม่ได้ใส่</small>'}</div><b>${lab}</b><small>${r ? (r.type === 'video' ? '🎬 คลิป' : '🖼️ รูป') + ' · ' + esc((r.name || '').slice(0, 14)) : 'ใช้พื้นครีมมาตรฐาน'}</small>${titleMeter(kind)}</div>`;
-  return `<div class="trow">${box('① พื้นหลังมาสคอต', bg, 'bg')}${box('② บ้านที่นำเสนอ', h, 'house')}</div>`;
+  const box = (lab, list, kind, emptyTxt) => `<div class="tchip"><div class="tmini">${list.length ? list.slice(0, 4).map(r => `<div class="th">${tmThumb(r, '')}</div>`).join('') + (list.length > 4 ? `<small>+${list.length - 4}</small>` : '') : `<small style="padding:4px">${emptyTxt}</small>`}</div><b>${lab}</b><small>${list.length ? `${list.length} ไฟล์ · ` + list.map(r => (r.type === 'video' ? '🎬' : '🖼️')).join('') : ''}</small>${titleMeter(kind)}</div>`;
+  return `<div class="trow">${box('① พื้นหลังมาสคอต', titleBgList(), 'bg', 'ใช้พื้นครีมมาตรฐาน')}${box('② บ้านที่นำเสนอ', state.houses || [], 'house', 'ยังไม่ได้ใส่')}</div>`;
 }
 const sceneModeHtml = sl => `<label class="sw"><input type="radio" name="tmode" value="builtin" ${lib[sl.id + 'Builtin'] ? 'checked' : ''}> 🎬 ใช้${sl.id === 'title' ? 'ไตเติล' : 'เครดิตปิด'}ของแอป (มาสคอต Huahin Properties)</label>
   <label class="sw"><input type="radio" name="tmode" value="custom" ${lib[sl.id + 'Builtin'] ? '' : 'checked'}> ใช้ไฟล์ของฉันเอง</label>
@@ -426,11 +430,11 @@ function openSlot(id) {
     if (e.target.closest('[data-a=rmroute]')) { if (confirm('ลบคลิปเส้นทางรถวิ่ง?')) { state.routeData = null; await save(); updateSb(); openSlot(id); } return; }
     if (e.target.closest('[data-a=genroute]')) { const st = d.querySelector('#routeStat'), btn = e.target.closest('[data-a=genroute]'); btn.disabled = true; try { const rd = await buildRouteData(st); if (rd) { state.routeData = rd; state.skipMap = false; await save(); updateSb(); openSlot(id); } } catch (err) { st.textContent = '❌ สร้างไม่สำเร็จ (ต่อเน็ตอยู่ไหม?) ' + (err.message || err); } btn.disabled = false; return; }
     if (e.target.closest('[data-a=genmap]')) { const st = d.querySelector('#genStat'), btn = e.target.closest('[data-a=genmap]'); btn.disabled = true; const n = await generateMapImages(st); btn.disabled = false; if (n) { updateSb(); openSlot(id); } return; }
-    { const td = e.target.closest('[data-tbgdel]'); if (td) { if (confirm('ลบพื้นหลังนี้ใช่ไหม?')) { lib.titleBgs = (lib.titleBgs || []).filter(r => r.id !== +td.dataset.tbgdel); if (lib.titleBgSel === +td.dataset.tbgdel) lib.titleBgSel = null; await saveLib(); openSlot(id); } return; }
-      const tb = e.target.closest('[data-tbg]'); if (tb) { lib.titleBgSel = tb.dataset.tbg === 'none' ? 0 : +tb.dataset.tbg; await saveLib(); openSlot(id); return; }
-      if (e.target.closest('[data-a=tbgadd]')) { const fs = await pickFiles('image/*,video/*', true); if (fs.length) { lib.titleBgs = lib.titleBgs || []; const had = lib.titleBgs.length; fs.forEach(f => lib.titleBgs.push({ id: libSeq++, blob: f, type: f.type.startsWith('video') ? 'video' : 'image', name: f.name })); await probeItems(lib.titleBgs); if (lib.titleBgSel === 0 && !had) lib.titleBgSel = null; await saveLib(); openSlot(id); } return; }
-      if (e.target.closest('[data-thdel]')) { state.house = null; await save(); openSlot(id); return; }
-      if (e.target.closest('[data-a=thadd]')) { const [f] = await pickFiles('image/*,video/*', false); if (f) { state.house = { blob: f, type: f.type.startsWith('video') ? 'video' : 'image', name: f.name }; await probeItems([state.house]); await save(); openSlot(id); } return; } }
+    { const td = e.target.closest('[data-tbgdel]'); if (td) { if (confirm('ลบพื้นหลังนี้ใช่ไหม?')) { titleBgMaterialize(); lib.titleBgs = (lib.titleBgs || []).filter(r => r.id !== +td.dataset.tbgdel); await saveLib(); openSlot(id); } return; }
+      const tb = e.target.closest('[data-tbg]'); if (tb) { titleBgMaterialize(); const L = lib.titleBgs || []; if (tb.dataset.tbg === 'none') L.forEach(b => { b.on = false; }); else { const b = L.find(x => x.id === +tb.dataset.tbg); if (b) b.on = !b.on; } await saveLib(); openSlot(id); return; }
+      if (e.target.closest('[data-a=tbgadd]')) { const fs = await pickFiles('image/*,video/*', true); if (fs.length) { lib.titleBgs = lib.titleBgs || []; titleBgMaterialize(); const add = fs.map(f => ({ id: libSeq++, blob: f, type: f.type.startsWith('video') ? 'video' : 'image', name: f.name, on: true })); lib.titleBgs.push(...add); await probeItems(add); await saveLib(); openSlot(id); } return; }
+      const hd = e.target.closest('[data-thdel]'); if (hd) { state.houses = (state.houses || []).filter(h => h.id !== +hd.dataset.thdel); await save(); openSlot(id); return; }
+      if (e.target.closest('[data-a=thadd]')) { const fs = await pickFiles('image/*,video/*', true); if (fs.length) { const add = fs.map(f => ({ id: libSeq++, blob: f, type: f.type.startsWith('video') ? 'video' : 'image', name: f.name })); await probeItems(add); state.houses = [...(state.houses || []), ...add]; await save(); openSlot(id); } return; } }
     if (e.target.closest('[data-a=add]')) { const fs = await pickFiles('image/*,video/*', !sl.max1); if (fs.length) { await addToSlot(sl, fs); updateSb(); openSlot(id); } return; }
     const b = e.target.closest('[data-del]'); if (b && confirm('ลบไฟล์นี้ใช่ไหม?')) { await removeFromSlot(sl, +b.dataset.del); updateSb(); openSlot(id); }
   };
@@ -695,8 +699,6 @@ function segAudioSec() {
   return out;
 }
 // ความยาวฉากเปิด/ปิด ปรับตามความยาวเสียงพูด (อย่างน้อยเท่าค่ามาตรฐาน)
-// พื้นหลังฉากมาสคอต: รูป/คลิปแรกที่อัปโหลดคือพื้นหลังอัตโนมัติ (แตะรูปอื่นเพื่อเปลี่ยน · 0 = ไม่ใช้)
-const titleBgRec = () => { const L = lib.titleBgs || []; if (!L.length || lib.titleBgSel === 0) return null; return L.find(b => b.id === lib.titleBgSel) || L[0]; };
 // เวลาที่บ้านโผล่ขึ้น: ตรงกับช่วงที่คำบรรยายเริ่มพูดถึงบ้าน/โครงการ (หาจากตำแหน่งในสคริปต์ช่วงเปิดคลิป)
 function titleHouseAt(dur) {
   const g = typeof scriptSegmentsAll === 'function' ? scriptSegmentsAll().find(x => x.key === 'open') : null, txt = g ? String(g.text || '') : '';
