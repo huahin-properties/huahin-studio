@@ -10,7 +10,16 @@ const _c = (v, a, b) => Math.min(b, Math.max(a, v));
 const easeOutBounce = x => { const n = 7.5625, d = 2.75; if (x < 1 / d) return n * x * x; if (x < 2 / d) return n * (x -= 1.5 / d) * x + 0.75; if (x < 2.5 / d) return n * (x -= 2.25 / d) * x + 0.9375; return n * (x -= 2.625 / d) * x + 0.984375; };
 const easeOut = x => 1 - (1 - x) ** 3;
 
-function sceneBackground(ctx, W, H, t) {
+// สื่อประกอบฉากไตเติล: รูปหรือคลิป (พื้นหลังฉาก / บ้านที่นำเสนอ)
+async function sceneMedia(rec, dur) {
+  if (!rec || !rec.blob) return null;
+  try {
+    if (rec.type === 'video') { const v = await makeVideoItem(rec.blob, dur), L = () => Math.max(0.5, v.vid.duration || dur); return { draw: (c, W, H) => v.draw(c, W, H), prepare: t => v.prepare(t % L()), close: () => v.close() }; }
+    const bmp = await createImageBitmap(rec.blob); return { draw: (c, W, H) => drawCover(c, bmp, W, H, 1), close: () => { try { bmp.close(); } catch (e) {} } };
+  } catch (e) { return null; }
+}
+function sceneBackground(ctx, W, H, t, bg) {
+  if (bg) { bg.draw(ctx, W, H); ctx.fillStyle = 'rgba(247,239,227,.34)'; ctx.fillRect(0, 0, W, H); const u0 = Math.min(W, H) / 1080; ctx.strokeStyle = 'rgba(255,255,255,.85)'; ctx.lineWidth = 3 * u0; ctx.strokeRect(36 * u0, 36 * u0, W - 72 * u0, H - 72 * u0); return; }
   const g = ctx.createLinearGradient(0, 0, 0, H); g.addColorStop(0, '#f7efe3'); g.addColorStop(1, '#ead9bf'); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
   const u = Math.min(W, H) / 1080;
   // วงกลมทองแบบเหรียญโลโก้ (ลอยเบาๆ)
@@ -47,24 +56,36 @@ function drawMascot(ctx, pose, cx, bottom, h, yoff = 0, rot = 0) {
 }
 function layoutFor(W, H) { return W > H * 1.2 ? 'land' : 'port'; }
 
+function houseCard(ctx, x, y, w, h, t, at, house) {
+  const a = _c((t - at) / 0.7, 0, 1); if (a <= 0 || w < 20 || h < 20) return; const e = easeOut(a), r = Math.min(w, h) * 0.06, pad = Math.max(5, Math.min(w, h) * 0.025);
+  const rr = (X, Y, Wd, Hd, R) => { ctx.beginPath(); ctx.moveTo(X + R, Y); ctx.arcTo(X + Wd, Y, X + Wd, Y + Hd, R); ctx.arcTo(X + Wd, Y + Hd, X, Y + Hd, R); ctx.arcTo(X, Y + Hd, X, Y, R); ctx.arcTo(X, Y, X + Wd, Y, R); ctx.closePath(); };
+  ctx.save(); ctx.globalAlpha *= e; ctx.translate(0, (1 - e) * 40);
+  ctx.shadowColor = 'rgba(60,30,20,.4)'; ctx.shadowBlur = 26; ctx.shadowOffsetY = 8; ctx.fillStyle = '#fff'; rr(x, y, w, h, r); ctx.fill(); ctx.shadowColor = 'transparent';
+  ctx.save(); rr(x + pad, y + pad, w - pad * 2, h - pad * 2, Math.max(2, r - pad * 0.5)); ctx.clip(); ctx.translate(x + pad, y + pad); house.draw(ctx, w - pad * 2, h - pad * 2); ctx.restore();
+  ctx.restore();
+}
 async function titleScene() {
-  const M = await loadMascots();
+  const M = await loadMascots(), dur = typeof titleDur === 'function' ? titleDur() : TITLE_DUR;
+  const bgRec = (lib.titleBgs || []).find(b => b.id === lib.titleBgSel), bg = await sceneMedia(bgRec, dur), house = await sceneMedia(state.house, dur), hasH = !!house;
   return {
-    dur: typeof titleDur === 'function' ? titleDur() : TITLE_DUR,
+    dur,
+    async prepare(t) { if (bg && bg.prepare) await bg.prepare(t); if (house && house.prepare) await house.prepare(t); },
+    close() { if (bg) bg.close(); if (house) house.close(); },
     draw(ctx, W, H, t, abs = 0) {
-      SCENE_T = abs + t; const u = Math.min(W, H) / 1080, land = layoutFor(W, H) === 'land'; sceneBackground(ctx, W, H, t);
-      const mh = land ? H * 0.74 : H * 0.42, cx = land ? W * 0.27 : W / 2, bottom = land ? H * 0.86 : H * 0.55;
+      SCENE_T = abs + t; const u = Math.min(W, H) / 1080, land = layoutFor(W, H) === 'land'; sceneBackground(ctx, W, H, t, bg);
+      const mh = land ? H * 0.74 : H * (hasH ? 0.33 : 0.42), cx = land ? W * 0.27 : W / 2, bottom = land ? H * 0.86 : H * (hasH ? 0.42 : 0.55);
       let yoff = 0, pose = M.hello, rot = 0;
       if (t < 0.9) { yoff = -(1 - easeOutBounce(_c(t / 0.9, 0, 1))) * H * 0.6; }
       else if (t < 4.2) { yoff = Math.sin((t - 0.9) * 3) * -6 * u; pose = Math.floor((t - 0.9) / 0.4) % 2 ? M.hello : M.wave; rot = Math.sin((t - 0.9) * 6) * 0.02; }
       else { pose = M.celebrate; yoff = -Math.abs(Math.sin((t - 4.2) * 4)) * 40 * u; }
       drawMascot(ctx, pose, cx, bottom, mh, yoff, rot);
       if (t > 4.2) for (let i = 0; i < 6; i++) sparkle(ctx, cx + Math.cos(i * 1.1 + t) * mh * 0.42, bottom - mh * 0.55 + Math.sin(i * 1.7 + t * 2) * mh * 0.4, (14 + (i % 3) * 7) * u, (Math.sin(t * 6 + i) + 1) / 2);
-      const tx = land ? W * 0.68 : W / 2, mw = land ? W * 0.55 : W * 0.82, y0 = land ? H * 0.32 : H * 0.65, B = BR(), sub = (B.subtitle || '').trim() || (state.facts && state.facts.name || '').trim() || 'บ้านพักตากอากาศ หัวหิน';
+      const tx = land ? W * 0.68 : W / 2, mw = land ? W * 0.55 : W * 0.82, y0 = land ? H * (hasH ? 0.2 : 0.32) : H * (hasH ? 0.5 : 0.65), B = BR(), sub = (B.subtitle || '').trim() || (state.facts && state.facts.name || '').trim() || 'บ้านพักตากอากาศ หัวหิน';
       drawText(ctx, B.greeting, tx, y0, { t, at: 1.0, size: 120 * u, color: '#7a1f2b', family: SANS, maxW: mw, shadow: true });
       brandLine(ctx, tx, y0 + 120 * u, 78 * u, t, 1.7, mw);
       drawText(ctx, B.tagline, tx, y0 + 195 * u, { t, at: 2.3, size: 32 * u, color: '#b8862d', family: SANS, maxW: mw, spacing: `${5 * u}px`, weight: '600' });
       drawText(ctx, sub, tx, y0 + 270 * u, { t, at: 3.0, size: 46 * u, color: '#2e2220', family: SANS, maxW: mw, weight: '600' });
+      if (hasH) { const top = y0 + 270 * u + 52 * u, room = H - 64 * u - top, ch = Math.min(room, H * (land ? 0.46 : 0.3)), cw = Math.min(mw, ch * 1.6); houseCard(ctx, tx - cw / 2, top, cw, cw === mw ? cw / 1.6 : ch, t, 3.4, house); }
     },
   };
 }
